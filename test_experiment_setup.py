@@ -24,13 +24,13 @@ def test_dataset():
         args = Namespace(
             dataset='seq-cifar10-custom',
             seed=42,
-            custom_class_order=None, # Let dataset default this
+            custom_class_order=None, 
             permute_classes=False,
             custom_task_order=None,
             label_perc=1,
             label_perc_by_class=1,
             validation=None, 
-            validation_mode='class-il', # Changed to a valid mode
+            validation_mode='current', 
             base_path='./data/',
             transform_type='weak',
             joint=False,
@@ -39,6 +39,9 @@ def test_dataset():
             enable_other_metrics=False,
             eval_future=False,
             noise_rate=0.0,
+            batch_size=32,  
+            drop_last=False,
+            num_workers=0 # Added for create_seeded_dataloader
         )
         
         dataset = get_dataset(args)
@@ -48,27 +51,39 @@ def test_dataset():
         print(f"  - Setting: {dataset.SETTING}")
         print(f"  - Classes per task: {dataset.N_CLASSES_PER_TASK}")
         print(f"  - Number of tasks: {dataset.N_TASKS}")
-        print(f"  - Total classes: {dataset.N_CLASSES}")
-        if hasattr(dataset, 'class_order') and dataset.class_order is not None: # Check before printing
+        print(f"  - Total classes: {dataset.N_CLASSES}") 
+        if hasattr(dataset, 'class_order') and dataset.class_order is not None:
             print(f"  - Class order (indices): {dataset.class_order}")
         else:
-            print(f"  - Class order (indices): Not set by superclass")
-        print(f"  - Class names: {dataset.get_class_names()}")
-        if hasattr(dataset, 'get_task_labels'):
-            print(f"  - Task labels: {dataset.get_task_labels()}")
-        else:
-            print(f"  - Task labels: Not available")
+            print(f"  - Class order (indices): Not set or None")
+        
+        class_names = dataset.get_class_names()
+        print(f"  - Class names: {class_names}")
+        if len(class_names) != dataset.N_CLASSES:
+            print(f"  WARNING: Class names length ({len(class_names)}) "
+                  f"does not match dataset N_CLASSES ({dataset.N_CLASSES})")
+
+        task_labels = dataset.get_task_labels() # get_task_labels is always available now
+        print(f"  - Task labels: {task_labels}")
         
         train_loader, test_loader = dataset.get_data_loaders()
         print(f"  - Train loader: {len(train_loader)} batches")
         print(f"  - Test loader: {len(test_loader)} batches")
         
-        for batch_idx, (data, targets, not_aug_data) in enumerate(train_loader):
-            print(f"  - Batch shape: {data.shape}")
-            print(f"  - Target shape: {targets.shape}")
-            print(f"  - Unique targets in batch: {torch.unique(targets).tolist()}")
-            break
+        data_iter = iter(train_loader)
+        data, targets, not_aug_data = next(data_iter)
+        print(f"  - Batch shape: {data.shape}")
+        print(f"  - Target shape: {targets.shape}")
+        print(f"  - Unique targets in batch: {torch.unique(targets).tolist()}")
         
+        expected_class_names = ['airplane', 'automobile', 'bird', 'truck']
+        assert class_names == expected_class_names, \
+            f"Class names mismatch: Expected {expected_class_names}, Got {class_names}"
+        
+        expected_task_labels = {0: ['airplane', 'automobile'], 1: ['bird', 'truck']}
+        assert task_labels == expected_task_labels, \
+            f"Task labels mismatch: Expected {expected_task_labels}, Got {task_labels}"
+
         return True
         
     except Exception as e:
@@ -86,6 +101,7 @@ def test_backbone():
             backbone='vit', num_classes=4, pretrained=False, pretrain_type='in21k-ft-in1k')
         backbone = get_backbone(args)
         print(f"✓ Backbone loaded successfully")
+        # ... (rest of backbone test)
         print(f"  - Type: {type(backbone).__name__}")
         print(f"  - Number of parameters: {sum(p.numel() for p in backbone.parameters()):,}")
         test_input = torch.randn(2, 3, 224, 224)
@@ -116,7 +132,7 @@ def test_models():
             label_perc=1,
             label_perc_by_class=1,
             validation=None,
-            validation_mode='class-il', # Changed
+            validation_mode='current', 
             base_path='./data/',
             transform_type='weak',
             pretrained=False,
@@ -129,9 +145,9 @@ def test_models():
             noise_rate=0.0,
             lr=0.01,
             optimizer='sgd', 
-            optim_wd=0.0, # Added weight decay
-            optim_mom=0.0, # Added momentum (often needed with optim_wd)
-            optim_nesterov=False, # Added nesterov (often needed with optim_wd)
+            optim_wd=0.0, 
+            optim_mom=0.0, 
+            optim_nesterov=False, 
             device='cpu',
             model='derpp', 
             buffer_size=50,
@@ -139,11 +155,15 @@ def test_models():
             beta=0.5,
             e_lambda=0.4, 
             gamma=0.85,
+            batch_size=32, 
+            drop_last=False,
+            num_workers=0 # Added
         )
         
         print("  Testing DER++...")
         dataset = get_dataset(args) 
         args.num_classes = dataset.N_CLASSES 
+        
         backbone_net = get_backbone(args) 
         loss = dataset.get_loss()
         transform = dataset.get_transform()
@@ -155,7 +175,7 @@ def test_models():
         
         print("  Testing EWC...")
         args.model = 'ewc_on'
-        backbone_net_ewc = get_backbone(args) # New instance for EWC
+        backbone_net_ewc = get_backbone(args) 
         model_ewc = get_model(args, backbone_net_ewc, loss, transform, dataset=dataset)
         print(f"    ✓ EWC model created successfully")
         return True
@@ -186,7 +206,7 @@ def test_visualization_utils():
             label_perc=1,
             label_perc_by_class=1,
             validation=None,
-            validation_mode='class-il', # Changed
+            validation_mode='current', 
             base_path='./data/',
             transform_type='weak',
             joint=False,
@@ -197,18 +217,22 @@ def test_visualization_utils():
             noise_rate=0.0,
             lr=0.01, 
             optimizer='sgd',
-            optim_wd=0.0, # Added
-            optim_mom=0.0, # Added
-            optim_nesterov=False, # Added
-            device='cpu',
+            optim_wd=0.0, 
+            optim_mom=0.0, 
+            optim_nesterov=False, 
+            device='cpu', 
             model='derpp', 
             buffer_size=50, 
             alpha=0.1,      
             beta=0.5,
+            batch_size=32, 
+            drop_last=False,
+            num_workers=0 # Added
         )
 
         dataset = get_dataset(args)
         args.num_classes = dataset.N_CLASSES 
+        
         backbone_net = get_backbone(args) 
         loss = dataset.get_loss()
         transform = dataset.get_transform()
@@ -218,7 +242,7 @@ def test_visualization_utils():
         print(f"    ✓ AttentionExtractor created")
         activation_extractor = ActivationExtractor(model_instance, device='cpu')
         print(f"    ✓ ActivationExtractor created")
-        dummy_input = torch.randn(1, 3, 224, 224)
+        dummy_input = torch.randn(1, 3, 224, 224) 
         attention_maps = attention_extractor.extract_attention(dummy_input)
         print(f"    ✓ Attention extraction successful")
         print(f"    - Number of attention maps: {len(attention_maps)}")
@@ -239,10 +263,11 @@ def test_experiment_runner():
     try:
         from experiments.shortcut_investigation import ShortcutInvestigationExperiment
         base_args = {
-            'n_epochs': 1, 'batch_size': 4, 'lr': 0.01, 'device': 'cpu',
+            'n_epochs': 1, 'batch_size': 32, 'lr': 0.01, 'device': 'cpu', 
             'debug_mode': 1, 'permute_classes': False, 'custom_class_order': None,
-            'custom_task_order': None, 'validation_mode': 'class-il', 'optimizer': 'sgd',
-            'optim_wd': 0.0, 'optim_mom': 0.0, 'optim_nesterov': False, # Added
+            'custom_task_order': None, 'validation_mode': 'current', 'optimizer': 'sgd', 
+            'optim_wd': 0.0, 'optim_mom': 0.0, 'optim_nesterov': False,
+            'drop_last': False, 'num_workers': 0 # Added
         }
         experiment = ShortcutInvestigationExperiment(
             base_args=base_args, experiment_name="test_experiment")
