@@ -1,198 +1,274 @@
 # run_shortcut_experiment.py
 #!/usr/bin/env python3
 """
-Simple script to run the shortcut investigation experiment.
+Experiment manager for investigating shortcut features in continual learning.
+
+This script runs experiments, parses results from stdout, aggregates them,
+and saves them to a JSON file. It also provides a clean summary of results.
 """
 
 import os
 import sys
 import argparse
 import subprocess
+import json
+import re
 from datetime import datetime
+from typing import Dict, List, Any, Tuple
 
-def run_experiment(method='derpp', seed=42, epochs=10, debug_val=0, use_gpu=True, num_data_workers=2):
+import pandas as pd
+from tqdm import tqdm
+
+# --- Configuration ---
+# Centralize experiment parameters for easy modification.
+EXPERIMENT_CONFIG = {
+    "methods": ['derpp', 'ewc_on'],
+    "seeds": [42, 123, 456],
+    "epochs_per_task": 10, # Set the desired number of epochs for the actual run
+    "batch_size": 32,
+    "lr": 0.01,
+    "optimizer": "sgd",
+    "num_workers": 4, # Increase workers if your machine has multiple cores
+}
+
+def parse_results(output: str) -> Dict[str, float]:
     """
-    Run a single experiment with the specified parameters.
-    
+    Parses the stdout of a Mammoth experiment to extract key metrics.
+
     Args:
-        method: Continual learning method ('derpp' or 'ewc_on')
-        seed: Random seed for reproducibility
-        epochs: Number of training epochs
-        debug_val: Value for Mammoth's debug_mode (e.g., 0 or 1)
-        use_gpu: Boolean, whether to attempt running on GPU (adds --device cuda if True)
-        num_data_workers: Number of workers for DataLoader
+        output: The captured stdout string from the subprocess.
+
+    Returns:
+        A dictionary containing parsed accuracy values.
     """
-    
-    # Base command
+    results = {}
+    try:
+        # Regex to find the final accuracy line
+        # Example: "Accuracy for 2 task(s): [Class-IL]: 97.8 % [Task-IL]: 99.38 %"
+        final_acc_pattern = re.compile(
+            r"Accuracy for \d+ task\(s\):\s+\[Class-IL\]:\s+([\d.]+) %\s+\[Task-IL\]:\s+([\d.]+) %"
+        )
+        match = final_acc_pattern.search(output)
+        if match:
+            results['final_acc_cil'] = float(match.group(1))
+            results['final_acc_til'] = float(match.group(2))
+
+        # Regex to find the raw accuracy values for more detailed analysis
+        # Example: "Raw accuracy values: Class-IL [96.55, 99.05] | Task-IL [99.7, 99.05]"
+        raw_acc_pattern = re.compile(
+            r"Raw accuracy values: Class-IL \[(.*?)\] \| Task-IL \[(.*?)\]"
+        )
+        raw_match = raw_acc_pattern.search(output)
+        if raw_match:
+            results['raw_acc_cil'] = [float(x.strip()) for x in raw_match.group(1).split(',')]
+            results['raw_acc_til'] = [float(x.strip()) for x in raw_match.group(2).split(',')]
+
+    except Exception as e:
+        print(f"Warning: Could not parse results from output. Error: {e}")
+
+    return results
+
+
+def run_single_experiment(
+    method: str, seed: int, config: Dict, output_dir: str, use_gpu: bool
+) -> Dict[str, Any]:
+    """
+    Runs a single experiment trial and returns its results.
+
+    Args:
+        method: The continual learning method to use.
+        seed: The random seed for the trial.
+        config: A dictionary with experiment parameters.
+        output_dir: The directory to save logs and models to.
+        use_gpu: Boolean flag to use GPU.
+
+    Returns:
+        A dictionary containing the status and parsed results of the trial.
+    """
+    # Define the results path for this specific run
+    run_results_path = os.path.join(
+        output_dir, 'mammoth_outputs', f"{method}_seed_{seed}"
+    )
+
     cmd = [
         sys.executable, 'main.py',
         '--dataset', 'seq-cifar10-224-custom',
         '--model', method,
         '--backbone', 'vit',
+        '--results_path', run_results_path, # Tell Mammoth where to save its files
         '--seed', str(seed),
-        '--n_epochs', str(epochs),
-        '--batch_size', '32', 
-        '--lr', '0.01',
-        '--optimizer', 'sgd',
+        '--n_epochs', str(config['epochs_per_task']),
+        '--batch_size', str(config['batch_size']),
+        '--lr', str(config['lr']),
+        '--optimizer', config['optimizer'],
         '--optim_wd', '0.0',
         '--optim_mom', '0.0',
-        '--num_workers', str(num_data_workers), # Use parameter
-        '--drop_last', '0', 
-        '--debug_mode', str(debug_val),
+        '--num_workers', str(config['num_workers']),
+        '--drop_last', '0',
+        '--debug_mode', '0',
     ]
 
-    if use_gpu:
-        # Assuming main.py will pick up CUDA if available.
-        # If explicit setting is needed and main.py supports --device:
-        # cmd.extend(['--device', 'cuda'])
-        pass # Rely on main.py's auto-detection or its own --device flag
-    else:
-        # If you want to force CPU for some reason (and main.py supports --device)
-        # cmd.extend(['--device', 'cpu'])
-        pass
-    
-    # Method-specific arguments
+    if not use_gpu:
+        cmd.extend(['--device', 'cpu'])
+
     if method == 'derpp':
-        cmd.extend([
-            '--buffer_size', '200',
-            '--alpha', '0.1',
-            '--beta', '0.5',
-        ])
+        cmd.extend(['--buffer_size', '200', '--alpha', '0.1', '--beta', '0.5'])
     elif method == 'ewc_on':
-        cmd.extend([
-            '--e_lambda', '0.4',
-            '--gamma', '0.85',
-        ])
-        
-    print(f"Running command: {' '.join(cmd)}")
-    
-    # Adjust timeout: 10 minutes might be too short for ViT on CPU for 2 tasks, 1 epoch each.
-    # Let's try 30 minutes (1800 seconds) for CPU, or keep 10 min if expecting GPU.
-    # If on GPU, 1 epoch should be much faster.
-    timeout_seconds = 18000 if not use_gpu else 6000 
-    if epochs > 1: # Increase timeout for more epochs
-        timeout_seconds = timeout_seconds * epochs
+        cmd.extend(['--e_lambda', '0.4', '--gamma', '0.85'])
+
+    timeout_seconds = 1800 * config['epochs_per_task'] # 30 mins per epoch
 
     try:
-        result = subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=timeout_seconds) 
-        print("Experiment completed successfully!")
-        print("STDOUT (last 500 chars):", result.stdout[-500:])
-        if result.stderr:
-             print("STDERR (last 500 chars):", result.stderr[-500:])
-        return True
+        # Use Popen to stream output in real-time for a better user experience
+        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding='utf-8')
+        
+        full_output = []
+        # The tqdm bar for the subprocess itself
+        with tqdm(total=1, desc=f"  Running {method} (seed {seed})", leave=False, bar_format='{l_bar}{bar}| {elapsed}') as pbar:
+            for line in iter(process.stdout.readline, ''):
+                # Print the line to show live progress from main.py
+                sys.stdout.write(line)
+                full_output.append(line)
+            process.wait(timeout=timeout_seconds)
+            pbar.update(1) # Mark as complete
+
+        if process.returncode != 0:
+            raise subprocess.CalledProcessError(process.returncode, cmd, output=''.join(full_output))
+
+        parsed_data = parse_results(''.join(full_output))
+        return {'status': 'success', 'results': parsed_data}
+
     except subprocess.CalledProcessError as e:
-        print(f"Experiment failed with error code {e.returncode}: {e}")
-        print("STDOUT:", e.stdout) # Print full STDOUT on error
-        print("STDERR:", e.stderr) # Print full STDERR on error
-        return False
-    except subprocess.TimeoutExpired as e:
-        print(f"Experiment timed out after {e.timeout} seconds.")
-        stdout_decoded = e.stdout.decode(errors='ignore') if e.stdout else "No STDOUT"
-        stderr_decoded = e.stderr.decode(errors='ignore') if e.stderr else "No STDERR"
-        print("STDOUT (last 1000 chars):", stdout_decoded[-1000:])
-        print("STDERR (last 1000 chars):", stderr_decoded[-1000:])
-        return False
+        print(f"\nExperiment failed with error code {e.returncode}.")
+        return {'status': 'failed', 'error': f"Exit code {e.returncode}"}
+    except subprocess.TimeoutExpired:
+        print(f"\nExperiment timed out after {timeout_seconds} seconds.")
+        return {'status': 'timeout', 'error': f"Timeout after {timeout_seconds}s"}
+    except Exception as e:
+        print(f"\nAn unexpected error occurred: {e}")
+        return {'status': 'crash', 'error': str(e)}
 
 
-def run_comparison_experiment(attempt_gpu=True, workers=2):
+def run_full_comparison(config: Dict, output_dir: str, use_gpu: bool):
     """
-    Run a comparison experiment with both DER++ and EWC methods.
+    Runs the full comparison experiment across all methods and seeds.
     """
     print("=" * 60)
-    print("SHORTCUT FEATURE INVESTIGATION EXPERIMENT")
+    print("Starting Shortcut Feature Investigation Experiment")
+    print(f"Results will be saved in: {output_dir}")
     print("=" * 60)
-    print()
-    print("This experiment investigates how different continual learning")
-    print("methods handle shortcut features using a custom CIFAR-10 setup:")
-    print()
-    print("Task 1: airplane, automobile (potential shortcuts: sky, road)")
-    print("Task 2: bird, truck (potential shortcuts: sky, road/wheels)")
-    print()
-    print("Methods to compare:")
-    print("- DER++ (memory-based)")
-    print("- EWC (regularization-based)")
-    print()
-    print("Architecture: Vision Transformer (for attention analysis)")
-    print("=" * 60)
-    print()
-    
-    methods = ['derpp', 'ewc_on']
-    seeds = [42] # Start with one seed for faster testing
-    epochs = 1 # Make epochs very short for the first successful run test
-    debug_value_for_main = 0 # 0 for no extensive debug, 1 for debug
-    
-    results = {}
-    
-    for method in methods:
-        print(f"\n{'='*20} Running {method.upper()} {'='*20}")
-        results[method] = {}
-        
-        for seed in seeds:
-            print(f"\nRunning {method} with seed {seed} for {epochs} epoch(s)...")
-            success = run_experiment(method=method, seed=seed, epochs=epochs, 
-                                     debug_val=debug_value_for_main, 
-                                     use_gpu=attempt_gpu,
-                                     num_data_workers=workers) 
-            results[method][seed] = success
-            
-            if success:
-                print(f"✓ {method} with seed {seed} completed successfully")
-            else:
-                print(f"✗ {method} with seed {seed} failed")
-    
-    print("\n" + "="*60)
+
+    all_results = {
+        'experiment_info': {
+            'name': 'shortcut_investigation',
+            'timestamp': datetime.now().isoformat(),
+            'config': config
+        },
+        'runs': []
+    }
+
+    # Outer progress bar for methods
+    for method in tqdm(config['methods'], desc="Overall Progress"):
+        # Inner progress bar for seeds
+        for seed in tqdm(config['seeds'], desc=f"  {method} seeds", leave=False):
+            run_data = {
+                'method': method,
+                'seed': seed,
+            }
+            trial_result = run_single_experiment(method, seed, config, output_dir, use_gpu)
+            run_data.update(trial_result)
+            all_results['runs'].append(run_data)
+
+            # Save results incrementally after each run
+            with open(os.path.join(output_dir, 'experiment_results.json'), 'w') as f:
+                json.dump(all_results, f, indent=2)
+
+    # --- Final Summary ---
+    print("\n" + "=" * 60)
     print("EXPERIMENT SUMMARY")
-    print("="*60)
+    print("=" * 60)
+
+    # Use pandas to create a clean summary table
+    summary_data = []
+    for run in all_results['runs']:
+        row = {
+            'Method': run['method'],
+            'Seed': run['seed'],
+            'Status': run['status'],
+            'Final CIL Acc (%)': run.get('results', {}).get('final_acc_cil', 'N/A'),
+            'Final TIL Acc (%)': run.get('results', {}).get('final_acc_til', 'N/A'),
+        }
+        summary_data.append(row)
     
-    for method in methods:
-        successful_runs = sum(results[method].values())
-        total_runs = len(results[method])
-        print(f"{method.upper()}: {successful_runs}/{total_runs} successful runs")
-        
-        for seed, success_flag in results[method].items():
-            status = "✓" if success_flag else "✗"
-            print(f"  Seed {seed}: {status}")
+    if not summary_data:
+        print("No runs were completed to summarize.")
+        return
+
+    df = pd.DataFrame(summary_data)
+    print(df.to_string(index=False))
+
+    # Calculate and print aggregate statistics
+    print("\n--- Aggregate Statistics (Successful Runs) ---")
+    success_df = df[df['Status'] == 'success'].copy()
+    # Ensure numeric conversion for aggregation
+    success_df['Final CIL Acc (%)'] = pd.to_numeric(success_df['Final CIL Acc (%)'], errors='coerce')
+    success_df['Final TIL Acc (%)'] = pd.to_numeric(success_df['Final TIL Acc (%)'], errors='coerce')
+
+    agg_df = success_df.groupby('Method').agg(
+        mean_cil_acc=('Final CIL Acc (%)', 'mean'),
+        std_cil_acc=('Final CIL Acc (%)', 'std'),
+        mean_til_acc=('Final TIL Acc (%)', 'mean'),
+        std_til_acc=('Final TIL Acc (%)', 'std'),
+        runs=('Seed', 'count')
+    ).reset_index()
     
-    print("\n" + "="*60)
-    print("NEXT STEPS:")
-    print("1. Check the results/ directory for experiment outputs.")
-    print("2. If experiments ran, proceed with attention/activation analysis.")
-    print("3. If still failing/timing out on CPU, consider reducing workload further for tests or ensure GPU access.")
-    print("="*60)
+    # Format for printing
+    agg_df['mean_cil_acc'] = agg_df['mean_cil_acc'].map('{:.2f}'.format)
+    agg_df['std_cil_acc'] = agg_df['std_cil_acc'].map('{:.2f}'.format)
+    agg_df['mean_til_acc'] = agg_df['mean_til_acc'].map('{:.2f}'.format)
+    agg_df['std_til_acc'] = agg_df['std_til_acc'].map('{:.2f}'.format)
+    
+    print(agg_df.to_string(index=False))
+
+    print("\n" + "=" * 60)
+    print(f"Full results saved to: {os.path.join(output_dir, 'experiment_results.json')}")
+    print("Next steps: Analyze the saved models and attention maps.")
+    print("=" * 60)
 
 
 def main():
-    """Main function."""
-    parser = argparse.ArgumentParser(description='Run shortcut investigation experiment')
-    parser.add_argument('--method', type=str, choices=['derpp', 'ewc_on', 'both'], 
-                       default='both', help='Method to run')
-    parser.add_argument('--seed', type=int, default=42, help='Random seed')
-    parser.add_argument('--epochs', type=int, default=1, help='Number of epochs')
-    parser.add_argument('--debug_main', type=int, choices=[0, 1], default=0, 
-                        help='Set debug_mode for Mammoth main.py (0 or 1)')
-    parser.add_argument('--cpu_only', action='store_true', help='Force CPU execution for the experiment run')
-    parser.add_argument('--workers', type=int, default=2, help='Number of data loading workers')
-    parser.add_argument('--comparison', action='store_true', 
-                       help='Run full comparison experiment')
+    """Main function to parse arguments and start the experiment."""
+    parser = argparse.ArgumentParser(description='Run Shortcut Investigation Experiment Manager')
+    parser.add_argument('--epochs', type=int, default=EXPERIMENT_CONFIG['epochs_per_task'],
+                        help='Number of epochs per task.')
+    parser.add_argument('--cpu_only', action='store_true',
+                        help='Force CPU execution for the experiment run.')
+    parser.add_argument('--workers', type=int, default=EXPERIMENT_CONFIG['num_workers'],
+                        help='Number of data loading workers.')
+    parser.add_argument('--output_dir', type=str, default=None,
+                        help='Directory to save results. A timestamped subdir will be created.')
     
-    script_args = parser.parse_args()
-    
-    use_gpu_flag = not script_args.cpu_only
+    args = parser.parse_args()
 
-    if script_args.comparison:
-        run_comparison_experiment(attempt_gpu=use_gpu_flag, workers=script_args.workers)
-    elif script_args.method == 'both':
-        print("Running both methods...")
-        for method_name in ['derpp', 'ewc_on']:
-            print(f"\nRunning {method_name}...")
-            run_experiment(method=method_name, seed=script_args.seed, 
-                           epochs=script_args.epochs, debug_val=script_args.debug_main,
-                           use_gpu=use_gpu_flag, num_data_workers=script_args.workers)
+    # Update config with command-line arguments
+    config = EXPERIMENT_CONFIG.copy()
+    config['epochs_per_task'] = args.epochs
+    config['num_workers'] = args.workers
+
+    # Create a unique directory for this experiment run
+    if args.output_dir:
+        base_output_dir = args.output_dir
     else:
-        print(f"Running {script_args.method}...")
-        run_experiment(method=script_args.method, seed=script_args.seed, 
-                       epochs=script_args.epochs, debug_val=script_args.debug_main,
-                       use_gpu=use_gpu_flag, num_data_workers=script_args.workers)
+        base_output_dir = os.path.join(os.path.dirname(__file__), 'results')
+    
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    experiment_dir = os.path.join(base_output_dir, f"shortcut_exp_{timestamp}")
+    os.makedirs(experiment_dir, exist_ok=True)
+    # Create subdir for mammoth's own outputs
+    os.makedirs(os.path.join(experiment_dir, 'mammoth_outputs'), exist_ok=True)
+
+    use_gpu_flag = not args.cpu_only
+    run_full_comparison(config, experiment_dir, use_gpu_flag)
 
 
 if __name__ == "__main__":
