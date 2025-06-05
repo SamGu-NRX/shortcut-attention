@@ -22,7 +22,7 @@ def test_dataset():
         from datasets import get_dataset
 
         args = Namespace(
-            dataset='seq-cifar10-custom',
+            dataset='seq-cifar10-224-custom',
             seed=42,
             custom_class_order=None, 
             permute_classes=False,
@@ -123,7 +123,7 @@ def test_models():
         from datasets import get_dataset
         
         args = Namespace(
-            dataset='seq-cifar10-custom',
+            dataset='seq-cifar10-224-custom',
             backbone='vit',
             seed=42,
             custom_class_order=None, 
@@ -198,7 +198,7 @@ def test_visualization_utils():
             backbone='vit',
             pretrained=False,
             pretrain_type='in21k-ft-in1k',
-            dataset='seq-cifar10-custom',
+            dataset='seq-cifar10-224-custom',
             seed=42,
             custom_class_order=None, 
             permute_classes=False,
