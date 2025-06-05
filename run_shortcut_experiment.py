@@ -2,9 +2,6 @@
 #!/usr/bin/env python3
 """
 Simple script to run the shortcut investigation experiment.
-
-This script provides an easy way to run the continual learning experiment
-investigating shortcut features with DER++ and EWC methods.
 """
 
 import os
@@ -13,7 +10,7 @@ import argparse
 import subprocess
 from datetime import datetime
 
-def run_experiment(method='derpp', seed=42, epochs=10, debug_val=0): # Changed debug to debug_val
+def run_experiment(method='derpp', seed=42, epochs=10, debug_val=0, use_gpu=True, num_data_workers=2):
     """
     Run a single experiment with the specified parameters.
     
@@ -22,6 +19,8 @@ def run_experiment(method='derpp', seed=42, epochs=10, debug_val=0): # Changed d
         seed: Random seed for reproducibility
         epochs: Number of training epochs
         debug_val: Value for Mammoth's debug_mode (e.g., 0 or 1)
+        use_gpu: Boolean, whether to attempt running on GPU (adds --device cuda if True)
+        num_data_workers: Number of workers for DataLoader
     """
     
     # Base command
@@ -34,19 +33,23 @@ def run_experiment(method='derpp', seed=42, epochs=10, debug_val=0): # Changed d
         '--n_epochs', str(epochs),
         '--batch_size', '32', 
         '--lr', '0.01',
-        # Removed --wandb_mode disabled. Wandb should not init if project/entity are not set.
         '--optimizer', 'sgd',
         '--optim_wd', '0.0',
         '--optim_mom', '0.0',
-        '--num_workers', '0', 
+        '--num_workers', str(num_data_workers), # Use parameter
         '--drop_last', '0', 
-        '--debug_mode', str(debug_val), # Standard Mammoth debug mode
-        # The following are often defaulted by the dataset or main.py's arg parser,
-        # but providing them can sometimes avoid issues if defaults are unexpected.
-        # '--validation_mode', 'current', # Defaulted by our dataset
-        # '--custom_class_order', '0,1,2,9', # Defaulted by our dataset
-        # '--permute_classes', '0', # Defaulted by our dataset (to False)
+        '--debug_mode', str(debug_val),
     ]
+
+    if use_gpu:
+        # Assuming main.py will pick up CUDA if available.
+        # If explicit setting is needed and main.py supports --device:
+        # cmd.extend(['--device', 'cuda'])
+        pass # Rely on main.py's auto-detection or its own --device flag
+    else:
+        # If you want to force CPU for some reason (and main.py supports --device)
+        # cmd.extend(['--device', 'cpu'])
+        pass
     
     # Method-specific arguments
     if method == 'derpp':
@@ -60,13 +63,18 @@ def run_experiment(method='derpp', seed=42, epochs=10, debug_val=0): # Changed d
             '--e_lambda', '0.4',
             '--gamma', '0.85',
         ])
-    
-    # Note: debug_mode is now passed as a value (0 or 1)
-    
+        
     print(f"Running command: {' '.join(cmd)}")
     
+    # Adjust timeout: 10 minutes might be too short for ViT on CPU for 2 tasks, 1 epoch each.
+    # Let's try 30 minutes (1800 seconds) for CPU, or keep 10 min if expecting GPU.
+    # If on GPU, 1 epoch should be much faster.
+    timeout_seconds = 18000 if not use_gpu else 6000 
+    if epochs > 1: # Increase timeout for more epochs
+        timeout_seconds = timeout_seconds * epochs
+
     try:
-        result = subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=600) 
+        result = subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=timeout_seconds) 
         print("Experiment completed successfully!")
         print("STDOUT (last 500 chars):", result.stdout[-500:])
         if result.stderr:
@@ -74,19 +82,19 @@ def run_experiment(method='derpp', seed=42, epochs=10, debug_val=0): # Changed d
         return True
     except subprocess.CalledProcessError as e:
         print(f"Experiment failed with error code {e.returncode}: {e}")
-        print("STDOUT (last 500 chars):", e.stdout[-500:])
-        print("STDERR (last 500 chars):", e.stderr[-500:])
+        print("STDOUT:", e.stdout) # Print full STDOUT on error
+        print("STDERR:", e.stderr) # Print full STDERR on error
         return False
     except subprocess.TimeoutExpired as e:
         print(f"Experiment timed out after {e.timeout} seconds.")
-        if e.stdout:
-            print("STDOUT (last 500 chars):", e.stdout.decode(errors='ignore')[-500:])
-        if e.stderr:
-            print("STDERR (last 500 chars):", e.stderr.decode(errors='ignore')[-500:])
+        stdout_decoded = e.stdout.decode(errors='ignore') if e.stdout else "No STDOUT"
+        stderr_decoded = e.stderr.decode(errors='ignore') if e.stderr else "No STDERR"
+        print("STDOUT (last 1000 chars):", stdout_decoded[-1000:])
+        print("STDERR (last 1000 chars):", stderr_decoded[-1000:])
         return False
 
 
-def run_comparison_experiment():
+def run_comparison_experiment(attempt_gpu=True, workers=2):
     """
     Run a comparison experiment with both DER++ and EWC methods.
     """
@@ -120,8 +128,11 @@ def run_comparison_experiment():
         results[method] = {}
         
         for seed in seeds:
-            print(f"\nRunning {method} with seed {seed}...")
-            success = run_experiment(method=method, seed=seed, epochs=epochs, debug_val=debug_value_for_main) 
+            print(f"\nRunning {method} with seed {seed} for {epochs} epoch(s)...")
+            success = run_experiment(method=method, seed=seed, epochs=epochs, 
+                                     debug_val=debug_value_for_main, 
+                                     use_gpu=attempt_gpu,
+                                     num_data_workers=workers) 
             results[method][seed] = success
             
             if success:
@@ -146,8 +157,7 @@ def run_comparison_experiment():
     print("NEXT STEPS:")
     print("1. Check the results/ directory for experiment outputs.")
     print("2. If experiments ran, proceed with attention/activation analysis.")
-    print("3. If still failing, carefully examine the full STDOUT/STDERR from main.py.")
-    print("   Look for missing arguments or other setup issues reported by main.py.")
+    print("3. If still failing/timing out on CPU, consider reducing workload further for tests or ensure GPU access.")
     print("="*60)
 
 
@@ -157,27 +167,32 @@ def main():
     parser.add_argument('--method', type=str, choices=['derpp', 'ewc_on', 'both'], 
                        default='both', help='Method to run')
     parser.add_argument('--seed', type=int, default=42, help='Random seed')
-    parser.add_argument('--epochs', type=int, default=1, help='Number of epochs (short for testing)') # Default to 1
-    # Changed debug flag to control debug_val for main.py
+    parser.add_argument('--epochs', type=int, default=1, help='Number of epochs')
     parser.add_argument('--debug_main', type=int, choices=[0, 1], default=0, 
                         help='Set debug_mode for Mammoth main.py (0 or 1)')
+    parser.add_argument('--cpu_only', action='store_true', help='Force CPU execution for the experiment run')
+    parser.add_argument('--workers', type=int, default=2, help='Number of data loading workers')
     parser.add_argument('--comparison', action='store_true', 
                        help='Run full comparison experiment')
     
     script_args = parser.parse_args()
     
+    use_gpu_flag = not script_args.cpu_only
+
     if script_args.comparison:
-        run_comparison_experiment() # debug_main is handled inside run_comparison_experiment
+        run_comparison_experiment(attempt_gpu=use_gpu_flag, workers=script_args.workers)
     elif script_args.method == 'both':
         print("Running both methods...")
         for method_name in ['derpp', 'ewc_on']:
             print(f"\nRunning {method_name}...")
             run_experiment(method=method_name, seed=script_args.seed, 
-                           epochs=script_args.epochs, debug_val=script_args.debug_main)
+                           epochs=script_args.epochs, debug_val=script_args.debug_main,
+                           use_gpu=use_gpu_flag, num_data_workers=script_args.workers)
     else:
         print(f"Running {script_args.method}...")
         run_experiment(method=script_args.method, seed=script_args.seed, 
-                       epochs=script_args.epochs, debug_val=script_args.debug_main)
+                       epochs=script_args.epochs, debug_val=script_args.debug_main,
+                       use_gpu=use_gpu_flag, num_data_workers=script_args.workers)
 
 
 if __name__ == "__main__":
