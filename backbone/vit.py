@@ -99,36 +99,48 @@ class Attention(nn.Module):
         self.proj = nn.Linear(dim, dim)
         self.proj_drop = nn.Dropout(proj_drop)
 
-    def forward(self, x, **kwargs):
+    def forward(self, x, return_attention_scores=False, **kwargs):
         """
         Forward pass of the attention layer.
 
         Args:
             x: Input tensor
+            return_attention_scores: If True, return attention probabilities along with output
+        Returns:
+            If return_attention_scores is False: output tensor
+            If return_attention_scores is True: tuple (output tensor, attention probabilities)
         """
-
         B, N, C = x.shape
 
         qkv = self.qkv(x)
         qkv = qkv.reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
         q, k, v = qkv.unbind(0)  # make torchscript happy (cannot use tensor as tuple)
 
-        # NOTE: flash attention is less debuggable than the original. Use the commented code below if in trouble.
-        # check torch version
-        if torch.__version__ >= '2.1.0':
+        attn_probs = None
+        
+        # If attention scores are needed, use manual calculation for reliable score extraction
+        if return_attention_scores:
+            attn = (q @ k.transpose(-2, -1)) * self.scale
+            attn_probs = attn.softmax(dim=-1)
+            # Keep raw attention probabilities for visualization
+            # Apply dropout only for the computation path
+            dropped_attn = self.attn_drop(attn_probs)
+            x = (dropped_attn @ v)
+        elif torch.__version__ >= '2.1.0':
             x = F.scaled_dot_product_attention(q, k, v, scale=self.scale, dropout_p=self.attn_drop.p)
         else:
-            warn_once("Torch verison < 2.1.0 detected. Using the original attention code.")
+            warn_once("Torch version < 2.1.0 detected. Using the original attention code.")
             attn = (q @ k.transpose(-2, -1)) * self.scale
             attn = attn.softmax(dim=-1)
             attn = self.attn_drop(attn)
             x = (attn @ v)
 
         x = x.transpose(1, 2).reshape(B, N, C)
-
         x = self.proj(x)
         x = self.proj_drop(x)
 
+        if return_attention_scores:
+            return x, attn_probs
         return x
 
 
@@ -172,9 +184,24 @@ class Block(nn.Module):
         self.ls2 = LayerScale(dim, init_values=init_values) if init_values else nn.Identity()
         self.drop_path2 = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
-    def forward(self, x, **kwargs):
-        x = x + self.drop_path1(self.ls1(self.attn(self.norm1(x), **kwargs)))
+    def forward(self, x, return_attention_scores=False, **kwargs):
+        # Process normalized input through attention
+        attn_output = self.attn(self.norm1(x), return_attention_scores=return_attention_scores, **kwargs)
+        
+        if return_attention_scores:
+            current_x, attn_probs = attn_output
+        else:
+            current_x = attn_output
+            attn_probs = None
+
+        # Apply residual connection, layer scale, and drop path
+        x = x + self.drop_path1(self.ls1(current_x))
+        
+        # MLP path (no attention scores involved)
         x = x + self.drop_path2(self.ls2(self.mlp(self.norm2(x), **kwargs)))
+        
+        if return_attention_scores:
+            return x, attn_probs
         return x
 
 
@@ -340,7 +367,7 @@ class VisionTransformer(MammothBackbone):
             x = x + self.pos_embed
         return self.pos_drop(x)
 
-    def forward_features(self, x: torch.Tensor, AB={}, return_all=False):
+    def forward_features(self, x: torch.Tensor, AB={}, return_all=False, return_attention_scores=False):
         """
         Compute the forward pass of ViT (features only).
         Can take in an additional argument `AB`, which is a dictionary containing LoRA-style parameters for each block.
@@ -349,27 +376,48 @@ class VisionTransformer(MammothBackbone):
             x: input tensor
             AB: dictionary containing LoRA-style parameters for each block
             return_all: whether to return all intermediate features
+            return_attention_scores: whether to return attention probabilities from each block
 
         Returns:
-            features for each patch
+            If return_attention_scores is False:
+                if return_all: list of intermediate features
+                else: final features
+            If return_attention_scores is True:
+                if return_all: tuple (list of intermediate features, list of attention maps)
+                else: tuple (final features, list of attention maps)
         """
         int_features = []
+        attn_maps = []
+        
         x = self.patch_embed(x)
         x = self._pos_embed(x)
         x = self.norm_pre(x)
-        # NOTE: grad checkpointing was removed from the original timm impl
+        
         for idx, blk in enumerate(self.blocks):
             AB_blk = AB.get(idx)
-            if AB_blk is not None:
-                x = blk(x, AB=AB_blk)
+            block_kwargs = {'AB': AB_blk} if AB_blk is not None else {}
+            
+            if return_attention_scores:
+                out, attn_probs = blk(x, return_attention_scores=True, **block_kwargs)
+                attn_maps.append(attn_probs)
+                x = out
             else:
-                x = blk(x)
+                x = blk(x, **block_kwargs)
+                
             if return_all:
                 int_features.append(x.clone())
+                
         x = self.norm(x)
-
+        
         if return_all:
             int_features.append(x.clone())
+            
+        if return_attention_scores:
+            if return_all:
+                return int_features, attn_maps
+            return x, attn_maps
+            
+        if return_all:
             return int_features
         return x
 
@@ -390,7 +438,7 @@ class VisionTransformer(MammothBackbone):
         x = self.fc_norm(x)
         return x if pre_logits else self.head(x)
 
-    def forward(self, x: torch.Tensor, AB: dict = {}, returnt='out'):
+    def forward(self, x: torch.Tensor, AB: dict = {}, returnt='out', return_attention_scores=False):
         """
         Compute the forward pass of ViT.
         Can take in an additional argument `AB`, which is a dictionary containing LoRA-style parameters for each block.
@@ -408,28 +456,56 @@ class VisionTransformer(MammothBackbone):
             x: input tensor
             AB: dictionary containing LoRA-style parameters for each block
             returnt: return type (a string among `out`, `features`, `both`, or `full`)
+            return_attention_scores: whether to return attention probabilities from each block
 
         Returns:
-            output tensor
+            Depending on returnt and return_attention_scores:
+            - returnt='out': 
+                if return_attention_scores=False: output tensor
+                if return_attention_scores=True: tuple (output tensor, list of attention maps)
+            - returnt='features':
+                if return_attention_scores=False: features tensor
+                if return_attention_scores=True: tuple (features tensor, list of attention maps)
+            - returnt='both':
+                if return_attention_scores=False: tuple (output tensor, features tensor)
+                if return_attention_scores=True: tuple (output tensor, features tensor, list of attention maps)
+            - returnt='full':
+                if return_attention_scores=False: tuple (output tensor, list of all intermediate features)
+                if return_attention_scores=True: tuple (output tensor, list of all intermediate features, list of attention maps)
         """
         assert returnt in ('out', 'features', 'both', 'full')
 
-        x = self.forward_features(x, AB, return_all=returnt == 'full')
-        if returnt == 'full':
-            all_features = x
-            x = x[-1]
+        features_output = self.forward_features(x, AB, 
+                                             return_all=returnt == 'full',
+                                             return_attention_scores=return_attention_scores)
+        
+        # Unpack features and attention maps based on what was returned
+        if return_attention_scores:
+            if returnt == 'full':
+                all_features, attn_maps = features_output
+                x = all_features[-1]
+            else:
+                x, attn_maps = features_output
+        else:
+            if returnt == 'full':
+                all_features = features_output
+                x = all_features[-1]
+            else:
+                x = features_output
+
         feats = self.forward_head(x, pre_logits=True)
 
         if returnt == 'features':
-            return feats
+            return (feats, attn_maps) if return_attention_scores else feats
 
         out = self.head(feats)
 
         if returnt == 'both':
-            return out, feats
+            return (out, feats, attn_maps) if return_attention_scores else (out, feats)
         elif returnt == 'full':
-            return out, all_features
-        return out
+            return (out, all_features, attn_maps) if return_attention_scores else (out, all_features)
+        
+        return (out, attn_maps) if return_attention_scores else out
 
     def get_params(self, discard_classifier=False) -> torch.Tensor:
         """

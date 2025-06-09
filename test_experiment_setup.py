@@ -15,11 +15,12 @@ logging.basicConfig(level=logging.INFO)
 
 
 def test_dataset():
-    """Test if the custom dataset loads correctly."""
+    """Test if the custom dataset and task organization loads correctly."""
     print("Testing custom dataset...")
 
     try:
         from datasets import get_dataset
+        from datasets.utils.continual_dataset import ContinualDataset
 
         args = Namespace(
             dataset='seq-cifar10-224-custom',
@@ -44,7 +45,7 @@ def test_dataset():
             num_workers=0 # Added for create_seeded_dataloader
         )
         
-        dataset = get_dataset(args)
+        dataset: ContinualDataset = get_dataset(args)
         
         print(f"✓ Dataset loaded successfully")
         print(f"  - Name: {dataset.NAME}")
@@ -84,6 +85,21 @@ def test_dataset():
         assert task_labels == expected_task_labels, \
             f"Task labels mismatch: Expected {expected_task_labels}, Got {task_labels}"
 
+        # Test task organization
+        print("\nValidating task organization...")
+        class_order_str = ','.join(map(str, dataset.class_order)) if dataset.class_order else "None"
+        print(f"  - Current class order: {class_order_str}")
+        print(f"  - Number of tasks: {dataset.N_TASKS}")
+        print(f"  - Classes per task: {dataset.N_CLASSES_PER_TASK}")
+        
+        expected_tasks = {
+            0: ['airplane', 'automobile'],  # Task 1: Vehicle types with sky/road shortcuts
+            1: ['bird', 'truck']           # Task 2: Mixed types with sky/road shortcuts
+        }
+        assert task_labels == expected_tasks, \
+            f"Task labels mismatch:\nExpected: {expected_tasks}\nGot: {task_labels}"
+        print(f"✓ Task organization verified successfully")
+
         return True
         
     except Exception as e:
@@ -91,6 +107,7 @@ def test_dataset():
         import traceback
         traceback.print_exc() 
         return False
+
 
 def test_backbone():
     """Test if the ViT backbone loads correctly."""
@@ -188,7 +205,7 @@ def test_visualization_utils():
     """Test if the visualization utilities work."""
     print("\nTesting visualization utilities...")
     try:
-        from utils.attention_visualization import AttentionExtractor
+        from utils.attention_visualization import AttentionAnalyzer
         from utils.network_flow_visualization import ActivationExtractor
         from backbone import get_backbone 
         from datasets import get_dataset 
@@ -227,7 +244,7 @@ def test_visualization_utils():
             beta=0.5,
             batch_size=32, 
             drop_last=False,
-            num_workers=0 # Added
+            num_workers=0
         )
 
         dataset = get_dataset(args)
@@ -238,20 +255,32 @@ def test_visualization_utils():
         transform = dataset.get_transform()
         model_instance = get_model(args, backbone_net, loss, transform, dataset=dataset)
 
-        attention_extractor = AttentionExtractor(model_instance, device='cpu')
-        print(f"    ✓ AttentionExtractor created")
+        # Test attention analysis
+        attention_analyzer = AttentionAnalyzer(model_instance, device='cpu')
+        print(f"    ✓ AttentionAnalyzer created")
+        
+        # Test activation extraction
         activation_extractor = ActivationExtractor(model_instance, device='cpu')
         print(f"    ✓ ActivationExtractor created")
+        
+        # Test with dummy input
         dummy_input = torch.randn(1, 3, 224, 224) 
-        attention_maps = attention_extractor.extract_attention(dummy_input)
+        
+        # Extract and check attention maps
+        attention_maps = attention_analyzer.extract_attention_maps(dummy_input)
         print(f"    ✓ Attention extraction successful")
         print(f"    - Number of attention maps: {len(attention_maps)}")
+        
+        # Extract and check activations
         activations = activation_extractor.extract_activations(dummy_input)
         print(f"    ✓ Activation extraction successful")
         print(f"    - Number of activation maps: {len(activations)}")
-        attention_extractor.remove_hooks()
+        
+        # Clean up
         activation_extractor.remove_hooks()
+        
         return True
+        
     except Exception as e:
         print(f"✗ Visualization test failed: {e}")
         import traceback; traceback.print_exc()
