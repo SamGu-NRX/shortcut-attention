@@ -194,13 +194,17 @@ def main():
     base_args = {
         "dataset": "seq-cifar10-224-custom",
         "backbone": "vit",
-        "n_epochs": 10,
-        "batch_size": 32,
-        "lr": 0.001,
-        "device": "cuda" if torch.cuda.is_available() else "cpu",
-        "nowand": 1,
-        "non_verbose": 1,
-        "debug_mode": 0,
+        'n_epochs': 10,
+        'batch_size': 32,
+        'lr': 0.01,
+        'device': '0' if torch.cuda.is_available() else 'cpu',
+        'debug_mode': 0,
+        'validation': None,
+        'savecheck': 0,
+        'inference_only': 0,
+        'ignore_other_metrics': 0,
+        'eval_future': 0,
+        'enable_other_metrics': 1,
     }
 
     experiment = ShortcutInvestigationExperiment(

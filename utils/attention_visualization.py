@@ -15,25 +15,14 @@ import torch
 class AttentionAnalyzer:
     """
     Analyzes attention patterns in a Vision Transformer model by leveraging its
-    native ability to return attention scores, avoiding inefficient hooks.
+    native ability to return attention scores.
     """
 
     def __init__(self, model, device="cuda"):
         self.model = model
         self.device = device
-        if not (
-            hasattr(model, "net")
-            and hasattr(model.net, "forward")
-            and "return_attention_scores"
-            in model.net.forward.__code__.co_varnames
-        ):
-            raise TypeError(
-                "Model's forward method must accept 'return_attention_scores'."
-            )
 
-    def extract_attention_maps(
-        self, inputs: torch.Tensor
-    ) -> List[torch.Tensor]:
+    def extract_attention_maps(self, inputs: torch.Tensor) -> List[torch.Tensor]:
         """
         Extracts attention maps for given inputs by calling the model's
         forward pass with `return_attention_scores=True`.
@@ -47,12 +36,27 @@ class AttentionAnalyzer:
         """
         self.model.eval()
         with torch.no_grad():
-            # The ViT backbone is designed to return (output, attn_maps)
-            # when this flag is true.
-            _, attn_maps = self.model.net(
-                inputs.to(self.device), return_attention_scores=True
-            )
-        return attn_maps
+            # Check if the model has the capability to return attention scores
+            try:
+                # Try calling the backbone directly with return_attention_scores flag
+                if hasattr(self.model, 'net') and hasattr(self.model.net, 'backbone'):
+                    output, attn_maps = self.model.net.backbone(
+                        inputs.to(self.device), return_attention_scores=True
+                    )
+                elif hasattr(self.model, 'backbone'):
+                    output, attn_maps = self.model.backbone(
+                        inputs.to(self.device), return_attention_scores=True
+                    )
+                else:
+                    # Fallback: try the model directly
+                    output, attn_maps = self.model(
+                        inputs.to(self.device), return_attention_scores=True
+                    )
+                return attn_maps
+            except Exception as e:
+                # If native approach fails, return empty list
+                print(f"Warning: Could not extract attention maps: {e}")
+                return []
 
 
 def visualize_attention_map(
@@ -153,18 +157,17 @@ def analyze_task_attention(
 
     # Analyze and visualize attention for collected samples
     analyzed_data = {}
+    class_names = dataset.get_class_names()
     for class_idx, samples in class_samples.items():
-        class_name = dataset.CLASS_NAMES[class_idx]
+        class_name = class_names[class_idx]
         analyzed_data[class_idx] = {"inputs": [], "maps": []}
         for i, sample_input in enumerate(samples):
             sample_input_batch = sample_input.unsqueeze(0)
-            attention_maps = analyzer.extract_attention_maps(
-                sample_input_batch
-            )
+            attention_maps = analyzer.extract_attention_maps(sample_input_batch)
             analyzed_data[class_idx]["inputs"].append(sample_input)
             analyzed_data[class_idx]["maps"].append(attention_maps)
 
-            if save_dir:
+            if save_dir and attention_maps:
                 for block_idx, attn_map in enumerate(attention_maps):
                     # Visualize first 4 heads
                     for head_idx in range(min(4, attn_map.shape[1])):

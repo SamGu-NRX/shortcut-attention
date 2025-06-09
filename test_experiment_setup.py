@@ -190,7 +190,7 @@ def test_models():
             optim_wd=0.0, 
             optim_mom=0.0, 
             optim_nesterov=False, 
-            device='cpu',
+            device='cuda',
             model='derpp', 
             buffer_size=50,
             alpha=0.1,
@@ -274,7 +274,7 @@ def test_visualization_utils():
             optim_wd=0.0, 
             optim_mom=0.0, 
             optim_nesterov=False, 
-            device='cpu', 
+            device='cuda', 
             model='derpp', 
             buffer_size=50, 
             alpha=0.1,      
@@ -293,11 +293,11 @@ def test_visualization_utils():
         model_instance = get_model(args, backbone_net, loss, transform, dataset=dataset)
 
         # Test attention analysis
-        attention_analyzer = AttentionAnalyzer(model_instance, device='cpu')
+        attention_analyzer = AttentionAnalyzer(model_instance, device='cuda')
         print(f"    ✓ AttentionAnalyzer created")
         
         # Test activation extraction
-        activation_extractor = ActivationExtractor(model_instance, device='cpu')
+        activation_extractor = ActivationExtractor(model_instance, device='cuda')
         print(f"    ✓ ActivationExtractor created")
         
         # Test with dummy input
@@ -333,7 +333,7 @@ def test_experiment_runner():
             'n_epochs': 1,
             'batch_size': 32,
             'lr': 0.01,
-            'device': 'cpu',
+            'device': 'cuda',
             'debug_mode': 1,
             'permute_classes': False,
             'custom_class_order': None,
