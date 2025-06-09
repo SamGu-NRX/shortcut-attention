@@ -42,9 +42,24 @@ class AttentionAnalyzer:
         """
         with torch.no_grad():
             self.model.eval()
-            _, attn_maps = self.model(inputs.to(self.device), returnt='out', return_attention_scores=True)
+            # Forward pass with only necessary arguments
+            outputs = self.model(inputs.to(self.device), return_attention=True)
             
-        return {f'block_{i}': attn_maps[i].cpu() for i in range(len(attn_maps))}
+            # Extract attention maps based on model output format
+            if isinstance(outputs, tuple):
+                # Handle case where model returns (logits, attention_maps)
+                _, attn_maps = outputs
+            elif isinstance(outputs, dict):
+                # Handle case where model returns a dictionary
+                attn_maps = outputs.get('attention_maps', [])
+            else:
+                raise ValueError("Model output format not supported for attention visualization")
+            
+        # Ensure attention maps are in the expected format
+        if not isinstance(attn_maps, (list, tuple)):
+            attn_maps = [attn_maps]
+            
+        return {f'block_{i}': maps.cpu() for i, maps in enumerate(attn_maps)}
 
 def visualize_attention_map(attention_map: torch.Tensor, 
                           input_image: torch.Tensor,

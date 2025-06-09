@@ -1,8 +1,4 @@
-# test_experiment_setup.py
-#!/usr/bin/env python3
-"""
-Test script to verify the shortcut investigation experiment setup.
-"""
+"""Test script to verify the shortcut investigation experiment setup."""
 
 import os
 import sys
@@ -11,8 +7,9 @@ import numpy as np
 from argparse import Namespace
 import logging
 
-logging.basicConfig(level=logging.INFO)
+from utils.attention_visualization import AttentionAnalyzer
 
+logging.basicConfig(level=logging.INFO)
 
 def test_dataset():
     """Test if the custom dataset and task organization loads correctly."""
@@ -20,7 +17,7 @@ def test_dataset():
 
     try:
         from datasets import get_dataset
-        from datasets.utils.continual_dataset import ContinualDataset
+        from datasets.seq_cifar10_224_custom import SequentialCIFAR10Custom224
 
         args = Namespace(
             dataset='seq-cifar10-224-custom',
@@ -45,18 +42,17 @@ def test_dataset():
             num_workers=0 # Added for create_seeded_dataloader
         )
         
-        dataset: ContinualDataset = get_dataset(args)
-        
+        dataset = get_dataset(args)
+        if not isinstance(dataset, SequentialCIFAR10Custom224):
+            raise TypeError(f"Expected SequentialCIFAR10Custom224, got {type(dataset)}")
+            
         print(f"✓ Dataset loaded successfully")
         print(f"  - Name: {dataset.NAME}")
         print(f"  - Setting: {dataset.SETTING}")
         print(f"  - Classes per task: {dataset.N_CLASSES_PER_TASK}")
         print(f"  - Number of tasks: {dataset.N_TASKS}")
-        print(f"  - Total classes: {dataset.N_CLASSES}") 
-        if hasattr(dataset, 'class_order') and dataset.class_order is not None:
-            print(f"  - Class order (indices): {dataset.class_order}")
-        else:
-            print(f"  - Class order (indices): Not set or None")
+        print(f"  - Total classes: {dataset.N_CLASSES}")
+        print(f"  - Class order (indices): {dataset.class_order}")
         
         class_names = dataset.get_class_names()
         print(f"  - Class names: {class_names}")
@@ -87,7 +83,10 @@ def test_dataset():
 
         # Test task organization
         print("\nValidating task organization...")
-        class_order_str = ','.join(map(str, dataset.class_order)) if dataset.class_order else "None"
+        if hasattr(dataset, 'class_order') and dataset.class_order is not None:
+            class_order_str = ','.join(map(str, dataset.class_order))
+        else:
+            class_order_str = "Default"
         print(f"  - Current class order: {class_order_str}")
         print(f"  - Number of tasks: {dataset.N_TASKS}")
         print(f"  - Classes per task: {dataset.N_CLASSES_PER_TASK}")
@@ -108,14 +107,28 @@ def test_dataset():
         traceback.print_exc() 
         return False
 
-
 def test_backbone():
     """Test if the ViT backbone loads correctly."""
     print("\nTesting ViT backbone...")
     try:
         from backbone import get_backbone
         args = Namespace(
-            backbone='vit', num_classes=4, pretrained=False, pretrain_type='in21k-ft-in1k')
+            backbone='vit',
+            num_classes=4,
+            pretrained=False,
+            pretrain_type='in21k-ft-in1k',
+            img_size=224,
+            patch_size=16,
+            in_chans=3,
+            embed_dim=768,
+            depth=12,
+            num_heads=12,
+            mlp_ratio=4.,
+            qkv_bias=True,
+            drop_rate=0.,
+            attn_drop_rate=0.,
+            kwargs={}  # Required empty kwargs
+        )
         backbone = get_backbone(args)
         print(f"✓ Backbone loaded successfully")
         # ... (rest of backbone test)
@@ -154,6 +167,18 @@ def test_models():
             transform_type='weak',
             pretrained=False,
             pretrain_type='in21k-ft-in1k',
+            kwargs={},  # Required empty kwargs
+            # ViT specific arguments
+            img_size=224,
+            patch_size=16,
+            in_chans=3,
+            embed_dim=768,
+            depth=12,
+            num_heads=12,
+            mlp_ratio=4.,
+            qkv_bias=True,
+            drop_rate=0.,
+            attn_drop_rate=0.,
             joint=False,
             start_from=None,
             stop_after=None,
@@ -216,6 +241,18 @@ def test_visualization_utils():
             pretrained=False,
             pretrain_type='in21k-ft-in1k',
             dataset='seq-cifar10-224-custom',
+            kwargs={},  # Required empty kwargs
+            # ViT specific arguments
+            img_size=224,
+            patch_size=16,
+            in_chans=3,
+            embed_dim=768,
+            depth=12,
+            num_heads=12,
+            mlp_ratio=4.,
+            qkv_bias=True,
+            drop_rate=0.,
+            attn_drop_rate=0.,
             seed=42,
             custom_class_order=None, 
             permute_classes=False,
@@ -278,6 +315,7 @@ def test_visualization_utils():
         
         # Clean up
         activation_extractor.remove_hooks()
+        del attention_analyzer  # This will trigger __del__ which cleans up hooks
         
         return True
         
@@ -292,11 +330,43 @@ def test_experiment_runner():
     try:
         from experiments.shortcut_investigation import ShortcutInvestigationExperiment
         base_args = {
-            'n_epochs': 1, 'batch_size': 32, 'lr': 0.01, 'device': 'cpu', 
-            'debug_mode': 1, 'permute_classes': False, 'custom_class_order': None,
-            'custom_task_order': None, 'validation_mode': 'current', 'optimizer': 'sgd', 
-            'optim_wd': 0.0, 'optim_mom': 0.0, 'optim_nesterov': False,
-            'drop_last': False, 'num_workers': 0 # Added
+            'n_epochs': 1,
+            'batch_size': 32,
+            'lr': 0.01,
+            'device': 'cpu',
+            'debug_mode': 1,
+            'permute_classes': False,
+            'custom_class_order': None,
+            'custom_task_order': None,
+            'validation_mode': 'current',
+            'optimizer': 'sgd',
+            'optim_wd': 0.0,
+            'optim_mom': 0.0,
+            'optim_nesterov': False,
+            'drop_last': False,
+            'num_workers': 0,
+            # Model and dataset settings
+            'backbone': 'vit',
+            'dataset': 'seq-cifar10-224-custom',
+            'pretrained': False,
+            'pretrain_type': 'in21k-ft-in1k',
+            'kwargs': {},  # Required empty kwargs
+            
+            # ViT specific arguments
+            'img_size': 224,
+            'patch_size': 16,
+            'in_chans': 3,
+            'embed_dim': 768,
+            'depth': 12,
+            'num_heads': 12,
+            'mlp_ratio': 4.,
+            'qkv_bias': True,
+            'drop_rate': 0.,
+            'attn_drop_rate': 0.,
+            
+            # Data paths and settings
+            'base_path': './data/',
+            'transform_type': 'weak'
         }
         experiment = ShortcutInvestigationExperiment(
             base_args=base_args, experiment_name="test_experiment")
@@ -327,7 +397,7 @@ def main():
             import traceback; traceback.print_exc()
     print("\n" + "=" * 60 + "\nTEST SUMMARY\n" + "=" * 60)
     passed_count = sum(1 for result in results.values() if result) 
-    total_count = len(results) 
+    total_count = len(tests) 
     for test_name, result in results.items():
         status = "✓ PASS" if result else "✗ FAIL"
         print(f"{test_name:20} {status}")

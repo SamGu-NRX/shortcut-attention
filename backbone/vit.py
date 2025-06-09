@@ -1,3 +1,6 @@
+# IMPORTANT: YOU ARE NOT SUPPOSED TO TOUCH THIS FILE. ONLY EXTEND IT, DO NOT EDIT FUNCTIONALITY.
+
+
 """ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -779,3 +782,227 @@ def vit_base_patch16_224_prompt_prototype(pretrained=False, pretrain_type='in21k
 @register_backbone("vit")
 def vit_backbone(num_classes, pretrained=True, pretrain_type='in21k-ft-in1k'):
     return vit_base_patch16_224_prompt_prototype(pretrained=pretrained, pretrain_type=pretrain_type, num_classes=num_classes)
+
+# your previous implementation, WRONG
+# """Vision Transformer (ViT) implementation with attention visualization support.""" 
+
+# import logging
+# from typing import Dict, List, Optional, Tuple, Union, cast
+
+# import torch
+# import torch.nn as nn
+# import torch.nn.functional as F
+
+# from backbone import MammothBackbone, register_backbone
+# from backbone.utils.layers import IncrementalClassifier
+
+# def trunc_normal_(tensor: torch.Tensor, mean: float = 0., std: float = 1.) -> None:
+#     """Truncated normal initialization."""
+#     torch.nn.init.trunc_normal_(tensor, mean=mean, std=std)
+
+# class PatchEmbed(nn.Module):
+#     """Image to Patch Embedding."""
+#     def __init__(self, img_size: int = 224, patch_size: int = 16, 
+#                  in_chans: int = 3, embed_dim: int = 768):
+#         super().__init__()
+#         self.img_size = img_size
+#         self.patch_size = patch_size
+#         self.grid_size = (img_size // patch_size, img_size // patch_size)
+#         self.num_patches = self.grid_size[0] * self.grid_size[1]
+        
+#         self.proj = nn.Conv2d(in_chans, embed_dim, kernel_size=patch_size, stride=patch_size)
+
+#     def forward(self, x: torch.Tensor) -> torch.Tensor:
+#         B, C, H, W = x.shape
+#         x = self.proj(x)
+#         x = x.flatten(2).transpose(1, 2)  # BCHW -> BNC
+#         return x
+
+# class Attention(nn.Module):
+#     """Multi-head self attention with attention score extraction."""
+#     def __init__(self, dim: int, num_heads: int = 8, qkv_bias: bool = False,
+#                  attn_drop: float = 0., proj_drop: float = 0.):
+#         super().__init__()
+#         self.num_heads = num_heads
+#         self.scale = (dim // num_heads) ** -0.5
+        
+#         self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
+#         self.attn_drop = nn.Dropout(attn_drop)
+#         self.proj = nn.Linear(dim, dim)
+#         self.proj_drop = nn.Dropout(proj_drop)
+
+#     def forward(self, x: torch.Tensor, return_attention: bool = False) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+#         B, N, C = x.shape
+#         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads)
+#         qkv = qkv.permute(2, 0, 3, 1, 4)
+#         q, k, v = qkv.unbind(0)
+
+#         attn = (q @ k.transpose(-2, -1)) * self.scale
+#         attn = attn.softmax(dim=-1)
+#         attn_scores = attn.detach()  # Save before dropout
+#         attn = self.attn_drop(attn)
+
+#         x = (attn @ v).transpose(1, 2).reshape(B, N, C)
+#         x = self.proj(x)
+#         x = self.proj_drop(x)
+
+#         if return_attention:
+#             return x, attn_scores
+#         return x
+
+# class Block(nn.Module):
+#     """Transformer block with attention visualization support."""
+#     def __init__(self, dim: int, num_heads: int, mlp_ratio: float = 4.,
+#                  qkv_bias: bool = False, drop: float = 0., attn_drop: float = 0.):
+#         super().__init__()
+#         self.norm1 = nn.LayerNorm(dim)
+#         self.attn = Attention(dim, num_heads=num_heads, qkv_bias=qkv_bias,
+#                             attn_drop=attn_drop, proj_drop=drop)
+#         self.norm2 = nn.LayerNorm(dim)
+#         mlp_hidden_dim = int(dim * mlp_ratio)
+#         self.mlp = nn.Sequential(
+#             nn.Linear(dim, mlp_hidden_dim),
+#             nn.GELU(),
+#             nn.Dropout(drop),
+#             nn.Linear(mlp_hidden_dim, dim),
+#             nn.Dropout(drop)
+#         )
+
+#     def forward(self, x: torch.Tensor, return_attention: bool = False) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+#         if return_attention:
+#             attended, attn_scores = self.attn(self.norm1(x), return_attention=True)
+#             x = x + attended
+#             x = x + self.mlp(self.norm2(x))
+#             return x, attn_scores
+        
+#         x = x + self.attn(self.norm1(x))
+#         x = x + self.mlp(self.norm2(x))
+#         return x
+
+# class VisionTransformer(MammothBackbone):
+#     """Vision Transformer with attention visualization support."""
+
+#     def __init__(self, img_size: int = 224, patch_size: int = 16, in_chans: int = 3,
+#                  num_classes: int = 1000, embed_dim: int = 768, depth: int = 12,
+#                  num_heads: int = 12, mlp_ratio: float = 4., qkv_bias: bool = True,
+#                  drop_rate: float = 0., attn_drop_rate: float = 0., **kwargs):
+#         super().__init__()
+#         self.num_classes = num_classes
+#         self.embed_dim = embed_dim
+#         self.num_features = embed_dim
+        
+#         # Initialize attention cache
+#         self._cached_attention_maps: Optional[List[torch.Tensor]] = None
+
+#         self.patch_embed = PatchEmbed(img_size=img_size, patch_size=patch_size,
+#                                     in_chans=in_chans, embed_dim=embed_dim)
+#         num_patches = self.patch_embed.num_patches
+
+#         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
+#         self.pos_embed = nn.Parameter(torch.zeros(1, num_patches + 1, embed_dim))
+#         self.pos_drop = nn.Dropout(p=drop_rate)
+
+#         self.blocks = nn.ModuleList([
+#             Block(dim=embed_dim, num_heads=num_heads, mlp_ratio=mlp_ratio,
+#                   qkv_bias=qkv_bias, drop=drop_rate, attn_drop=attn_drop_rate)
+#             for _ in range(depth)
+#         ])
+#         self.norm = nn.LayerNorm(embed_dim)
+#         self.head = IncrementalClassifier(embed_dim, num_classes)
+
+#         # Initialize weights
+#         trunc_normal_(self.pos_embed, std=.02)
+#         trunc_normal_(self.cls_token, std=.02)
+#         self.apply(self._init_weights)
+
+#     def _init_weights(self, m: nn.Module) -> None:
+#         if isinstance(m, nn.Linear):
+#             trunc_normal_(m.weight, std=.02)
+#             if m.bias is not None:
+#                 nn.init.zeros_(m.bias)
+#         elif isinstance(m, nn.LayerNorm):
+#             nn.init.zeros_(m.bias)
+#             nn.init.ones_(m.weight)
+
+#     def forward_features(self, x: torch.Tensor, return_attention: bool = False) -> Union[torch.Tensor, Tuple[torch.Tensor, List[torch.Tensor]]]:
+#         x = self.patch_embed(x)
+#         batch_size = x.shape[0]
+#         cls_tokens = self.cls_token.expand(batch_size, -1, -1)
+#         x = torch.cat((cls_tokens, x), dim=1)
+#         x = self.pos_drop(x + self.pos_embed)
+
+#         if not return_attention:
+#             for blk in self.blocks:
+#                 x = blk(x)
+#             x = self.norm(x)
+#             return x
+
+#         attention_maps: List[torch.Tensor] = []
+#         for blk in self.blocks:
+#             x, attn = cast(Tuple[torch.Tensor, torch.Tensor], blk(x, return_attention=True))
+#             attention_maps.append(attn)
+#         x = self.norm(x)
+#         return x, attention_maps
+
+#     def forward(self, x: torch.Tensor, returnt: str = 'out') -> torch.Tensor:
+#         """Forward pass with support for different return types.
+        
+#         Args:
+#             x: Input tensor
+#             returnt: Return type ('out', 'features', or 'attention')
+
+#         Returns:
+#             torch.Tensor: Depending on returnt:
+#                 - 'out': class logits
+#                 - 'features': CLS token features
+#                 - 'attention': class logits (attention maps accessible via get_attention_maps)
+#         """
+#         output = self.forward_features(x, return_attention=(returnt == 'attention'))
+        
+#         if returnt == 'attention':
+#             features, attention_maps = cast(Tuple[torch.Tensor, List[torch.Tensor]], output)
+#             self._cached_attention_maps = attention_maps
+#         else:
+#             features = cast(torch.Tensor, output)
+#             self._cached_attention_maps = None
+            
+#         # Get CLS token features
+#         cls_features = features[:, 0]
+        
+#         if returnt == 'features':
+#             return cls_features
+            
+#         return self.head(cls_features)
+        
+#     def get_attention_maps(self) -> Optional[List[torch.Tensor]]:
+#         """Get the last computed attention maps.
+        
+#         Returns:
+#             List of attention tensors, one per transformer block,
+#             or None if no attention maps were computed.
+#         """
+#         return self._cached_attention_maps
+
+#     def get_params(self) -> torch.Tensor:
+#         """Returns all parameters concatenated in a single tensor."""
+#         params = []
+#         for pp in list(self.parameters()):
+#             params.append(pp.view(-1))
+#         return torch.cat(params)
+
+# @register_backbone("vit")
+# def vit_backbone(num_classes: int, **kwargs) -> VisionTransformer:
+#     """Creates a Vision Transformer model.
+    
+#     Args:
+#         num_classes: Number of output classes
+#         **kwargs: Additional arguments for model configuration
+#     """
+#     # Filter out None values and 'kwargs' key if present
+#     filtered_kwargs = {k: v for k, v in kwargs.items() if v is not None and k != 'kwargs'}
+    
+#     # Create model with filtered arguments
+#     model = VisionTransformer(num_classes=num_classes, **filtered_kwargs)
+    
+#     logging.warning("creating a ViT without pre-trained weights. This is not recommended.")
+#     return model
