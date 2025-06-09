@@ -1,89 +1,113 @@
-"""
-Network flow visualization utilities for analyzing activation patterns in continual learning.
-This module provides functions to extract and visualize network activations and flow.
-"""
+"""Network flow visualization utilities for Vision Transformers in continual learning experiments."""
+
+from typing import Dict, List, Optional, Union
+import logging
 
 import torch
 import torch.nn as nn
-import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from typing import Dict, List, Tuple, Optional
-import os
-from sklearn.decomposition import PCA
-from sklearn.manifold import TSNE
-import plotly.graph_objects as go
-import plotly.express as px
-from plotly.subplots import make_subplots
-
+import numpy as np
 
 class ActivationExtractor:
-    """
-    Class to extract activations from different layers of a neural network.
-    """
+    """Extract activations from intermediate layers for network flow analysis."""
     
     def __init__(self, model, device='cuda'):
-        """
-        Initialize the activation extractor.
+        """Initialize the activation extractor.
         
         Args:
-            model: The neural network model
+            model: The continual learning model containing a ViT backbone
             device: Device to run computations on
         """
         self.model = model
         self.device = device
-        self.activations = {}
+        self.activations = []
         self.hooks = []
-        
-        # Register hooks to extract activations
         self._register_hooks()
-    
+
+    def _activation_hook(self, module: nn.Module, input_tensor: torch.Tensor, output: torch.Tensor):
+        """Forward hook to capture activations."""
+        # Store mean activation per channel
+        if isinstance(output, torch.Tensor):
+            # If output is from attention layer, take the output tensor (not attention scores)
+            if isinstance(output, tuple):
+                output = output[0]
+            # Compute mean activation per channel/feature
+            channel_mean = output.mean(dim=[0, 1] if len(output.shape) > 2 else 0).detach()
+            self.activations.append(channel_mean)
+
     def _register_hooks(self):
-        """Register forward hooks to extract activations from different layers."""
-        def get_activation_hook(layer_name):
-            def hook(module, input, output):
-                # Store activations
-                if isinstance(output, torch.Tensor):
-                    self.activations[layer_name] = output.detach().cpu()
-                elif isinstance(output, (list, tuple)):
-                    # Handle cases where output is a tuple/list
-                    self.activations[layer_name] = output[0].detach().cpu()
-            return hook
-        
-        # Register hooks for different types of layers
-        for name, module in self.model.named_modules():
-            if isinstance(module, (nn.Linear, nn.Conv2d, nn.LayerNorm)):
-                hook = module.register_forward_hook(get_activation_hook(name))
-                self.hooks.append(hook)
-            elif 'block' in name and hasattr(module, 'forward'):
-                # For transformer blocks
-                hook = module.register_forward_hook(get_activation_hook(name))
-                self.hooks.append(hook)
-    
-    def extract_activations(self, inputs: torch.Tensor) -> Dict[str, torch.Tensor]:
-        """
-        Extract activations for given inputs.
-        
-        Args:
-            inputs: Input tensor
-            
-        Returns:
-            Dictionary mapping layer names to activations
-        """
-        self.activations = {}
-        
-        with torch.no_grad():
-            self.model.eval()
-            _ = self.model(inputs.to(self.device))
-        
-        return self.activations.copy()
-    
+        """Register forward hooks on interesting layers."""
+        if hasattr(self.model, 'net') and hasattr(self.model.net, 'backbone'):
+            backbone = self.model.net.backbone
+            if hasattr(backbone, 'blocks'):
+                # Register hooks for transformer blocks
+                for block in backbone.blocks:
+                    # MLP output
+                    if hasattr(block, 'mlp'):
+                        hook = block.mlp[-2].register_forward_hook(self._activation_hook)  # Before last dropout
+                        self.hooks.append(hook)
+                    # Attention output
+                    if hasattr(block, 'attn'):
+                        hook = block.attn.register_forward_hook(self._activation_hook)
+                        self.hooks.append(hook)
+
     def remove_hooks(self):
         """Remove all registered hooks."""
         for hook in self.hooks:
             hook.remove()
         self.hooks = []
+        self.activations = []
 
+    def extract_activations(self, inputs: torch.Tensor) -> List[torch.Tensor]:
+        """Extract activations for given inputs.
+        
+        Args:
+            inputs: Input tensor of shape [B, C, H, W]
+            
+        Returns:
+            List of activation tensors from monitored layers
+        """
+        self.activations = []  # Reset stored activations
+        
+        with torch.no_grad():
+            self.model.eval()
+            _ = self.model.net(inputs.to(self.device))
+        
+        return self.activations
+
+    def __del__(self):
+        """Cleanup hooks on deletion."""
+        self.remove_hooks()
+        
+    def visualize_activations(self, activations: List[torch.Tensor], 
+                            save_path: Optional[str] = None):
+        """Visualize network flow using activation patterns.
+        
+        Args:
+            activations: List of activation tensors
+            save_path: Optional path to save visualization
+        """
+        # Convert activations to numpy arrays
+        act_arrays = [act.cpu().numpy() for act in activations]
+        
+        # Create heatmap
+        plt.figure(figsize=(15, 5))
+        
+        # Stack activations side by side
+        combined = np.vstack(act_arrays)
+        
+        # Plot heatmap
+        sns.heatmap(combined, cmap='viridis')
+        plt.title('Network Flow: Layer Activations')
+        plt.xlabel('Feature Dimension')
+        plt.ylabel('Layer')
+        
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+            plt.close()
+        else:
+            plt.show()
 
 def compute_activation_statistics(activations: Dict[str, torch.Tensor]) -> Dict[str, Dict[str, float]]:
     """

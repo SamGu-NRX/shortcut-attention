@@ -1,327 +1,118 @@
-"""
-Analysis script for shortcut investigation experiment results.
-
-This script analyzes the results from the shortcut investigation experiments,
-comparing attention patterns and network activations between different methods.
-"""
+"""Analyze and visualize results from the shortcut investigation experiments."""
 
 import os
-import sys
-import json
+import torch
 import numpy as np
 import matplotlib.pyplot as plt
-import seaborn as sns
-import pandas as pd
-from typing import Dict, List, Tuple
-import argparse
+from argparse import ArgumentParser, Namespace
+import logging
 
-# Add mammoth path
-mammoth_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, mammoth_path)
+from utils.attention_visualization import AttentionAnalyzer, analyze_task_attention
+from utils.network_flow_visualization import ActivationExtractor
+from datasets import get_dataset
+from backbone import get_backbone
+from models import get_model
 
-
-class ResultsAnalyzer:
-    """
-    Class for analyzing experiment results and generating comparative visualizations.
-    """
+def analyze_model_attention(args, model_name, results_dir):
+    """Analyze attention patterns for a trained model."""
+    # Load model checkpoint
+    model_dir = os.path.join(results_dir, model_name)
+    if not os.path.exists(model_dir):
+        logging.error(f"No results found for model {model_name}")
+        return
+        
+    checkpoints = sorted([f for f in os.listdir(model_dir) if f.endswith('.pth')])
+    if not checkpoints:
+        logging.error(f"No checkpoints found for model {model_name}")
+        return
+        
+    # Get dataset and model
+    dataset = get_dataset(args)
+    args.num_classes = dataset.N_CLASSES
+    backbone = get_backbone(args)
+    loss = dataset.get_loss()
+    transform = dataset.get_transform()
     
-    def __init__(self, results_dir: str):
-        """
-        Initialize the results analyzer.
-        
-        Args:
-            results_dir: Directory containing experiment results
-        """
-        self.results_dir = results_dir
-        self.results_file = os.path.join(results_dir, 'experiment_results.json')
-        
-        # Load results
-        if os.path.exists(self.results_file):
-            with open(self.results_file, 'r') as f:
-                self.results = json.load(f)
-        else:
-            raise FileNotFoundError(f"Results file not found: {self.results_file}")
-        
-        self.analysis_dir = os.path.join(results_dir, 'analysis')
-        os.makedirs(self.analysis_dir, exist_ok=True)
+    # Create model
+    model = get_model(args, backbone, loss, transform)
     
-    def compare_attention_patterns(self) -> None:
-        """
-        Compare attention patterns between different methods.
-        """
-        print("Analyzing attention patterns...")
+    # Analyze attention after each task
+    for task_id, ckpt in enumerate(checkpoints):
+        checkpoint_path = os.path.join(model_dir, ckpt)
+        state_dict = torch.load(checkpoint_path, map_location='cpu')
+        model.load_state_dict(state_dict)
+        model.eval()
         
-        methods = list(self.results['methods'].keys())
+        # Create output directory for attention maps
+        attention_dir = os.path.join(model_dir, f'attention_task_{task_id}')
+        os.makedirs(attention_dir, exist_ok=True)
         
-        # Collect attention statistics
-        attention_data = []
-        
-        for method in methods:
-            method_results = self.results['methods'][method]
+        # Analyze attention patterns for all tasks seen so far
+        for analyzed_task in range(task_id + 1):
+            # Get test data for the task
+            dataset.test_loader = dataset.get_test_loader(analyzed_task)
+            task_dir = os.path.join(attention_dir, f'test_task_{analyzed_task}')
+            os.makedirs(task_dir, exist_ok=True)
             
-            for seed, seed_results in method_results.items():
-                if 'task_analyses' in seed_results and 'final' in seed_results['task_analyses']:
-                    final_analysis = seed_results['task_analyses']['final']
-                    
-                    if 'attention_stats' in final_analysis:
-                        attention_stats = final_analysis['attention_stats']
-                        
-                        for layer_name, stats in attention_stats.items():
-                            attention_data.append({
-                                'method': method,
-                                'seed': seed,
-                                'layer': layer_name,
-                                'attention_entropy': stats['attention_entropy']
-                            })
-        
-        if attention_data:
-            # Create DataFrame
-            df = pd.DataFrame(attention_data)
+            # Analyze attention patterns
+            class_samples = analyze_task_attention(
+                model=model,
+                dataset=dataset,
+                device=args.device,
+                save_dir=task_dir
+            )
             
-            # Plot attention entropy comparison
-            plt.figure(figsize=(12, 8))
-            sns.boxplot(data=df, x='layer', y='attention_entropy', hue='method')
-            plt.title('Attention Entropy Comparison Between Methods')
-            plt.xlabel('Layer')
-            plt.ylabel('Attention Entropy')
-            plt.xticks(rotation=45)
-            plt.legend(title='Method')
-            plt.tight_layout()
-            plt.savefig(os.path.join(self.analysis_dir, 'attention_entropy_comparison.png'), 
-                       dpi=300, bbox_inches='tight')
-            plt.close()
+            # Check network flow
+            extractor = ActivationExtractor(model, device=args.device)
             
-            # Statistical summary
-            summary = df.groupby(['method', 'layer'])['attention_entropy'].agg(['mean', 'std']).reset_index()
-            summary.to_csv(os.path.join(self.analysis_dir, 'attention_entropy_summary.csv'), index=False)
-            
-            print(f"Attention analysis saved to {self.analysis_dir}")
-        else:
-            print("No attention data found for analysis")
-    
-    def analyze_method_performance(self) -> None:
-        """
-        Analyze and compare performance metrics between methods.
-        """
-        print("Analyzing method performance...")
-        
-        methods = list(self.results['methods'].keys())
-        performance_data = []
-        
-        for method in methods:
-            method_results = self.results['methods'][method]
-            
-            for seed, seed_results in method_results.items():
-                # Try to extract performance metrics from results
-                # Note: This would need to be adapted based on actual result structure
-                exp_results = seed_results.get('experiment_results', {})
+            # Get one sample per class
+            for class_idx, samples in class_samples.items():
+                # Get activations
+                activations = extractor.extract_activations(samples['input'])
                 
-                if exp_results.get('status') == 'success':
-                    performance_data.append({
-                        'method': method,
-                        'seed': seed,
-                        'status': 'success'
-                    })
-                else:
-                    performance_data.append({
-                        'method': method,
-                        'seed': seed,
-                        'status': 'failed'
-                    })
-        
-        if performance_data:
-            df = pd.DataFrame(performance_data)
+                # Save activation visualization
+                save_path = os.path.join(task_dir, f'activations_class_{class_idx}.png')
+                extractor.visualize_activations(activations, save_path=save_path)
             
-            # Success rate by method
-            success_rate = df.groupby('method')['status'].apply(
-                lambda x: (x == 'success').sum() / len(x)
-            ).reset_index()
-            success_rate.columns = ['method', 'success_rate']
-            
-            plt.figure(figsize=(8, 6))
-            sns.barplot(data=success_rate, x='method', y='success_rate')
-            plt.title('Experiment Success Rate by Method')
-            plt.ylabel('Success Rate')
-            plt.ylim(0, 1)
-            plt.tight_layout()
-            plt.savefig(os.path.join(self.analysis_dir, 'success_rate_comparison.png'), 
-                       dpi=300, bbox_inches='tight')
-            plt.close()
-            
-            success_rate.to_csv(os.path.join(self.analysis_dir, 'success_rate_summary.csv'), index=False)
-            
-            print(f"Performance analysis saved to {self.analysis_dir}")
-    
-    def generate_summary_report(self) -> None:
-        """
-        Generate a comprehensive summary report.
-        """
-        print("Generating summary report...")
-        
-        report_lines = []
-        report_lines.append("# Shortcut Investigation Experiment Summary")
-        report_lines.append(f"Experiment: {self.results['experiment_name']}")
-        report_lines.append(f"Timestamp: {self.results['timestamp']}")
-        report_lines.append("")
-        
-        # Methods and seeds
-        methods = list(self.results['methods'].keys())
-        report_lines.append(f"Methods tested: {', '.join(methods)}")
-        
-        # Count total experiments
-        total_experiments = 0
-        successful_experiments = 0
-        
-        for method in methods:
-            method_results = self.results['methods'][method]
-            seeds = list(method_results.keys())
-            total_experiments += len(seeds)
-            
-            for seed, seed_results in method_results.items():
-                if seed_results.get('experiment_results', {}).get('status') == 'success':
-                    successful_experiments += 1
-        
-        report_lines.append(f"Total experiments: {total_experiments}")
-        report_lines.append(f"Successful experiments: {successful_experiments}")
-        report_lines.append(f"Success rate: {successful_experiments/total_experiments:.2%}")
-        report_lines.append("")
-        
-        # Method-specific results
-        report_lines.append("## Method-specific Results")
-        
-        for method in methods:
-            method_results = self.results['methods'][method]
-            seeds = list(method_results.keys())
-            method_success = sum(1 for seed, results in method_results.items() 
-                               if results.get('experiment_results', {}).get('status') == 'success')
-            
-            report_lines.append(f"### {method.upper()}")
-            report_lines.append(f"- Seeds tested: {', '.join(seeds)}")
-            report_lines.append(f"- Successful runs: {method_success}/{len(seeds)}")
-            report_lines.append(f"- Success rate: {method_success/len(seeds):.2%}")
-            
-            # Analysis results
-            analysis_count = 0
-            for seed, seed_results in method_results.items():
-                if 'task_analyses' in seed_results and seed_results['task_analyses']:
-                    analysis_count += 1
-            
-            report_lines.append(f"- Analyses completed: {analysis_count}")
-            report_lines.append("")
-        
-        # Key findings
-        report_lines.append("## Key Findings")
-        report_lines.append("- Custom CIFAR-10 dataset with airplane/automobile vs bird/truck tasks")
-        report_lines.append("- Vision Transformer backbone used for attention analysis")
-        report_lines.append("- Attention maps and network activations extracted for analysis")
-        report_lines.append("- Comparison between DER++ (memory-based) and EWC (regularization-based) methods")
-        report_lines.append("")
-        
-        # Files generated
-        report_lines.append("## Generated Files")
-        analysis_files = [f for f in os.listdir(self.analysis_dir) if f.endswith(('.png', '.csv'))]
-        for file in sorted(analysis_files):
-            report_lines.append(f"- {file}")
-        
-        # Save report
-        report_file = os.path.join(self.analysis_dir, 'summary_report.md')
-        with open(report_file, 'w') as f:
-            f.write('\n'.join(report_lines))
-        
-        print(f"Summary report saved to {report_file}")
-    
-    def create_visualization_dashboard(self) -> None:
-        """
-        Create a comprehensive visualization dashboard.
-        """
-        print("Creating visualization dashboard...")
-        
-        # Create a figure with multiple subplots
-        fig = plt.figure(figsize=(16, 12))
-        
-        # Subplot 1: Method comparison
-        ax1 = plt.subplot(2, 2, 1)
-        methods = list(self.results['methods'].keys())
-        method_counts = [len(self.results['methods'][method]) for method in methods]
-        
-        plt.bar(methods, method_counts, color=['skyblue', 'lightcoral'])
-        plt.title('Number of Experiments per Method')
-        plt.ylabel('Number of Runs')
-        
-        # Subplot 2: Success rate
-        ax2 = plt.subplot(2, 2, 2)
-        success_rates = []
-        for method in methods:
-            method_results = self.results['methods'][method]
-            success_count = sum(1 for seed, results in method_results.items() 
-                              if results.get('experiment_results', {}).get('status') == 'success')
-            success_rates.append(success_count / len(method_results))
-        
-        plt.bar(methods, success_rates, color=['lightgreen', 'orange'])
-        plt.title('Success Rate by Method')
-        plt.ylabel('Success Rate')
-        plt.ylim(0, 1)
-        
-        # Subplot 3: Analysis completion
-        ax3 = plt.subplot(2, 2, 3)
-        analysis_counts = []
-        for method in methods:
-            method_results = self.results['methods'][method]
-            analysis_count = sum(1 for seed, results in method_results.items() 
-                               if 'task_analyses' in results and results['task_analyses'])
-            analysis_counts.append(analysis_count)
-        
-        plt.bar(methods, analysis_counts, color=['gold', 'mediumpurple'])
-        plt.title('Analyses Completed by Method')
-        plt.ylabel('Number of Analyses')
-        
-        # Subplot 4: Experiment timeline (placeholder)
-        ax4 = plt.subplot(2, 2, 4)
-        plt.text(0.5, 0.5, f"Experiment: {self.results['experiment_name']}\n"
-                           f"Timestamp: {self.results['timestamp']}\n"
-                           f"Total Methods: {len(methods)}\n"
-                           f"Total Runs: {sum(method_counts)}",
-                 ha='center', va='center', transform=ax4.transAxes,
-                 bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.8))
-        plt.title('Experiment Summary')
-        plt.axis('off')
-        
-        plt.tight_layout()
-        plt.savefig(os.path.join(self.analysis_dir, 'experiment_dashboard.png'), 
-                   dpi=300, bbox_inches='tight')
-        plt.close()
-        
-        print(f"Dashboard saved to {self.analysis_dir}/experiment_dashboard.png")
-    
-    def run_full_analysis(self) -> None:
-        """
-        Run the complete analysis pipeline.
-        """
-        print(f"Starting analysis of results in {self.results_dir}")
-        
-        self.compare_attention_patterns()
-        self.analyze_method_performance()
-        self.create_visualization_dashboard()
-        self.generate_summary_report()
-        
-        print(f"Analysis complete! Results saved in {self.analysis_dir}")
-
+            extractor.remove_hooks()
 
 def main():
-    """Main function for running the analysis."""
-    parser = argparse.ArgumentParser(description='Analyze shortcut investigation experiment results')
+    """Main function to analyze experiment results."""
+    parser = ArgumentParser()
     parser.add_argument('--results_dir', type=str, required=True,
-                       help='Directory containing experiment results')
+                      help='Directory containing experiment results')
+    parser.add_argument('--models', nargs='+', default=['derpp', 'ewc_on'],
+                      help='Models to analyze')
+    parser.add_argument('--device', type=str, default='cpu',
+                      help='Device to run analysis on')
+                      
+    # Add dataset args
+    parser.add_argument('--dataset', type=str, required=True,
+                      help='Dataset to analyze')
+    parser.add_argument('--backbone', type=str, default='vit',
+                      help='Backbone architecture')
+    parser.add_argument('--transform_type', type=str, default='weak',
+                      help='Type of data augmentation')
+    
+    # Model hyperparameters
+    parser.add_argument('--buffer_size', type=int, default=500,
+                      help='Buffer size for rehearsal models')
+    parser.add_argument('--alpha', type=float, default=0.1,
+                      help='Alpha parameter for DER++')
+    parser.add_argument('--beta', type=float, default=0.5,
+                      help='Beta parameter for DER++')
     
     args = parser.parse_args()
     
-    if not os.path.exists(args.results_dir):
-        print(f"Error: Results directory not found: {args.results_dir}")
-        return
+    # Create output directory for analysis
+    analysis_dir = os.path.join(args.results_dir, 'analysis')
+    os.makedirs(analysis_dir, exist_ok=True)
     
-    analyzer = ResultsAnalyzer(args.results_dir)
-    analyzer.run_full_analysis()
-
+    # Analyze each model
+    for model_name in args.models:
+        print(f"\nAnalyzing model: {model_name}")
+        args.model = model_name
+        analyze_model_attention(args, model_name, args.results_dir)
 
 if __name__ == "__main__":
     main()

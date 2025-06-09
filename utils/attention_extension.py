@@ -1,76 +1,60 @@
-"""Extensions for attention visualization support in continual learning models."""
+"""Attention visualization support for ViT backbone without modifying models."""
 
-import os
+from typing import Dict, List, Optional, Tuple, Union
 import torch
-from utils.attention_visualization import AttentionAnalyzer, visualize_attention_map
+import torch.nn as nn
 
-class ContinualAttentionAnalyzer(AttentionAnalyzer):
-    """Adapter for analyzing attention in continual learning models."""
+class AttentionExtractor:
+    """Extract attention maps from ViT backbone without modifying model code."""
     
-    def extract_attention_maps(self, inputs: torch.Tensor) -> dict:
-        """Extract attention maps using backbone's native attention extraction.
+    def __init__(self):
+        self.attention_maps = []
+        self.hooks = []
+
+    def _attention_hook(self, module: nn.Module, input: Tuple[torch.Tensor], output: torch.Tensor):
+        """Hook for capturing attention maps during forward pass."""
+        if isinstance(output, tuple):
+            # Some attention implementations return (output, attention)
+            self.attention_maps.append(output[1].detach())
+        else:
+            # For standard attention output
+            self.attention_maps.append(output.detach())
+
+    def register_hooks(self, model: nn.Module) -> None:
+        """Register forward hooks on attention blocks."""
+        # Clear any existing hooks
+        self.remove_hooks()
+        
+        # Find attention modules in backbone
+        for name, module in model.net.backbone.blocks.named_children():
+            if hasattr(module, 'attn'):
+                hook = module.attn.register_forward_hook(self._attention_hook)
+                self.hooks.append(hook)
+
+    def remove_hooks(self) -> None:
+        """Remove all registered hooks."""
+        for hook in self.hooks:
+            hook.remove()
+        self.hooks = []
+        
+    def get_attention_maps(self, model: nn.Module, inputs: torch.Tensor) -> List[torch.Tensor]:
+        """Extract attention maps for given inputs.
         
         Args:
+            model: The continual learning model (e.g., DerPP)
             inputs: Input tensor of shape [B, C, H, W]
             
         Returns:
-            Dictionary with attention maps from each transformer block
+            List of attention tensors from each transformer block
         """
-        with torch.no_grad():
-            self.model.eval()
-            # Forward pass with attention extraction
-            self.model.net(inputs.to(self.device), returnt='attention')
-            
-            # Get attention maps from backbone
-            attn_maps = self.model.get_attention_maps()
-            
-            # Format attention maps into expected dictionary structure
-            if attn_maps is not None:
-                return {f'block_{i}': maps.cpu() for i, maps in enumerate(attn_maps)}
-            return {}
-
-def visualize_class_attention(model, dataset, save_dir: str, num_samples: int = 5):
-    """Visualize attention maps for specific classes.
-    
-    Args:
-        model: The continual learning model
-        dataset: The dataset containing class samples
-        save_dir: Directory to save visualizations
-        num_samples: Number of samples per class to visualize
-    """
-    analyzer = ContinualAttentionAnalyzer(model, device=model.device)
-    
-    # Create save directory
-    os.makedirs(save_dir, exist_ok=True)
-    
-    # Get samples from each class
-    for task_id in range(dataset.N_TASKS):
-        train_loader, _ = dataset.get_data_loaders()
-        class_samples = {cls: [] for cls in dataset.get_task_class_names(task_id)}
+        self.attention_maps = []  # Reset stored maps
         
-        # Collect samples
-        for images, labels, _ in train_loader:
-            for img, lbl in zip(images, labels):
-                cls_name = dataset.class_names[lbl]
-                if cls_name in class_samples and len(class_samples[cls_name]) < num_samples:
-                    class_samples[cls_name].append(img)
-                    
-            # Check if we have enough samples
-            if all(len(samples) >= num_samples for samples in class_samples.values()):
-                break
-                
-        # Analyze attention for each class
-        for cls_name, samples in class_samples.items():
-            samples_batch = torch.stack(samples)
-            attn_maps = analyzer.extract_attention_maps(samples_batch)
+        # Register hooks if needed
+        if not self.hooks:
+            self.register_hooks(model)
             
-            if attn_maps:  # Only visualize if we got attention maps
-                for i, (layer_name, attn_map) in enumerate(attn_maps.items()):
-                    for sample_idx in range(len(samples)):
-                        save_path = f"{save_dir}/task{task_id}_{cls_name}_{sample_idx}_{layer_name}.png"
-                        visualize_attention_map(
-                            attention_map=attn_map[sample_idx:sample_idx+1],
-                            input_image=samples_batch[sample_idx:sample_idx+1],
-                            layer_name=f"{layer_name} - {cls_name}",
-                            save_path=save_path
-                        )
+        # Forward pass will trigger hooks
+        with torch.no_grad():
+            model.net(inputs)
+            
+        return self.attention_maps

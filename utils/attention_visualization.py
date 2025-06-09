@@ -15,7 +15,7 @@ import seaborn as sns
 class AttentionAnalyzer:
     """
     Class for analyzing attention patterns in Vision Transformer models.
-    Uses the model's built-in attention score extraction rather than hooks.
+    Uses hooks to extract attention scores during forward pass.
     """
     
     def __init__(self, model, device='cuda'):
@@ -23,16 +23,47 @@ class AttentionAnalyzer:
         Initialize the attention analyzer.
         
         Args:
-            model: The Vision Transformer model
+            model: The continual learning model containing a ViT backbone
             device: Device to run computations on
         """
         self.model = model
         self.device = device
+        self.attention_maps = []
+        self.hooks = []
         self.class_token_idx = 0  # Index of CLS token attention
+        self._register_hooks()
+        
+    def _hook_fn(self, module, input_tensor, output):
+        """Forward hook for capturing attention scores."""
+        # Extract QKV weights
+        qkv = module.qkv(input_tensor[0])
+        B, N, C = input_tensor[0].shape
+        qkv = qkv.reshape(B, N, 3, module.num_heads, C // module.num_heads)
+        qkv = qkv.permute(2, 0, 3, 1, 4)
+        q, k, v = qkv.unbind(0)
+        
+        # Compute attention scores
+        attn = (q @ k.transpose(-2, -1)) * module.scale
+        attn = attn.softmax(dim=-1)
+        
+        # Store attention scores
+        self.attention_maps.append(attn.detach())
+        
+        return output
+            
+    def _register_hooks(self):
+        """Register forward hooks on attention blocks."""
+        if hasattr(self.model, 'net') and hasattr(self.model.net, 'backbone'):
+            backbone = self.model.net.backbone
+            if hasattr(backbone, 'blocks'):
+                for block in backbone.blocks:
+                    if hasattr(block, 'attn'):
+                        hook = block.attn.register_forward_hook(self._hook_fn)
+                        self.hooks.append(hook)
     
     def extract_attention_maps(self, inputs: torch.Tensor) -> Dict[str, torch.Tensor]:
         """
-        Extract attention maps for given inputs using the model's built-in attention score extraction.
+        Extract attention maps for given inputs using hooks.
         
         Args:
             inputs: Input tensor of shape [B, C, H, W]
@@ -40,26 +71,24 @@ class AttentionAnalyzer:
         Returns:
             Dictionary with attention maps from each transformer block
         """
+        self.attention_maps = []  # Reset maps
+        
         with torch.no_grad():
             self.model.eval()
-            # Forward pass with only necessary arguments
-            outputs = self.model(inputs.to(self.device), return_attention=True)
+            # Forward pass will trigger hooks
+            _ = self.model.net(inputs.to(self.device))
             
-            # Extract attention maps based on model output format
-            if isinstance(outputs, tuple):
-                # Handle case where model returns (logits, attention_maps)
-                _, attn_maps = outputs
-            elif isinstance(outputs, dict):
-                # Handle case where model returns a dictionary
-                attn_maps = outputs.get('attention_maps', [])
-            else:
-                raise ValueError("Model output format not supported for attention visualization")
+            # Convert attention maps to dictionary
+            attn_dict = {f'block_{i}': maps for i, maps in enumerate(self.attention_maps)}
             
-        # Ensure attention maps are in the expected format
-        if not isinstance(attn_maps, (list, tuple)):
-            attn_maps = [attn_maps]
-            
-        return {f'block_{i}': maps.cpu() for i, maps in enumerate(attn_maps)}
+        return attn_dict
+    
+    def __del__(self):
+        """Cleanup hooks on deletion."""
+        for hook in self.hooks:
+            hook.remove()
+        self.hooks = []
+        self.attention_maps = []
 
 def visualize_attention_map(attention_map: torch.Tensor, 
                           input_image: torch.Tensor,
@@ -126,6 +155,53 @@ def visualize_attention_map(attention_map: torch.Tensor,
         plt.close()
     else:
         plt.show()
+        
+def analyze_task_attention(model, dataset, device='cuda', save_dir: Optional[str] = None):
+    """
+    Analyze attention patterns for a given task.
+    
+    Args:
+        model: Trained model (DerPP, EWC, etc.)
+        dataset: Dataset for the task
+        device: Device to run analysis on
+        save_dir: Optional directory to save visualizations
+    """
+    if save_dir is not None:
+        os.makedirs(save_dir, exist_ok=True)
+    
+    analyzer = AttentionAnalyzer(model, device)
+    train_loader = dataset.get_data_loaders()[0]
+    test_loader = dataset.get_data_loaders()[1]
+    
+    # Get some test samples
+    test_batch = next(iter(test_loader))
+    inputs, labels = test_batch[0], test_batch[1]
+    
+    # Extract attention maps
+    attention_maps = analyzer.extract_attention_maps(inputs)
+    
+    # Visualize attention for each class
+    class_samples = {}
+    for class_idx in range(dataset.N_CLASSES_PER_TASK):
+        class_mask = labels == class_idx
+        if torch.any(class_mask):
+            class_samples[class_idx] = {
+                'input': inputs[class_mask][0:1],
+                'maps': {k: v[class_mask][0:1] for k, v in attention_maps.items()}
+            }
+            
+            # Save attention visualizations
+            if save_dir:
+                for layer_name, attn_map in class_samples[class_idx]['maps'].items():
+                    save_path = os.path.join(save_dir, f'class_{class_idx}_{layer_name}.png')
+                    visualize_attention_map(
+                        attn_map,
+                        class_samples[class_idx]['input'],
+                        save_path=save_path,
+                        layer_name=layer_name
+                    )
+    
+    return class_samples
 
 def analyze_attention_patterns(attention_maps: Dict[str, torch.Tensor],
                              class_names: List[str],
