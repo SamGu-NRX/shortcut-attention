@@ -18,16 +18,18 @@ class ActivationExtractor:
     forward hooks.
 
     Usage:
-        extractor = ActivationExtractor(model, ['block.0', 'block.5'])
-        activations = extractor.extract(inputs)
+        extractor = ActivationExtractor(model, device='cuda')
+        activations = extractor.extract_activations(inputs)
         extractor.remove_hooks()
     """
 
-    def __init__(self, model: nn.Module, device: str = "cpu"):
+    def __init__(self, model: nn.Module, device: str = "cuda"):
         self.model = model
         self.device = device
         self.activations = {}
         self.hooks = []
+        # Ensure model is on the correct device
+        self.model.to(device)
 
     def _get_hook(self, name: str):
         def hook(model, input, output):
@@ -39,14 +41,24 @@ class ActivationExtractor:
     def register_hooks(self) -> None:
         """Register forward hooks on all transformer blocks."""
         self.remove_hooks()  # Ensure no old hooks are present
+        
+        # Navigate through the model hierarchy to reach the ViT backbone
+        backbone = None
         if hasattr(self.model, "net") and hasattr(self.model.net, "backbone"):
             backbone = self.model.net.backbone
-            if hasattr(backbone, "blocks"):
-                for i, block in enumerate(backbone.blocks):
-                    hook = block.register_forward_hook(
-                        self._get_hook(f"block_{i}")
-                    )
-                    self.hooks.append(hook)
+        elif hasattr(self.model, "net"):
+            backbone = self.model.net
+        elif hasattr(self.model, "backbone"):
+            backbone = self.model.backbone
+        else:
+            backbone = self.model
+            
+        if backbone and hasattr(backbone, "blocks"):
+            for i, block in enumerate(backbone.blocks):
+                hook = block.register_forward_hook(
+                    self._get_hook(f"block_{i}")
+                )
+                self.hooks.append(hook)
 
     def extract_activations(
         self, inputs: torch.Tensor
@@ -83,7 +95,7 @@ def visualize_activations(
         save_path: Path to save the visualization.
         num_patches_to_show: Number of patch tokens to visualize.
     """
-    plt.style.use("seaborn-v0_8-whitegrid")
+    plt.style.use("default")  # Use default style instead of seaborn
     fig, ax = plt.subplots(figsize=(15, 8))
 
     block_names = sorted(activations.keys(), key=lambda x: int(x.split("_")[1]))

@@ -226,9 +226,21 @@ def test_models():
         import traceback; traceback.print_exc()
         return False
 
+# Add this function at the top after the imports
+def get_test_device():
+    """Get the appropriate device for testing."""
+    if torch.cuda.is_available():
+        return 'cuda'
+    else:
+        return 'cpu'
+
+# Replace the test_visualization_utils function:
 def test_visualization_utils():
     """Test if the visualization utilities work."""
     print("\nTesting visualization utilities...")
+    test_device = get_test_device()
+    print(f"  Using device: {test_device}")
+    
     try:
         from utils.attention_visualization import AttentionAnalyzer
         from utils.network_flow_visualization import ActivationExtractor
@@ -274,7 +286,7 @@ def test_visualization_utils():
             optim_wd=0.0, 
             optim_mom=0.0, 
             optim_nesterov=False, 
-            device='cuda', 
+            device=test_device,  # Use the determined device
             model='derpp', 
             buffer_size=50, 
             alpha=0.1,      
@@ -293,14 +305,14 @@ def test_visualization_utils():
         model_instance = get_model(args, backbone_net, loss, transform, dataset=dataset)
 
         # Test attention analysis
-        attention_analyzer = AttentionAnalyzer(model_instance, device='cuda')
+        attention_analyzer = AttentionAnalyzer(model_instance, device=test_device)
         print(f"    ✓ AttentionAnalyzer created")
         
         # Test activation extraction
-        activation_extractor = ActivationExtractor(model_instance, device='cuda')
+        activation_extractor = ActivationExtractor(model_instance, device=test_device)
         print(f"    ✓ ActivationExtractor created")
         
-        # Test with dummy input
+        # Test with dummy input (on CPU, will be moved to device by extractors)
         dummy_input = torch.randn(1, 3, 224, 224) 
         
         # Extract and check attention maps
@@ -324,16 +336,19 @@ def test_visualization_utils():
         import traceback; traceback.print_exc()
         return False
 
+# Also update the test_experiment_runner function to use the correct device:
 def test_experiment_runner():
     """Test if the experiment runner can be imported."""
     print("\nTesting experiment runner...")
+    test_device = get_test_device()
+    
     try:
         from experiments.shortcut_investigation import ShortcutInvestigationExperiment
         base_args = {
             'n_epochs': 1,
             'batch_size': 32,
             'lr': 0.01,
-            'device': 'cuda',
+            'device': '0' if test_device == 'cuda' else 'cpu',  # Use proper format for Mammoth
             'debug_mode': 1,
             'permute_classes': False,
             'custom_class_order': None,
@@ -377,7 +392,7 @@ def test_experiment_runner():
         print(f"✗ Experiment runner test failed: {e}")
         import traceback; traceback.print_exc()
         return False
-
+    
 def main():
     print("=" * 60)
     print("SHORTCUT INVESTIGATION EXPERIMENT - SETUP TEST")

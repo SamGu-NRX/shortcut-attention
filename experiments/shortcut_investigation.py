@@ -87,7 +87,10 @@ class ShortcutInvestigationExperiment:
         # Define a unique name for the checkpoint to easily find it later
         now = datetime.now().strftime("%Y%m%d-%H%M%S")
         ckpt_name = f"{method}_seed{seed}_{now}"
-        model_dir = os.path.join("checkpoints", ckpt_name)
+        
+        # Create results directory for this specific run
+        results_path = os.path.join(self.results_dir, f"{method}_seed_{seed}")
+        os.makedirs(results_path, exist_ok=True)
 
         args_dict = self.base_args.copy()
         args_dict.update(
@@ -95,6 +98,7 @@ class ShortcutInvestigationExperiment:
                 "model": method,
                 "seed": seed,
                 "ckpt_name": ckpt_name,
+                "results_path": results_path,  # Set the results path
                 "savecheck": 1,  # IMPORTANT: Enable saving checkpoints
             }
         )
@@ -109,7 +113,7 @@ class ShortcutInvestigationExperiment:
 
         try:
             mammoth_main(args)
-            return model_dir
+            return results_path  # Return the results directory
         except Exception as e:
             self.logger.error(
                 f"Error running {method} with seed {seed}: {e}",
@@ -117,15 +121,33 @@ class ShortcutInvestigationExperiment:
             )
             return None
 
-    def _analyze_checkpoints(self, method: str, seed: int, model_dir: str):
+    def _analyze_checkpoints(self, method: str, seed: int, results_path: str):
         """Load each task's checkpoint and run analysis."""
-        # Find all task checkpoints
-        checkpoints = sorted(
-            [f for f in os.listdir(model_dir) if f.startswith("task_")]
-        )
-        if not checkpoints:
-            self.logger.warning(f"No task checkpoints found in {model_dir}")
+        # Look for checkpoints in the results directory or subdirectories
+        checkpoint_paths = []
+        
+        # Check for checkpoints in main directory
+        if os.path.exists(results_path):
+            for file in os.listdir(results_path):
+                if file.endswith('.pth') or file.endswith('_last'):
+                    checkpoint_paths.append(os.path.join(results_path, file))
+        
+        # Check for checkpoints in 'checkpoints' subdirectory
+        checkpoints_dir = os.path.join(results_path, 'checkpoints')
+        if os.path.exists(checkpoints_dir):
+            for file in os.listdir(checkpoints_dir):
+                if file.endswith('.pth') or file.endswith('_last'):
+                    checkpoint_paths.append(os.path.join(checkpoints_dir, file))
+        
+        if not checkpoint_paths:
+            self.logger.warning(f"No checkpoints found in {results_path}")
             return
+
+        # For now, just analyze the final checkpoint
+        # (Mammoth typically saves the final model, not per-task checkpoints)
+        final_checkpoint = checkpoint_paths[0]  # Use the first (and likely only) checkpoint
+        
+        self.logger.info(f"--- Analyzing final checkpoint: {os.path.basename(final_checkpoint)} ---")
 
         # Prepare a base model and dataset instance
         args_dict = self.base_args.copy()
@@ -134,77 +156,151 @@ class ShortcutInvestigationExperiment:
             args_dict.update({"buffer_size": 200})
         args = argparse.Namespace(**args_dict)
 
-        dataset = get_dataset(args)
-        backbone = get_backbone(args)
-        loss = dataset.get_loss()
-        transform = dataset.get_transform()
-        model = get_model(args, backbone, loss, transform, dataset)
-        model.to(args.device)
-
-        for ckpt_file in checkpoints:
-            task_id = int(ckpt_file.split("_")[1])
-            self.logger.info(f"--- Analyzing checkpoint: {ckpt_file} ---")
+        try:
+            dataset = get_dataset(args)
+            backbone = get_backbone(args)
+            loss = dataset.get_loss()
+            transform = dataset.get_transform()
+            model = get_model(args, backbone, loss, transform, dataset)
+            model.to(args.device if args.device != "cpu" else "cpu")
 
             # Load the state dict from the checkpoint
-            checkpoint_path = os.path.join(model_dir, ckpt_file)
-            state_dict = torch.load(checkpoint_path, map_location=args.device)
-            model.load_state_dict(state_dict["net"])
+            state_dict = torch.load(final_checkpoint, map_location=args.device if args.device != "cpu" else "cpu")
+            
+            # Handle different checkpoint formats
+            if isinstance(state_dict, dict) and 'net' in state_dict:
+                model.load_state_dict(state_dict['net'])
+            elif isinstance(state_dict, dict) and 'model' in state_dict:
+                model.load_state_dict(state_dict['model'])
+            else:
+                model.load_state_dict(state_dict)
 
             # Create analysis directory
             analysis_dir = os.path.join(
-                self.results_dir, method, f"seed_{seed}", f"task_{task_id}"
+                self.results_dir, method, f"seed_{seed}", "final_analysis"
             )
             os.makedirs(analysis_dir, exist_ok=True)
 
-            # Analyze all tasks seen so far
-            for past_task_id in range(task_id + 1):
-                self.logger.info(
-                    f"Analyzing performance on Task {past_task_id}"
-                )
-                dataset.set_task(past_task_id)
-                task_analysis_dir = os.path.join(
-                    analysis_dir, f"analyzing_task_{past_task_id}"
-                )
+            # For simplicity, analyze both tasks with the final model
+            for task_id in range(dataset.N_TASKS):
+                self.logger.info(f"Analyzing performance on Task {task_id}")
+                
+                # Set the current task for the dataset
+                if hasattr(dataset, 'set_task'):
+                    dataset.set_task(task_id)
+                
+                task_analysis_dir = os.path.join(analysis_dir, f"task_{task_id}")
 
                 # 1. Attention Analysis
                 analyze_task_attention(
                     model,
                     dataset,
-                    device=args.device,
+                    device=args.device if args.device != "cpu" else "cpu",
                     save_dir=os.path.join(task_analysis_dir, "attention"),
                 )
 
                 # 2. Activation Analysis
-                extractor = ActivationExtractor(model, device=args.device)
+                extractor = ActivationExtractor(model, device=args.device if args.device != "cpu" else "cpu")
                 _, test_loader = dataset.get_data_loaders()
                 sample_batch = next(iter(test_loader))[0][:5]  # 5 samples
                 activations = extractor.extract_activations(sample_batch)
                 visualize_activations(
                     activations,
-                    save_path=os.path.join(
-                        task_analysis_dir, "activations.png"
-                    ),
+                    save_path=os.path.join(task_analysis_dir, "activations.png"),
                 )
-        # Reset dataset to its original state if needed
-        dataset.set_task(0)
+                extractor.remove_hooks()
+                
+        except Exception as e:
+            self.logger.error(f"Error in checkpoint analysis: {e}", exc_info=True)
 
 
 def main():
-    """Main function to run the shortcut investigation experiment."""
+    """Main function to configure and run the experiment."""
+    # This dictionary now contains a comprehensive set of default arguments
+    # that the Mammoth framework expects.
     base_args = {
+        # ==========================================
+        # Core Experiment Settings (What we care about)
+        # ==========================================
         "dataset": "seq-cifar10-224-custom",
+        "model": "derpp",  # Will be overridden
         "backbone": "vit",
-        'n_epochs': 10,
-        'batch_size': 32,
-        'lr': 0.01,
-        'device': '0' if torch.cuda.is_available() else 'cpu',
-        'debug_mode': 0,
-        'validation': None,
-        'savecheck': 0,
-        'inference_only': 0,
-        'ignore_other_metrics': 0,
-        'eval_future': 0,
-        'enable_other_metrics': 1,
+        "n_epochs": 10,
+        "batch_size": 32,
+        "lr": 0.001,
+        "device": "0" if torch.cuda.is_available() else "cpu",
+
+        # ==========================================
+        # Required Mammoth Arguments (To prevent AttributeErrors)
+        # ==========================================
+        "base_path": "./data/",
+        "results_path": None,  # Will be set per-run
+        "savecheck": 1,
+        "ckpt_name": None,  # Will be set per-run
+        "debug_mode": 0,
+        "non_verbose": 1,
+        "code_optimization": 0,
+
+        # --- Logging and Reporting ---
+        "nowand": 1,  # Disables Weights & Biases
+        "wandb_entity": None,
+        "wandb_project": None,
+        "tensorboard": False,
+        "csv_log": False,
+        "notes": None,
+
+        # --- Dataset & Tasking ---
+        "seed": 42,  # Will be overridden
+        "start_from": None,
+        "stop_after": None,
+        "joint": False,
+        "label_perc": 1.0,
+        "label_perc_by_class": 1.0,
+        "validation": None,
+        "validation_mode": "current",
+        "noise_rate": 0.0,
+        "transform_type": "weak",
+        "custom_class_order": None,
+        "permute_classes": False,
+        "custom_task_order": None,
+        "drop_last": False,
+        "num_workers": 0,
+
+        # --- Model & Training ---
+        "fitting_mode": "epochs",
+        "n_iters": None,
+        "minibatch_size": 32, # Set to batch_size by default
+        "optimizer": "sgd",
+        "optim_wd": 0.0,
+        "optim_mom": 0.0,
+        "optim_nesterov": False,
+        "lr_scheduler": None,
+        "distributed": "no",
+        "load_best_args": False,
+        "inference_only": 0,
+
+        # --- Metrics ---
+        "enable_other_metrics": False,
+        "eval_future": False,
+        "ignore_other_metrics": 0,
+
+        # --- Config Files (Not used in this setup) ---
+        "dataset_config": None,
+        "model_config": None,
+
+        # --- ViT Specific (Passed to backbone) ---
+        "pretrained": False,
+        "pretrain_type": "in21k-ft-in1k",
+        "img_size": 224,
+        "patch_size": 16,
+        "in_chans": 3,
+        "embed_dim": 768,
+        "depth": 12,
+        "num_heads": 12,
+        "mlp_ratio": 4.0,
+        "qkv_bias": True,
+        "drop_rate": 0.0,
+        "attn_drop_rate": 0.0,
     }
 
     experiment = ShortcutInvestigationExperiment(
@@ -212,11 +308,9 @@ def main():
         experiment_name=f"shortcut_investigation_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
     )
 
-    experiment.run_and_analyze(
-        methods=["derpp", "ewc_on"], seeds=[42, 123]
-    )
+    experiment.run_and_analyze(methods=["derpp", "ewc_on"], seeds=[42, 123])
 
-    print("Experiment completed successfully!")
+    print("\nExperiment completed successfully!")
     print(f"Results and analysis saved in: {experiment.results_dir}")
 
 

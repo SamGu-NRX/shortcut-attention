@@ -21,10 +21,12 @@ class AttentionAnalyzer:
     def __init__(self, model, device="cuda"):
         self.model = model
         self.device = device
+        # Ensure model is on the correct device
+        self.model.to(device)
 
     def extract_attention_maps(self, inputs: torch.Tensor) -> List[torch.Tensor]:
         """
-        Extracts attention maps for given inputs by calling the model's
+        Extracts attention maps for given inputs by calling the ViT backbone's
         forward pass with `return_attention_scores=True`.
 
         Args:
@@ -36,25 +38,29 @@ class AttentionAnalyzer:
         """
         self.model.eval()
         with torch.no_grad():
-            # Check if the model has the capability to return attention scores
+            inputs = inputs.to(self.device)
+            
+            # Navigate through the model hierarchy to reach the ViT backbone
             try:
-                # Try calling the backbone directly with return_attention_scores flag
+                # For ContinualModel -> backbone structure
                 if hasattr(self.model, 'net') and hasattr(self.model.net, 'backbone'):
-                    output, attn_maps = self.model.net.backbone(
-                        inputs.to(self.device), return_attention_scores=True
-                    )
+                    backbone = self.model.net.backbone
+                elif hasattr(self.model, 'net'):
+                    backbone = self.model.net
                 elif hasattr(self.model, 'backbone'):
-                    output, attn_maps = self.model.backbone(
-                        inputs.to(self.device), return_attention_scores=True
-                    )
+                    backbone = self.model.backbone
                 else:
-                    # Fallback: try the model directly
-                    output, attn_maps = self.model(
-                        inputs.to(self.device), return_attention_scores=True
-                    )
-                return attn_maps
+                    backbone = self.model
+                
+                # Check if the backbone supports attention score extraction
+                if hasattr(backbone, 'forward') and 'return_attention_scores' in backbone.forward.__code__.co_varnames:
+                    output, attn_maps = backbone(inputs, return_attention_scores=True)
+                    return attn_maps
+                else:
+                    print("Warning: Backbone does not support return_attention_scores")
+                    return []
+                    
             except Exception as e:
-                # If native approach fails, return empty list
                 print(f"Warning: Could not extract attention maps: {e}")
                 return []
 
