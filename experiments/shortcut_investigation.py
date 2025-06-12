@@ -173,29 +173,30 @@ class ShortcutInvestigationExperiment:
 
     def _analyze_checkpoints(self, method: str, seed: int, ckpt_name: str):
         """Load each task's checkpoint from the predictable path and run analysis."""
-        # Mammoth saves checkpoints in a top-level 'checkpoints' directory
-        checkpoint_dir = os.path.join(mammoth_path, "checkpoints", ckpt_name)
-        
-        if not os.path.exists(checkpoint_dir):
+        # Mammoth saves all checkpoints in a single top-level 'checkpoints' directory.
+        global_checkpoint_dir = os.path.join(mammoth_path, "checkpoints")
+
+        if not os.path.exists(global_checkpoint_dir):
             self.logger.warning(
-                f"Checkpoint directory not found: {checkpoint_dir}. Analysis cannot proceed."
+                f"Global checkpoint directory not found: {global_checkpoint_dir}. Analysis cannot proceed."
             )
             return
 
+        # Find all checkpoint files for this specific run by filtering with the unique prefix.
         checkpoints = sorted(
             [
                 f
-                for f in os.listdir(checkpoint_dir)
-                if f.startswith("task_") and f.endswith(".pth")
+                for f in os.listdir(global_checkpoint_dir)
+                if f.startswith(ckpt_name) and f.endswith((".pth", ".pt"))
             ]
         )
 
         if not checkpoints:
             self.logger.warning(
-                f"No per-task checkpoints found in {checkpoint_dir}. Analysis cannot proceed."
+                f"No per-task checkpoints starting with prefix '{ckpt_name}' found in {global_checkpoint_dir}. Analysis cannot proceed."
             )
             return
-        
+
         self.logger.info(f"Found checkpoints for analysis: {checkpoints}")
 
         # Prepare args for analysis model loading
@@ -214,10 +215,13 @@ class ShortcutInvestigationExperiment:
             model.to(args.device)
 
             for ckpt_file in checkpoints:
-                task_id = int(ckpt_file.split("_")[1])
-                self.logger.info(f"--- Analyzing checkpoint: {ckpt_file} ---")
+                # The task ID is the number right before the file extension.
+                task_id_str = os.path.splitext(ckpt_file)[0].split("_")[-1]
+                task_id = int(task_id_str)
+                
+                self.logger.info(f"--- Analyzing checkpoint: {ckpt_file} (Task {task_id}) ---")
 
-                checkpoint_path = os.path.join(checkpoint_dir, ckpt_file)
+                checkpoint_path = os.path.join(global_checkpoint_dir, ckpt_file)
                 state_dict = torch.load(checkpoint_path, map_location=args.device)
                 model.load_state_dict(state_dict["net"])
 
@@ -227,6 +231,7 @@ class ShortcutInvestigationExperiment:
                 )
                 os.makedirs(analysis_dir, exist_ok=True)
 
+                # Analyze all tasks seen so far (from task 0 up to the current one)
                 for past_task_id in range(task_id + 1):
                     self.logger.info(
                         f"  > Visualizing attention for Task {past_task_id} samples"
