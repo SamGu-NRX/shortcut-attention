@@ -1,3 +1,5 @@
+# deprecated
+
 # experiments/shortcut_investigation.py
 
 """
@@ -173,40 +175,47 @@ class ShortcutInvestigationExperiment:
 
     def _analyze_checkpoints(self, method: str, seed: int, ckpt_name: str):
         """Load each task's checkpoint from the predictable path and run analysis."""
-        # Mammoth saves all checkpoints in a single top-level 'checkpoints' directory.
-        global_checkpoint_dir = os.path.join(mammoth_path, "checkpoints")
+        # Mammoth saves all checkpoints in a single top-level 'checkpoints' directory
+        global_checkpoint_dir = os.path.join(mammoth_path, "checkpoints", ckpt_name)
 
         if not os.path.exists(global_checkpoint_dir):
             self.logger.warning(
-                f"Global checkpoint directory not found: {global_checkpoint_dir}. Analysis cannot proceed."
+                f"Checkpoint directory not found: {global_checkpoint_dir}. Analysis cannot proceed."
             )
             return
 
-        # Find all checkpoint files for this specific run by filtering with the unique prefix.
         checkpoints = sorted(
             [
                 f
                 for f in os.listdir(global_checkpoint_dir)
-                if f.startswith(ckpt_name) and f.endswith((".pth", ".pt"))
+                if f.startswith("task_") and f.endswith((".pth", ".pt"))
             ]
         )
 
         if not checkpoints:
             self.logger.warning(
-                f"No per-task checkpoints starting with prefix '{ckpt_name}' found in {global_checkpoint_dir}. Analysis cannot proceed."
+                f"No per-task checkpoints found in {global_checkpoint_dir}. Analysis cannot proceed."
             )
             return
 
         self.logger.info(f"Found checkpoints for analysis: {checkpoints}")
 
-        # Prepare args for analysis model loading
+        # ======================================================================
+        # THE FIX: Create a complete Namespace for the analysis phase.
+        # ======================================================================
+        # Start with a complete copy of the base arguments
         args_dict = self.base_args.copy()
+        # Update with the specific method and seed for this analysis run
         args_dict.update({"model": method, "seed": seed})
+        # Add any method-specific args needed by the model constructor
         if method == "derpp":
             args_dict.update({"buffer_size": 200})
+        # Convert the complete dictionary to a Namespace object
         args = argparse.Namespace(**args_dict)
+        # ======================================================================
 
         try:
+            # Now, get_dataset(args) will work because args.joint exists.
             dataset = get_dataset(args)
             backbone = get_backbone(args)
             loss = dataset.get_loss()
@@ -215,7 +224,6 @@ class ShortcutInvestigationExperiment:
             model.to(args.device)
 
             for ckpt_file in checkpoints:
-                # The task ID is the number right before the file extension.
                 task_id_str = os.path.splitext(ckpt_file)[0].split("_")[-1]
                 task_id = int(task_id_str)
                 
@@ -225,13 +233,11 @@ class ShortcutInvestigationExperiment:
                 state_dict = torch.load(checkpoint_path, map_location=args.device)
                 model.load_state_dict(state_dict["net"])
 
-                # Save analysis inside the main results directory for this run
                 analysis_dir = os.path.join(
                     self.results_dir, f"{method}_seed_{seed}", "analysis", f"after_task_{task_id}"
                 )
                 os.makedirs(analysis_dir, exist_ok=True)
 
-                # Analyze all tasks seen so far (from task 0 up to the current one)
                 for past_task_id in range(task_id + 1):
                     self.logger.info(
                         f"  > Visualizing attention for Task {past_task_id} samples"
