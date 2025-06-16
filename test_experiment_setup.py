@@ -343,7 +343,7 @@ def test_experiment_runner():
     test_device = get_test_device()
     
     try:
-        from experiments.shortcut_investigation import ShortcutInvestigationExperiment
+        from experiments.analyze_attention import ShortcutInvestigationExperiment
         base_args = {
             'n_epochs': 1,
             'batch_size': 32,
