@@ -76,24 +76,20 @@ class AnalysisRunner:
             self.logger.warning(f"No checkpoints with prefix '{ckpt_name_prefix}' found.")
             return
 
-        # Group checkpoints by their unique run ID (timestamp + uuid)
         runs = {}
         for f in all_run_files:
-            # Filename format: prefix_..._timestamp_uuid_task.pt
             parts = f.split('_')
-            run_id = f"{parts[-3]}_{parts[-2]}" # e.g., "20250610-193159_e9c29112"
+            run_id = f"{parts[-3]}_{parts[-2]}"
             if run_id not in runs:
                 runs[run_id] = []
             runs[run_id].append(f)
 
-        # Find the most recent run by sorting the run IDs (which start with a timestamp)
         latest_run_id = sorted(runs.keys())[-1]
         checkpoints_to_analyze = sorted(runs[latest_run_id])
 
         self.logger.info(f"Found {len(runs)} run(s). Analyzing latest run '{latest_run_id}'.")
         self.logger.info(f"Checkpoints for analysis: {checkpoints_to_analyze}")
 
-        # Prepare a complete Namespace for model/dataset loading
         args_dict = self.base_args.copy()
         args_dict.update({"model": method, "seed": seed})
         if method == "derpp":
@@ -114,7 +110,19 @@ class AnalysisRunner:
 
                 checkpoint_path = os.path.join(global_checkpoint_dir, ckpt_file)
                 state_dict = torch.load(checkpoint_path, map_location=args.device)
-                model.load_state_dict(state_dict["net"])
+
+                # ======================================================================
+                # THE FIX: Robustly load the state dictionary.
+                # ======================================================================
+                # Check if the checkpoint is a dictionary containing the state_dict
+                if isinstance(state_dict, dict) and 'net' in state_dict:
+                    # This is the expected format from Mammoth's training loop
+                    model.load_state_dict(state_dict['net'])
+                else:
+                    # Fallback: Assume the loaded object is the state_dict itself
+                    self.logger.warning("Checkpoint does not contain a 'net' key. Assuming the file is the state_dict itself.")
+                    model.load_state_dict(state_dict)
+                # ======================================================================
 
                 analysis_dir = os.path.join(self.experiment_dir, f"{method}_seed_{seed}", "analysis", f"after_task_{task_id}")
                 os.makedirs(analysis_dir, exist_ok=True)
@@ -135,7 +143,7 @@ class AnalysisRunner:
 
         except Exception as e:
             self.logger.error(f"Error during analysis: {e}", exc_info=True)
-
+            
 def main():
     """Parses arguments and starts the analysis."""
     parser = argparse.ArgumentParser(description="Analyze attention experiment results.")
