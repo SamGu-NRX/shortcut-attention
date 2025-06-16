@@ -145,20 +145,19 @@ def analyze_task_attention(
     """
     Analyzes and visualizes attention for a sample of images from a task's
     test set.
-
-    Returns:
-        A dictionary mapping class index to a dictionary of sample inputs
-        and their extracted attention maps.
     """
     if save_dir:
         os.makedirs(save_dir, exist_ok=True)
 
     analyzer = AttentionAnalyzer(model, device)
-    # The test_loader is now passed in directly, already configured for the correct task.
 
     # Collect samples for each class in the current task
     class_samples = {}
-    for inputs, labels, _ in test_loader:
+    # ======================================================================
+    # THE FINAL FIX: Change the loop to unpack only two items (inputs, labels)
+    # to match what the DataLoader provides.
+    # ======================================================================
+    for inputs, labels in test_loader:
         for i in range(inputs.shape[0]):
             label = labels[i].item()
             if label not in class_samples:
