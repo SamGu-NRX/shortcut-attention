@@ -121,12 +121,25 @@ class AnalysisRunner:
         args = argparse.Namespace(**args_dict)
 
         try:
-            dataset = get_dataset(args)
+            dataset_factory = get_dataset(args)
             backbone = get_backbone(args)
-            loss = dataset.get_loss()
-            transform = dataset.get_transform()
-            model = get_model(args, backbone, loss, transform, dataset)
+            loss = dataset_factory.get_loss()
+            transform = dataset_factory.get_transform()
+            model = get_model(args, backbone, loss, transform, dataset_factory)
             model.to(args.device)
+
+            # ======================================================================
+            # THE FINAL FIX: Generate all task loaders sequentially, as intended
+            # by the Mammoth framework's design.
+            # ======================================================================
+            self.logger.info("Generating all task data loaders sequentially...")
+            all_task_test_loaders = []
+            for _ in range(dataset_factory.N_TASKS):
+                # Each call to get_data_loaders advances the internal task counter
+                _, test_loader = dataset_factory.get_data_loaders()
+                all_task_test_loaders.append(test_loader)
+            self.logger.info("Data loader generation complete.")
+            # ======================================================================
 
             for ckpt_file in checkpoints_to_analyze:
                 task_id = int(os.path.splitext(ckpt_file)[0].split("_")[-1])
@@ -141,23 +154,14 @@ class AnalysisRunner:
                     checkpoint_path, map_location=args.device
                 )
 
-                # ======================================================================
-                # CORRECTED LOADING LOGIC:
-                # The checkpoint is a dictionary containing the full training state.
-                # The actual model weights are stored under the 'model' key.
-                # ======================================================================
                 if isinstance(state_dict, dict) and "model" in state_dict:
-                    # This is the standard format saved by Mammoth's main training loop.
                     model_state_dict = state_dict["model"]
                     model.load_state_dict(model_state_dict)
                 else:
-                    # This is a fallback for checkpoints that might be saved differently,
-                    # e.g., if the file is the state_dict itself.
                     self.logger.warning(
                         "Checkpoint does not contain a 'model' key. Assuming the file is the state_dict itself."
                     )
                     model.load_state_dict(state_dict)
-                # ======================================================================
 
                 analysis_dir = os.path.join(
                     self.experiment_dir,
@@ -171,14 +175,17 @@ class AnalysisRunner:
                     self.logger.info(
                         f"  > Visualizing attention for Task {past_task_id} samples"
                     )
-                    dataset.set_task(past_task_id)
+                    # Retrieve the correct, pre-generated loader for the task.
+                    current_test_loader = all_task_test_loaders[past_task_id]
+
                     task_analysis_dir = os.path.join(
                         analysis_dir, f"analyzing_task_{past_task_id}"
                     )
+                    os.makedirs(task_analysis_dir, exist_ok=True)
 
                     analyze_task_attention(
                         model,
-                        dataset,
+                        current_test_loader.dataset,
                         device=args.device,
                         save_dir=os.path.join(
                             task_analysis_dir, "attention"
@@ -186,8 +193,7 @@ class AnalysisRunner:
                     )
 
                     extractor = ActivationExtractor(model, device=args.device)
-                    _, test_loader = dataset.get_data_loaders()
-                    sample_batch = next(iter(test_loader))[0][:5]
+                    sample_batch = next(iter(current_test_loader))[0][:5]
                     activations = extractor.extract_activations(sample_batch)
                     visualize_activations(
                         activations,
