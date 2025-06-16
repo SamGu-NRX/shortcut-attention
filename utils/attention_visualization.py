@@ -10,6 +10,7 @@ from typing import Dict, List, Optional, Tuple
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from torch.utils.data import DataLoader
 
 
 class AttentionAnalyzer:
@@ -39,27 +40,37 @@ class AttentionAnalyzer:
         self.model.eval()
         with torch.no_grad():
             inputs = inputs.to(self.device)
-            
+
             # Navigate through the model hierarchy to reach the ViT backbone
             try:
                 # For ContinualModel -> backbone structure
-                if hasattr(self.model, 'net') and hasattr(self.model.net, 'backbone'):
+                if hasattr(self.model, "net") and hasattr(
+                    self.model.net, "backbone"
+                ):
                     backbone = self.model.net.backbone
-                elif hasattr(self.model, 'net'):
+                elif hasattr(self.model, "net"):
                     backbone = self.model.net
-                elif hasattr(self.model, 'backbone'):
+                elif hasattr(self.model, "backbone"):
                     backbone = self.model.backbone
                 else:
                     backbone = self.model
-                
+
                 # Check if the backbone supports attention score extraction
-                if hasattr(backbone, 'forward') and 'return_attention_scores' in backbone.forward.__code__.co_varnames:
-                    output, attn_maps = backbone(inputs, return_attention_scores=True)
+                if (
+                    hasattr(backbone, "forward")
+                    and "return_attention_scores"
+                    in backbone.forward.__code__.co_varnames
+                ):
+                    output, attn_maps = backbone(
+                        inputs, return_attention_scores=True
+                    )
                     return attn_maps
                 else:
-                    print("Warning: Backbone does not support return_attention_scores")
+                    print(
+                        "Warning: Backbone does not support return_attention_scores"
+                    )
                     return []
-                    
+
             except Exception as e:
                 print(f"Warning: Could not extract attention maps: {e}")
                 return []
@@ -125,7 +136,8 @@ def visualize_attention_map(
 
 def analyze_task_attention(
     model,
-    dataset,
+    test_loader: DataLoader,
+    class_names: List[str],
     device="cuda",
     save_dir: Optional[str] = None,
     samples_per_class: int = 3,
@@ -142,7 +154,7 @@ def analyze_task_attention(
         os.makedirs(save_dir, exist_ok=True)
 
     analyzer = AttentionAnalyzer(model, device)
-    _, test_loader = dataset.get_data_loaders()
+    # The test_loader is now passed in directly, already configured for the correct task.
 
     # Collect samples for each class in the current task
     class_samples = {}
@@ -163,7 +175,6 @@ def analyze_task_attention(
 
     # Analyze and visualize attention for collected samples
     analyzed_data = {}
-    class_names = dataset.get_class_names()
     for class_idx, samples in class_samples.items():
         class_name = class_names[class_idx]
         analyzed_data[class_idx] = {"inputs": [], "maps": []}

@@ -128,18 +128,12 @@ class AnalysisRunner:
             model = get_model(args, backbone, loss, transform, dataset_factory)
             model.to(args.device)
 
-            # ======================================================================
-            # THE FINAL FIX: Generate all task loaders sequentially, as intended
-            # by the Mammoth framework's design.
-            # ======================================================================
             self.logger.info("Generating all task data loaders sequentially...")
             all_task_test_loaders = []
             for _ in range(dataset_factory.N_TASKS):
-                # Each call to get_data_loaders advances the internal task counter
                 _, test_loader = dataset_factory.get_data_loaders()
                 all_task_test_loaders.append(test_loader)
             self.logger.info("Data loader generation complete.")
-            # ======================================================================
 
             for ckpt_file in checkpoints_to_analyze:
                 task_id = int(os.path.splitext(ckpt_file)[0].split("_")[-1])
@@ -175,7 +169,6 @@ class AnalysisRunner:
                     self.logger.info(
                         f"  > Visualizing attention for Task {past_task_id} samples"
                     )
-                    # Retrieve the correct, pre-generated loader for the task.
                     current_test_loader = all_task_test_loaders[past_task_id]
 
                     task_analysis_dir = os.path.join(
@@ -185,7 +178,8 @@ class AnalysisRunner:
 
                     analyze_task_attention(
                         model,
-                        current_test_loader.dataset,
+                        test_loader=current_test_loader,
+                        class_names=dataset_factory.get_class_names(),
                         device=args.device,
                         save_dir=os.path.join(
                             task_analysis_dir, "attention"
