@@ -25,7 +25,7 @@ def get_base_args() -> dict:
         "n_epochs": 10,
         "batch_size": 32,
         "lr": 0.001,
-        "device": "0" if torch.cuda.is_available() else "cpu",
+        "device": "cuda:0" if torch.cuda.is_available() else "cpu",
 
         # ==========================================
         # Required Mammoth Arguments
@@ -59,6 +59,7 @@ def get_base_args() -> dict:
         "custom_task_order": None, # <-- The missing argument
         "drop_last": False,
         "num_workers": 0,
+        "num_classes": 4,
 
         # --- Model & Training ---
         "fitting_mode": "epochs",

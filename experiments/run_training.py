@@ -2,10 +2,6 @@
 
 """
 Experiment Training Runner for Shortcut Feature Investigation.
-
-This script's sole responsibility is to execute the training runs for all
-specified methods and seeds, generating the necessary per-task model checkpoints
-for later analysis.
 """
 
 import logging
@@ -18,10 +14,13 @@ from typing import Dict, List
 import torch
 from tqdm import tqdm
 
-# Add mammoth path to system path to find main.py
+# Add mammoth path to system path
 mammoth_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if mammoth_path not in sys.path:
     sys.path.insert(0, mammoth_path)
+
+# Import the central configuration
+from experiments.default_args import get_base_args
 
 
 class TrainingRunner:
@@ -66,7 +65,6 @@ class TrainingRunner:
         run_results_path = os.path.join(self.results_dir, f"{method}_seed_{seed}")
         os.makedirs(run_results_path, exist_ok=True)
 
-        # A predictable name for the checkpoint prefix
         ckpt_name = f"shortcut_exp_{method}_seed_{seed}"
 
         cmd = [
@@ -82,8 +80,8 @@ class TrainingRunner:
             "--device", self.base_args["device"],
             "--base_path", self.base_args["base_path"],
             "--results_path", run_results_path,
-            "--num_workers", "0",
-            "--savecheck", "task",
+            "--num_workers", str(self.base_args["num_workers"]),
+            "--savecheck", self.base_args["savecheck"],
             "--ckpt_name", ckpt_name,
         ]
 
@@ -131,15 +129,8 @@ class TrainingRunner:
 
 def main():
     """Configures and starts the training runs."""
-    base_args = {
-        "dataset": "seq-cifar10-224-custom",
-        "backbone": "vit",
-        "n_epochs": 10,
-        "batch_size": 32,
-        "lr": 0.001,
-        "device": "0" if torch.cuda.is_available() else "cpu",
-        "base_path": "./data/",
-    }
+    # Get the complete, consistent base arguments
+    base_args = get_base_args()
 
     runner = TrainingRunner(
         base_args=base_args,

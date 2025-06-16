@@ -2,9 +2,6 @@
 
 """
 Experiment Analysis Script for Shortcut Feature Investigation.
-
-This script loads saved model checkpoints from a completed training run
-and generates attention and activation visualizations for analysis.
 """
 
 import argparse
@@ -28,6 +25,8 @@ from utils.network_flow_visualization import (
     ActivationExtractor,
     visualize_activations,
 )
+# Import the central configuration
+from experiments.default_args import get_base_args
 
 
 class AnalysisRunner:
@@ -66,18 +65,33 @@ class AnalysisRunner:
                 self.logger.warning(f"Could not parse method/seed from directory '{run_dir}'. Skipping.")
 
     def _analyze_checkpoints(self, method: str, seed: int, ckpt_name_prefix: str):
-        """Loads checkpoints for a single run and generates visualizations."""
+        """Loads the MOST RECENT checkpoints for a single run and generates visualizations."""
         global_checkpoint_dir = os.path.join(mammoth_path, "checkpoints")
         if not os.path.exists(global_checkpoint_dir):
             self.logger.error(f"Global checkpoint directory not found: {global_checkpoint_dir}")
             return
 
-        checkpoints = sorted([f for f in os.listdir(global_checkpoint_dir) if f.startswith(ckpt_name_prefix) and f.endswith(".pt")])
-        if not checkpoints:
+        all_run_files = [f for f in os.listdir(global_checkpoint_dir) if f.startswith(ckpt_name_prefix) and f.endswith(".pt")]
+        if not all_run_files:
             self.logger.warning(f"No checkpoints with prefix '{ckpt_name_prefix}' found.")
             return
 
-        self.logger.info(f"Found checkpoints for analysis: {checkpoints}")
+        # Group checkpoints by their unique run ID (timestamp + uuid)
+        runs = {}
+        for f in all_run_files:
+            # Filename format: prefix_..._timestamp_uuid_task.pt
+            parts = f.split('_')
+            run_id = f"{parts[-3]}_{parts[-2]}" # e.g., "20250610-193159_e9c29112"
+            if run_id not in runs:
+                runs[run_id] = []
+            runs[run_id].append(f)
+
+        # Find the most recent run by sorting the run IDs (which start with a timestamp)
+        latest_run_id = sorted(runs.keys())[-1]
+        checkpoints_to_analyze = sorted(runs[latest_run_id])
+
+        self.logger.info(f"Found {len(runs)} run(s). Analyzing latest run '{latest_run_id}'.")
+        self.logger.info(f"Checkpoints for analysis: {checkpoints_to_analyze}")
 
         # Prepare a complete Namespace for model/dataset loading
         args_dict = self.base_args.copy()
@@ -94,7 +108,7 @@ class AnalysisRunner:
             model = get_model(args, backbone, loss, transform, dataset)
             model.to(args.device)
 
-            for ckpt_file in checkpoints:
+            for ckpt_file in checkpoints_to_analyze:
                 task_id = int(os.path.splitext(ckpt_file)[0].split("_")[-1])
                 self.logger.info(f"--- Analyzing checkpoint: {ckpt_file} (Task {task_id}) ---")
 
@@ -122,28 +136,14 @@ class AnalysisRunner:
         except Exception as e:
             self.logger.error(f"Error during analysis: {e}", exc_info=True)
 
-
 def main():
     """Parses arguments and starts the analysis."""
     parser = argparse.ArgumentParser(description="Analyze attention experiment results.")
     parser.add_argument("experiment_dir", type=str, help="Path to the experiment results directory created by run_training.py")
     cli_args = parser.parse_args()
 
-    # Define the base arguments used during training to ensure consistency
-    # IMPORTANT: This must match the base_args in run_training.py
-    base_args = {
-        "dataset": "seq-cifar10-224-custom",
-        "backbone": "vit",
-        "n_epochs": 10,
-        "batch_size": 32,
-        "lr": 0.001,
-        "device": "0" if torch.cuda.is_available() else "cpu",
-        "base_path": "./data/",
-        # Add other necessary defaults for model/dataset instantiation
-        "joint": False,
-        "transform_type": "weak",
-        "num_workers": 0,
-    }
+    # Get the complete, consistent base arguments
+    base_args = get_base_args()
 
     analyzer = AnalysisRunner(experiment_dir=cli_args.experiment_dir, base_args=base_args)
     analyzer.run_full_analysis()
