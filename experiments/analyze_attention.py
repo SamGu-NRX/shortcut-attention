@@ -36,7 +36,9 @@ class AnalysisRunner:
         self.experiment_dir = experiment_dir
         self.base_args = base_args
         if not os.path.exists(experiment_dir):
-            raise FileNotFoundError(f"Experiment directory not found: {experiment_dir}")
+            raise FileNotFoundError(
+                f"Experiment directory not found: {experiment_dir}"
+            )
 
         logging.basicConfig(
             level=logging.INFO,
@@ -53,32 +55,50 @@ class AnalysisRunner:
 
     def run_full_analysis(self):
         """Finds all experiment runs and analyzes their checkpoints."""
-        run_dirs = [d for d in os.listdir(self.experiment_dir) if os.path.isdir(os.path.join(self.experiment_dir, d))]
+        run_dirs = [
+            d
+            for d in os.listdir(self.experiment_dir)
+            if os.path.isdir(os.path.join(self.experiment_dir, d))
+        ]
         for run_dir in run_dirs:
             try:
                 method, _, seed_str = run_dir.partition("_seed_")
                 seed = int(seed_str)
-                self.logger.info(f"\n{'='*20} Analyzing Method: {method}, Seed: {seed} {'='*20}")
+                self.logger.info(
+                    f"\n{'='*20} Analyzing Method: {method}, Seed: {seed} {'='*20}"
+                )
                 ckpt_name_prefix = f"shortcut_exp_{method}_seed_{seed}"
                 self._analyze_checkpoints(method, seed, ckpt_name_prefix)
             except (ValueError, IndexError):
-                self.logger.warning(f"Could not parse method/seed from directory '{run_dir}'. Skipping.")
+                self.logger.warning(
+                    f"Could not parse method/seed from directory '{run_dir}'. Skipping."
+                )
 
-    def _analyze_checkpoints(self, method: str, seed: int, ckpt_name_prefix: str):
+    def _analyze_checkpoints(
+        self, method: str, seed: int, ckpt_name_prefix: str
+    ):
         """Loads the MOST RECENT checkpoints for a single run and generates visualizations."""
         global_checkpoint_dir = os.path.join(mammoth_path, "checkpoints")
         if not os.path.exists(global_checkpoint_dir):
-            self.logger.error(f"Global checkpoint directory not found: {global_checkpoint_dir}")
+            self.logger.error(
+                f"Global checkpoint directory not found: {global_checkpoint_dir}"
+            )
             return
 
-        all_run_files = [f for f in os.listdir(global_checkpoint_dir) if f.startswith(ckpt_name_prefix) and f.endswith(".pt")]
+        all_run_files = [
+            f
+            for f in os.listdir(global_checkpoint_dir)
+            if f.startswith(ckpt_name_prefix) and f.endswith(".pt")
+        ]
         if not all_run_files:
-            self.logger.warning(f"No checkpoints with prefix '{ckpt_name_prefix}' found.")
+            self.logger.warning(
+                f"No checkpoints with prefix '{ckpt_name_prefix}' found."
+            )
             return
 
         runs = {}
         for f in all_run_files:
-            parts = f.split('_')
+            parts = f.split("_")
             run_id = f"{parts[-3]}_{parts[-2]}"
             if run_id not in runs:
                 runs[run_id] = []
@@ -87,8 +107,12 @@ class AnalysisRunner:
         latest_run_id = sorted(runs.keys())[-1]
         checkpoints_to_analyze = sorted(runs[latest_run_id])
 
-        self.logger.info(f"Found {len(runs)} run(s). Analyzing latest run '{latest_run_id}'.")
-        self.logger.info(f"Checkpoints for analysis: {checkpoints_to_analyze}")
+        self.logger.info(
+            f"Found {len(runs)} run(s). Analyzing latest run '{latest_run_id}'."
+        )
+        self.logger.info(
+            f"Checkpoints for analysis: {checkpoints_to_analyze}"
+        )
 
         args_dict = self.base_args.copy()
         args_dict.update({"model": method, "seed": seed})
@@ -106,54 +130,95 @@ class AnalysisRunner:
 
             for ckpt_file in checkpoints_to_analyze:
                 task_id = int(os.path.splitext(ckpt_file)[0].split("_")[-1])
-                self.logger.info(f"--- Analyzing checkpoint: {ckpt_file} (Task {task_id}) ---")
+                self.logger.info(
+                    f"--- Analyzing checkpoint: {ckpt_file} (Task {task_id}) ---"
+                )
 
-                checkpoint_path = os.path.join(global_checkpoint_dir, ckpt_file)
-                state_dict = torch.load(checkpoint_path, map_location=args.device)
+                checkpoint_path = os.path.join(
+                    global_checkpoint_dir, ckpt_file
+                )
+                state_dict = torch.load(
+                    checkpoint_path, map_location=args.device
+                )
 
                 # ======================================================================
-                # THE FIX: Robustly load the state dictionary.
+                # CORRECTED LOADING LOGIC:
+                # The checkpoint is a dictionary containing the full training state.
+                # The actual model weights are stored under the 'model' key.
                 # ======================================================================
-                # Check if the checkpoint is a dictionary containing the state_dict
-                if isinstance(state_dict, dict) and 'net' in state_dict:
-                    # This is the expected format from Mammoth's training loop
-                    model.load_state_dict(state_dict['net'])
+                if isinstance(state_dict, dict) and "model" in state_dict:
+                    # This is the standard format saved by Mammoth's main training loop.
+                    model_state_dict = state_dict["model"]
+                    model.load_state_dict(model_state_dict)
                 else:
-                    # Fallback: Assume the loaded object is the state_dict itself
-                    self.logger.warning("Checkpoint does not contain a 'net' key. Assuming the file is the state_dict itself.")
+                    # This is a fallback for checkpoints that might be saved differently,
+                    # e.g., if the file is the state_dict itself.
+                    self.logger.warning(
+                        "Checkpoint does not contain a 'model' key. Assuming the file is the state_dict itself."
+                    )
                     model.load_state_dict(state_dict)
                 # ======================================================================
 
-                analysis_dir = os.path.join(self.experiment_dir, f"{method}_seed_{seed}", "analysis", f"after_task_{task_id}")
+                analysis_dir = os.path.join(
+                    self.experiment_dir,
+                    f"{method}_seed_{seed}",
+                    "analysis",
+                    f"after_task_{task_id}",
+                )
                 os.makedirs(analysis_dir, exist_ok=True)
 
                 for past_task_id in range(task_id + 1):
-                    self.logger.info(f"  > Visualizing attention for Task {past_task_id} samples")
+                    self.logger.info(
+                        f"  > Visualizing attention for Task {past_task_id} samples"
+                    )
                     dataset.set_task(past_task_id)
-                    task_analysis_dir = os.path.join(analysis_dir, f"analyzing_task_{past_task_id}")
+                    task_analysis_dir = os.path.join(
+                        analysis_dir, f"analyzing_task_{past_task_id}"
+                    )
 
-                    analyze_task_attention(model, dataset, device=args.device, save_dir=os.path.join(task_analysis_dir, "attention"))
-                    
+                    analyze_task_attention(
+                        model,
+                        dataset,
+                        device=args.device,
+                        save_dir=os.path.join(
+                            task_analysis_dir, "attention"
+                        ),
+                    )
+
                     extractor = ActivationExtractor(model, device=args.device)
                     _, test_loader = dataset.get_data_loaders()
                     sample_batch = next(iter(test_loader))[0][:5]
                     activations = extractor.extract_activations(sample_batch)
-                    visualize_activations(activations, save_path=os.path.join(task_analysis_dir, "activations.png"))
+                    visualize_activations(
+                        activations,
+                        save_path=os.path.join(
+                            task_analysis_dir, "activations.png"
+                        ),
+                    )
                     extractor.remove_hooks()
 
         except Exception as e:
             self.logger.error(f"Error during analysis: {e}", exc_info=True)
-            
+
+
 def main():
     """Parses arguments and starts the analysis."""
-    parser = argparse.ArgumentParser(description="Analyze attention experiment results.")
-    parser.add_argument("experiment_dir", type=str, help="Path to the experiment results directory created by run_training.py")
+    parser = argparse.ArgumentParser(
+        description="Analyze attention experiment results."
+    )
+    parser.add_argument(
+        "experiment_dir",
+        type=str,
+        help="Path to the experiment results directory created by run_training.py",
+    )
     cli_args = parser.parse_args()
 
     # Get the complete, consistent base arguments
     base_args = get_base_args()
 
-    analyzer = AnalysisRunner(experiment_dir=cli_args.experiment_dir, base_args=base_args)
+    analyzer = AnalysisRunner(
+        experiment_dir=cli_args.experiment_dir, base_args=base_args
+    )
     analyzer.run_full_analysis()
 
     print("\nAnalysis complete!")
