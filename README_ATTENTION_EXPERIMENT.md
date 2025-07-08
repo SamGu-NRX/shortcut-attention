@@ -1,4 +1,3 @@
-# Continual Learning Attention Investigation Experiment
 
 This experiment investigates shortcut features in continual learning using attention visualization on Vision Transformers (ViT). The experiment compares DER++ and EWC methods on a custom 2-task CIFAR-10 setup designed to study potential shortcut learning.
 

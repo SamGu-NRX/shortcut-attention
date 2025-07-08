@@ -1,0 +1,58 @@
+# Configuration for CIFAR-100 Einstellung Effect Experiments
+# Tests cognitive rigidity in continual learning through artificial shortcuts
+
+# Basic dataset configuration
+backbone: resnet18
+dataset: seq-cifar100-einstellung
+buffer_size: 500
+lr: 0.01
+batch_size: 32
+n_epochs: 50
+
+# Learning rate scheduling
+lr_scheduler: multisteplr
+lr_milestones: [35, 45]
+lr_gamma: 0.1
+
+# Optimizer settings
+optimizer: sgd
+optim_wd: 0.0001
+optim_mom: 0.9
+
+# Einstellung Effect specific parameters
+einstellung_apply_shortcut: true # Apply magenta shortcuts during training/evaluation
+einstellung_mask_shortcut: false # Mask shortcuts (for evaluation subsets)
+einstellung_patch_size: 4 # Size of the magenta patch shortcut
+einstellung_patch_color: [255, 0, 255] # RGB color for shortcuts (magenta)
+
+# Task configuration (automatically computed from superclass structure)
+# Task 1: 8 superclasses (40 fine labels) - learned normally
+# Task 2: 4 superclasses (20 fine labels) - with shortcuts in first superclass
+
+# ERI (Einstellung Rigidity Index) metrics configuration
+einstellung_adaptation_threshold: 0.8 # Accuracy threshold for Adaptation Delay calculation
+einstellung_evaluation_subsets: true # Enable comprehensive subset evaluation
+
+# Attention analysis parameters (for enhanced metrics)
+einstellung_extract_attention: true # Extract attention maps for analysis
+einstellung_attention_layer: -2 # Which layer to extract attention from (ViT only)
+
+# Validation and checkpointing
+validation: true
+validation_mode: current
+save_checkpoints: true
+
+# Reproducibility
+seed: 42
+
+# Logging configuration
+wandb: false # Set to true for W&B logging
+csv_log: true # Enable CSV logging for metrics
+tensorboard: false
+
+# Memory and performance
+num_workers: 4
+pin_memory: true
+
+# Model architecture specific settings
+dropout: 0.0 # No dropout for reproducibility
