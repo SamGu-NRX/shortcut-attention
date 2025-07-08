@@ -210,6 +210,7 @@ class SequentialCIFAR100Einstellung(ContinualDataset):
 
     NAME = 'seq-cifar100-einstellung'
     SETTING = 'class-il'
+    N_CLASSES_PER_TASK = 30  # Average for Mammoth compatibility (40+20)/2
     N_CLASSES_PER_TASK_T1 = len(T1_FINE_LABELS)  # 40 classes
     N_CLASSES_PER_TASK_T2 = len(T2_FINE_LABELS)  # 20 classes
     N_TASKS = 2
@@ -225,7 +226,6 @@ class SequentialCIFAR100Einstellung(ContinualDataset):
 
     def __init__(self, args: Namespace) -> None:
         super().__init__(args)
-        self.current_task = 0
 
         # Einstellung Effect configuration from args
         self.apply_shortcut = getattr(args, 'einstellung_apply_shortcut', False)

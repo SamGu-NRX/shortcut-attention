@@ -23,6 +23,7 @@ Usage:
 import argparse
 import logging
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -37,86 +38,71 @@ from utils.einstellung_integration import enable_einstellung_integration, get_ei
 
 def create_einstellung_args(strategy='derpp', backbone='resnet18', seed=42):
     """
-    Create command line arguments for Einstellung experiments.
+    Create arguments namespace for Einstellung experiments directly.
 
     Args:
         strategy: Continual learning strategy ('derpp', 'ewc_on', 'sgd')
-        backbone: Model backbone ('resnet18', 'vit_base_patch16_224')
+        backbone: Model backbone ('resnet18', 'vit')
         seed: Random seed
 
     Returns:
         argparse.Namespace with experiment configuration
     """
-    # Create argument parser like Mammoth does
-    parser = argparse.ArgumentParser(description='Einstellung Effect Experiments')
+    import argparse
 
-    # Add Mammoth's standard arguments
-    add_management_args(parser)
-    add_experiment_args(parser)
+    # Determine dataset and parameters based on backbone
+    if backbone == 'vit':
+        dataset_name = 'seq-cifar100-einstellung-224'
+        patch_size = 16  # Larger for 224x224 images
+        batch_size = 32
+        n_epochs = 20
+    else:
+        dataset_name = 'seq-cifar100-einstellung'
+        patch_size = 4   # Smaller for 32x32 images
+        batch_size = 32
+        n_epochs = 50
 
-    # Einstellung-specific arguments
-    parser.add_argument('--einstellung_patch_size', type=int, default=4,
-                       help='Size of the magenta shortcut patch')
-    parser.add_argument('--einstellung_patch_color', nargs=3, type=int,
-                       default=[255, 0, 255],
-                       help='RGB color of the shortcut patch')
-    parser.add_argument('--einstellung_adaptation_threshold', type=float, default=0.8,
-                       help='Accuracy threshold for Adaptation Delay calculation')
-    parser.add_argument('--einstellung_apply_shortcut', action='store_true',
-                       help='Apply shortcuts during training')
-    parser.add_argument('--einstellung_mask_shortcut', action='store_true',
-                       help='Mask shortcuts during evaluation')
-    parser.add_argument('--einstellung_evaluation_subsets', action='store_true', default=True,
-                       help='Enable multi-subset evaluation')
-    parser.add_argument('--einstellung_extract_attention', action='store_true', default=True,
-                       help='Extract attention maps for analysis')
-
-    # Create arguments list
-    args_list = [
-        '--dataset', 'seq-cifar100-einstellung',
+    # Use subprocess to call main.py instead of using mammoth_main directly
+    cmd_args = [
+        '--dataset', dataset_name,
         '--model', strategy,
         '--backbone', backbone,
-        '--n_epochs', '50',
-        '--batch_size', '32',
+        '--n_epochs', str(n_epochs),
+        '--batch_size', str(batch_size),
         '--lr', '0.01',
-        '--seed', str(seed),
-        '--csv_log',
-        '--nowand',  # Disable wandb for demonstration
-        '--non_verbose'
+        '--seed', str(seed)
+        # Note: csv_log doesn't exist in Mammoth, removed
     ]
 
     # Strategy-specific parameters
     if strategy == 'derpp':
-        args_list.extend([
+        cmd_args.extend([
             '--buffer_size', '500',
             '--alpha', '0.1',
             '--beta', '0.5'
         ])
     elif strategy == 'ewc_on':
-        args_list.extend([
+        cmd_args.extend([
             '--e_lambda', '1000',
             '--gamma', '1.0'
         ])
 
     # Einstellung parameters
-    args_list.extend([
-        '--einstellung_patch_size', '4',
+    cmd_args.extend([
+        '--einstellung_patch_size', str(patch_size),
         '--einstellung_patch_color', '255', '0', '255',
         '--einstellung_adaptation_threshold', '0.8',
-        '--einstellung_apply_shortcut',
-        '--einstellung_evaluation_subsets',
-        '--einstellung_extract_attention'
+        '--einstellung_apply_shortcut', '1',
+        '--einstellung_evaluation_subsets', '1',
+        '--einstellung_extract_attention', '1'
     ])
 
-    # Parse arguments
-    args = parser.parse_args(args_list)
-
-    return args
+    return cmd_args
 
 
 def run_einstellung_experiment(strategy='derpp', backbone='resnet18', seed=42):
     """
-    Run a single Einstellung Effect experiment.
+    Run a single Einstellung Effect experiment using subprocess.
 
     Args:
         strategy: Continual learning strategy
@@ -134,69 +120,83 @@ def run_einstellung_experiment(strategy='derpp', backbone='resnet18', seed=42):
     print(f"{'='*60}")
 
     # Create experiment arguments
-    args = create_einstellung_args(strategy, backbone, seed)
+    cmd_args = create_einstellung_args(strategy, backbone, seed)
 
     # Create output directory
     output_dir = f"./einstellung_results/{strategy}_{backbone}_seed{seed}"
     os.makedirs(output_dir, exist_ok=True)
 
-    # Enable Einstellung integration
-    integration_enabled = enable_einstellung_integration(args)
-
-    if not integration_enabled:
-        print("ERROR: Failed to enable Einstellung integration")
-        return None
-
-    print("✓ Einstellung integration enabled")
+    # Add results path to command
+    cmd_args.extend(['--results_path', output_dir])
 
     try:
-        # Run the experiment using Mammoth's main function
+        # Run the experiment using subprocess
         print("Starting training...")
-        result = mammoth_main(args)
 
-        # Get the evaluator and final metrics
-        evaluator = get_einstellung_evaluator()
+        # Build full command
+        cmd = [sys.executable, 'main.py'] + cmd_args
 
-        if evaluator is not None:
-            final_metrics = evaluator.get_final_metrics()
+        print(f"Running command: {' '.join(cmd)}")
 
-            print(f"\n{'='*40}")
-            print("EXPERIMENT RESULTS")
-            print(f"{'='*40}")
+        # Run the process
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            universal_newlines=True
+        )
 
-            if final_metrics.adaptation_delay is not None:
-                print(f"Adaptation Delay: {final_metrics.adaptation_delay} epochs")
+        # Stream output in real time
+        output_lines = []
+        for line in iter(process.stdout.readline, ''):
+            print(line.rstrip())
+            output_lines.append(line)
 
-            if final_metrics.performance_deficit is not None:
-                print(f"Performance Deficit: {final_metrics.performance_deficit:.4f}")
+        process.wait()
 
-            if final_metrics.shortcut_feature_reliance is not None:
-                print(f"Shortcut Feature Reliance: {final_metrics.shortcut_feature_reliance:.4f}")
-
-            if final_metrics.eri_score is not None:
-                print(f"ERI Score: {final_metrics.eri_score:.4f}")
-
-            # Export detailed results
-            results_file = f"{output_dir}/detailed_results.json"
-            evaluator.export_results(results_file)
-            print(f"\nDetailed results saved to: {results_file}")
-
-            return {
-                'strategy': strategy,
-                'backbone': backbone,
-                'seed': seed,
-                'metrics': final_metrics,
-                'output_dir': output_dir
-            }
-        else:
-            print("WARNING: No Einstellung evaluator found")
+        if process.returncode != 0:
+            print(f"ERROR: Process failed with return code {process.returncode}")
             return None
+
+        # Try to parse results from output
+        full_output = ''.join(output_lines)
+
+        # Look for final accuracy in output
+        import re
+        acc_pattern = r"Accuracy for \d+ task\(s\):\s+\[Class-IL\]:\s+([\d.]+) %"
+        match = re.search(acc_pattern, full_output)
+
+        final_acc = None
+        if match:
+            final_acc = float(match.group(1))
+
+        print(f"\n{'='*40}")
+        print("EXPERIMENT RESULTS")
+        print(f"{'='*40}")
+        print(f"Final accuracy: {final_acc}%")
+        print(f"Output directory: {output_dir}")
+
+        return {
+            'strategy': strategy,
+            'backbone': backbone,
+            'seed': seed,
+            'final_accuracy': final_acc,
+            'output_dir': output_dir,
+            'success': True
+        }
 
     except Exception as e:
         print(f"ERROR: Experiment failed: {e}")
         import traceback
         traceback.print_exc()
-        return None
+        return {
+            'strategy': strategy,
+            'backbone': backbone,
+            'seed': seed,
+            'success': False,
+            'error': str(e)
+        }
 
 
 def run_comparative_experiment():

@@ -332,6 +332,25 @@ def add_experiment_args(parser: ArgumentParser) -> None:
     noise_group.add_argument('--cache_path_noisy_labels', type=str, default='noisy_labels',
                              help='Path where to save the noisy labels cache. The path is relative to the `base_path`.')
 
+    # Einstellung Effect arguments
+    einstellung_group = parser.add_argument_group('Einstellung Effect arguments', 'Arguments for cognitive rigidity testing in continual learning.')
+
+    einstellung_group.add_argument('--einstellung_patch_size', type=int, default=4,
+                                  help='Size of the magenta shortcut patch.')
+    einstellung_group.add_argument('--einstellung_patch_color', nargs=3, type=int,
+                                  default=[255, 0, 255],
+                                  help='RGB color of the shortcut patch.')
+    einstellung_group.add_argument('--einstellung_adaptation_threshold', type=float, default=0.8,
+                                  help='Accuracy threshold for Adaptation Delay calculation.')
+    einstellung_group.add_argument('--einstellung_apply_shortcut', type=binary_to_boolean_type, default=False,
+                                  help='Apply shortcuts during training.')
+    einstellung_group.add_argument('--einstellung_mask_shortcut', type=binary_to_boolean_type, default=False,
+                                  help='Mask shortcuts during evaluation.')
+    einstellung_group.add_argument('--einstellung_evaluation_subsets', type=binary_to_boolean_type, default=True,
+                                  help='Enable multi-subset evaluation.')
+    einstellung_group.add_argument('--einstellung_extract_attention', type=binary_to_boolean_type, default=True,
+                                  help='Extract attention maps for analysis.')
+
 
 def add_management_args(parser: ArgumentParser) -> None:
     """

@@ -1,0 +1,42 @@
+# CIFAR-100 Einstellung Dataset Configuration (224x224) for ViT
+# Sequential learning with cognitive rigidity testing
+
+dataset: seq-cifar100-einstellung-224
+setting: class-il
+
+# Task structure
+n_tasks: 2
+n_classes_per_task: [40, 20] # Task 1: 40 classes, Task 2: 20 classes
+n_classes: 60
+
+# Training parameters optimized for ViT
+batch_size: 32
+n_epochs: 20
+lr: 0.0005
+optimizer: adamw
+optim_wd: 0.01
+optim_mom: 0.9
+
+# Scheduler
+lr_scheduler: cosine
+warmup_epochs: 5
+
+# Image properties for ViT
+img_size: 224
+patch_size: 16
+
+# Einstellung Effect parameters
+einstellung_patch_size: 16 # Larger for 224x224 images
+einstellung_patch_color: [255, 0, 255] # Magenta
+einstellung_adaptation_threshold: 0.8
+einstellung_apply_shortcut: true
+einstellung_evaluation_subsets: true
+einstellung_extract_attention: true
+
+# Backbone
+backbone: vit
+
+# Standard settings
+num_workers: 4
+drop_last: false
+csv_log: true
