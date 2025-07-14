@@ -104,6 +104,7 @@ class EinstellungEvaluator:
     def after_training_epoch(self, model, dataset, epoch: int):
         """
         Hook called after each training epoch.
+        OPTIMIZED: Reduces frequency and computational load to prevent ViT timeouts.
 
         Args:
             model: The continual learning model
@@ -116,10 +117,21 @@ class EinstellungEvaluator:
         if not self.evaluation_subsets:
             return
 
+        # OPTIMIZATION: Skip attention-heavy evaluations on most epochs for ViT
+        is_vit_model = self._is_vit_model(model)
+        skip_this_epoch = False
+
+        if is_vit_model:
+            # For ViT: Only run comprehensive evaluation every 5th epoch + final epoch
+            if epoch % 5 != 0 and epoch != (dataset.get_epochs() - 1):
+                skip_this_epoch = True
+                self.logger.debug(f"Skipping ViT attention analysis for epoch {epoch} (performance optimization)")
+
         # Create evaluation subsets
         evaluation_subsets = self._get_evaluation_subsets(dataset)
 
         if not evaluation_subsets:
+            self.logger.debug(f"No evaluation subsets available for epoch {epoch}")
             return
 
         # Evaluate each subset
@@ -128,23 +140,39 @@ class EinstellungEvaluator:
         attention_metrics = {}
 
         model.net.eval()
+
+        # OPTIMIZATION: Use memory-efficient evaluation
         with torch.no_grad():
             for subset_name, subset_loader in evaluation_subsets.items():
-                # Basic accuracy evaluation
+                # Basic accuracy evaluation (always run)
                 acc, loss = self._evaluate_subset(model, subset_loader)
                 subset_accuracies[subset_name] = acc
                 subset_losses[subset_name] = loss
 
-                # Attention analysis if enabled
-                if self.attention_analyzer and subset_loader:
+                # OPTIMIZATION: Attention analysis with strict controls
+                if self.attention_analyzer and subset_loader and not skip_this_epoch:
                     try:
+                        self.logger.debug(f"Running attention analysis for {subset_name} (epoch {epoch})")
+
+                        # Get a small batch for attention analysis
                         batch_inputs, _ = next(iter(subset_loader))
+
+                        # OPTIMIZATION: Use limited batch size for ViT
+                        if is_vit_model and batch_inputs.shape[0] > 8:
+                            batch_inputs = batch_inputs[:8]
+
                         attn_metrics = self.attention_analyzer.analyze_einstellung_attention_batch(
                             batch_inputs, subset_name, epoch
                         )
-                        attention_metrics.update({f"{subset_name}_{k}": v for k, v in attn_metrics.items()})
+
+                        if attn_metrics:
+                            attention_metrics.update({f"{subset_name}_{k}": v for k, v in attn_metrics.items()})
+                            self.logger.debug(f"Extracted {len(attn_metrics)} attention metrics for {subset_name}")
+
                     except Exception as e:
                         self.logger.debug(f"Could not extract attention for {subset_name}: {e}")
+                elif skip_this_epoch:
+                    self.logger.debug(f"Skipped attention analysis for {subset_name} (epoch {epoch})")
 
         # Store timeline data
         self.metrics_calculator.add_timeline_data(
@@ -168,6 +196,13 @@ class EinstellungEvaluator:
             'timestamp': time.time()
         }
         self.timeline_data.append(timeline_entry)
+
+        # OPTIMIZATION: Log progress for ViT models
+        if is_vit_model:
+            if not skip_this_epoch:
+                self.logger.info(f"✓ ViT comprehensive evaluation completed for epoch {epoch}")
+            else:
+                self.logger.debug(f"✓ ViT basic evaluation completed for epoch {epoch}")
 
     def _get_evaluation_subsets(self, dataset) -> Dict[str, DataLoader]:
         """
@@ -368,6 +403,29 @@ class EinstellungEvaluator:
             curves[subset_name] = (data['epochs'], data['accuracies'])
 
         return curves
+
+    def _is_vit_model(self, model) -> bool:
+        """
+        Check if the model uses a Vision Transformer backbone.
+        """
+        try:
+            # Check backbone type through various paths
+            backbone = None
+            if hasattr(model, 'net') and hasattr(model.net, 'backbone'):
+                backbone = model.net.backbone
+            elif hasattr(model, 'net'):
+                backbone = model.net
+            elif hasattr(model, 'backbone'):
+                backbone = model.backbone
+
+            if backbone is not None:
+                backbone_type = type(backbone).__name__.lower()
+                return 'vit' in backbone_type or 'vision' in backbone_type or 'transformer' in backbone_type
+
+            return False
+        except Exception as e:
+            self.logger.debug(f"Error checking model type: {e}")
+            return False
 
 
 def create_einstellung_evaluator(args) -> Optional[EinstellungEvaluator]:

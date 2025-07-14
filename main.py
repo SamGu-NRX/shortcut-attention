@@ -358,6 +358,19 @@ def main(args=None):
     if args is None:
         args = parse_args()
 
+    # EINSTELLUNG INTEGRATION DEBUG: Check if this should trigger
+    logger = logging.getLogger(__name__)
+    logger.info("🔍 MAIN FUNCTION STARTING - Checking for Einstellung integration...")
+
+    if hasattr(args, 'dataset'):
+        logger.info(f"   Dataset: {args.dataset}")
+        if 'einstellung' in str(args.dataset).lower():
+            logger.info("   🧠 Einstellung dataset detected - integration should activate")
+        else:
+            logger.info("   📊 Regular dataset - no Einstellung integration expected")
+    else:
+        logger.warning("   ❌ No dataset attribute found in args")
+
     device = get_device(avail_devices=args.device)
     args.device = device
 
@@ -374,6 +387,7 @@ def main(args=None):
                 raise NotImplementedError('BF16 is not supported on this machine.')
 
     dataset = get_dataset(args)
+    logger.info(f"✓ Dataset created: {dataset.NAME}")
 
     extend_args(args, dataset)
 
@@ -381,6 +395,19 @@ def main(args=None):
 
     backbone = get_backbone(args)
     logging.info(f"Using backbone: {args.backbone}")
+
+    # EINSTELLUNG INTEGRATION: Attempt to enable integration
+    logger.info("🧠 ATTEMPTING EINSTELLUNG INTEGRATION...")
+    try:
+        from utils.einstellung_integration import enable_einstellung_integration
+        integration_enabled = enable_einstellung_integration(args)
+        if integration_enabled:
+            logger.info("   ✅ Einstellung integration ENABLED successfully")
+        else:
+            logger.info("   ℹ️  Einstellung integration not enabled (likely not an Einstellung dataset)")
+    except Exception as e:
+        logger.error(f"   ❌ Error during Einstellung integration: {e}")
+        logger.exception("Full traceback:")
 
     if args.code_optimization == 3:
         # check if the model is compatible with torch.compile
@@ -411,6 +438,8 @@ def main(args=None):
     loss = dataset.get_loss()
     model = get_model(args, backbone, loss, dataset.get_transform(), dataset=dataset)
     assert isinstance(model, FutureModel) or not args.eval_future, "Model does not support future_forward."
+
+    logger.info(f"✓ Model created: {type(model).__name__}")
 
     if args.distributed == 'dp':
         from utils.distributed import make_dp

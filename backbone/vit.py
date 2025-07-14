@@ -120,7 +120,7 @@ class Attention(nn.Module):
         q, k, v = qkv.unbind(0)  # make torchscript happy (cannot use tensor as tuple)
 
         attn_probs = None
-        
+
         # If attention scores are needed, use manual calculation for reliable score extraction
         if return_attention_scores:
             attn = (q @ k.transpose(-2, -1)) * self.scale
@@ -190,7 +190,7 @@ class Block(nn.Module):
     def forward(self, x, return_attention_scores=False, **kwargs):
         # Process normalized input through attention
         attn_output = self.attn(self.norm1(x), return_attention_scores=return_attention_scores, **kwargs)
-        
+
         if return_attention_scores:
             current_x, attn_probs = attn_output
         else:
@@ -199,10 +199,10 @@ class Block(nn.Module):
 
         # Apply residual connection, layer scale, and drop path
         x = x + self.drop_path1(self.ls1(current_x))
-        
+
         # MLP path (no attention scores involved)
         x = x + self.drop_path2(self.ls2(self.mlp(self.norm2(x), **kwargs)))
-        
+
         if return_attention_scores:
             return x, attn_probs
         return x
@@ -389,37 +389,81 @@ class VisionTransformer(MammothBackbone):
                 if return_all: tuple (list of intermediate features, list of attention maps)
                 else: tuple (final features, list of attention maps)
         """
+        # DEBUG: Track timing for ViT forward pass
+        import time
+        import logging
+        logger = logging.getLogger(__name__)
+
+        start_time = time.time()
+        logger.debug(f"🚀 ViT forward_features started - batch_size: {x.shape[0]}, return_attention: {return_attention_scores}")
+
         int_features = []
         attn_maps = []
-        
+
+        # Patch embedding
+        patch_start = time.time()
         x = self.patch_embed(x)
         x = self._pos_embed(x)
         x = self.norm_pre(x)
-        
+        patch_time = time.time() - patch_start
+        logger.debug(f"   ✓ Patch embedding completed in {patch_time:.3f}s")
+
+        # Process through transformer blocks
+        blocks_start = time.time()
         for idx, blk in enumerate(self.blocks):
+            block_start = time.time()
+
             AB_blk = AB.get(idx)
             block_kwargs = {'AB': AB_blk} if AB_blk is not None else {}
-            
+
             if return_attention_scores:
+                # PERFORMANCE WARNING: Attention extraction is expensive
+                if idx == 0:  # Only log once
+                    logger.debug(f"   ⚠️  ATTENTION EXTRACTION ENABLED - This significantly slows training!")
+
                 out, attn_probs = blk(x, return_attention_scores=True, **block_kwargs)
                 attn_maps.append(attn_probs)
                 x = out
             else:
                 x = blk(x, **block_kwargs)
-                
+
             if return_all:
                 int_features.append(x.clone())
-                
+
+            block_time = time.time() - block_start
+            if block_time > 0.1:  # Log slow blocks
+                logger.debug(f"   Block {idx}: {block_time:.3f}s (slow)")
+            elif idx % 4 == 0:  # Log every 4th block
+                logger.debug(f"   Block {idx}: {block_time:.3f}s")
+
+        blocks_time = time.time() - blocks_start
+        logger.debug(f"   ✓ All {len(self.blocks)} blocks completed in {blocks_time:.3f}s")
+
+        # Final normalization
+        norm_start = time.time()
         x = self.norm(x)
-        
+        norm_time = time.time() - norm_start
+
         if return_all:
             int_features.append(x.clone())
-            
+
+        total_time = time.time() - start_time
+
+        # PERFORMANCE MONITORING: Log timing warnings
+        if total_time > 1.0:
+            logger.warning(f"🐌 SLOW ViT forward pass: {total_time:.3f}s (batch_size: {x.shape[0]})")
+            if return_attention_scores:
+                logger.warning(f"   Attention extraction likely causing slowdown")
+        elif total_time > 0.5:
+            logger.debug(f"⚠️  Moderate ViT timing: {total_time:.3f}s")
+        else:
+            logger.debug(f"✓ ViT forward_features completed in {total_time:.3f}s")
+
         if return_attention_scores:
             if return_all:
                 return int_features, attn_maps
             return x, attn_maps
-            
+
         if return_all:
             return int_features
         return x
@@ -463,7 +507,7 @@ class VisionTransformer(MammothBackbone):
 
         Returns:
             Depending on returnt and return_attention_scores:
-            - returnt='out': 
+            - returnt='out':
                 if return_attention_scores=False: output tensor
                 if return_attention_scores=True: tuple (output tensor, list of attention maps)
             - returnt='features':
@@ -478,10 +522,10 @@ class VisionTransformer(MammothBackbone):
         """
         assert returnt in ('out', 'features', 'both', 'full')
 
-        features_output = self.forward_features(x, AB, 
+        features_output = self.forward_features(x, AB,
                                              return_all=returnt == 'full',
                                              return_attention_scores=return_attention_scores)
-        
+
         # Unpack features and attention maps based on what was returned
         if return_attention_scores:
             if returnt == 'full':
@@ -507,7 +551,7 @@ class VisionTransformer(MammothBackbone):
             return (out, feats, attn_maps) if return_attention_scores else (out, feats)
         elif returnt == 'full':
             return (out, all_features, attn_maps) if return_attention_scores else (out, all_features)
-        
+
         return (out, attn_maps) if return_attention_scores else out
 
     def get_params(self, discard_classifier=False) -> torch.Tensor:
@@ -784,7 +828,7 @@ def vit_backbone(num_classes, pretrained=True, pretrain_type='in21k-ft-in1k'):
     return vit_base_patch16_224_prompt_prototype(pretrained=pretrained, pretrain_type=pretrain_type, num_classes=num_classes)
 
 # your previous implementation, WRONG
-# """Vision Transformer (ViT) implementation with attention visualization support.""" 
+# """Vision Transformer (ViT) implementation with attention visualization support."""
 
 # import logging
 # from typing import Dict, List, Optional, Tuple, Union, cast
@@ -802,14 +846,14 @@ def vit_backbone(num_classes, pretrained=True, pretrain_type='in21k-ft-in1k'):
 
 # class PatchEmbed(nn.Module):
 #     """Image to Patch Embedding."""
-#     def __init__(self, img_size: int = 224, patch_size: int = 16, 
+#     def __init__(self, img_size: int = 224, patch_size: int = 16,
 #                  in_chans: int = 3, embed_dim: int = 768):
 #         super().__init__()
 #         self.img_size = img_size
 #         self.patch_size = patch_size
 #         self.grid_size = (img_size // patch_size, img_size // patch_size)
 #         self.num_patches = self.grid_size[0] * self.grid_size[1]
-        
+
 #         self.proj = nn.Conv2d(in_chans, embed_dim, kernel_size=patch_size, stride=patch_size)
 
 #     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -825,7 +869,7 @@ def vit_backbone(num_classes, pretrained=True, pretrain_type='in21k-ft-in1k'):
 #         super().__init__()
 #         self.num_heads = num_heads
 #         self.scale = (dim // num_heads) ** -0.5
-        
+
 #         self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
 #         self.attn_drop = nn.Dropout(attn_drop)
 #         self.proj = nn.Linear(dim, dim)
@@ -874,7 +918,7 @@ def vit_backbone(num_classes, pretrained=True, pretrain_type='in21k-ft-in1k'):
 #             x = x + attended
 #             x = x + self.mlp(self.norm2(x))
 #             return x, attn_scores
-        
+
 #         x = x + self.attn(self.norm1(x))
 #         x = x + self.mlp(self.norm2(x))
 #         return x
@@ -890,7 +934,7 @@ def vit_backbone(num_classes, pretrained=True, pretrain_type='in21k-ft-in1k'):
 #         self.num_classes = num_classes
 #         self.embed_dim = embed_dim
 #         self.num_features = embed_dim
-        
+
 #         # Initialize attention cache
 #         self._cached_attention_maps: Optional[List[torch.Tensor]] = None
 
@@ -946,7 +990,7 @@ def vit_backbone(num_classes, pretrained=True, pretrain_type='in21k-ft-in1k'):
 
 #     def forward(self, x: torch.Tensor, returnt: str = 'out') -> torch.Tensor:
 #         """Forward pass with support for different return types.
-        
+
 #         Args:
 #             x: Input tensor
 #             returnt: Return type ('out', 'features', or 'attention')
@@ -958,25 +1002,25 @@ def vit_backbone(num_classes, pretrained=True, pretrain_type='in21k-ft-in1k'):
 #                 - 'attention': class logits (attention maps accessible via get_attention_maps)
 #         """
 #         output = self.forward_features(x, return_attention=(returnt == 'attention'))
-        
+
 #         if returnt == 'attention':
 #             features, attention_maps = cast(Tuple[torch.Tensor, List[torch.Tensor]], output)
 #             self._cached_attention_maps = attention_maps
 #         else:
 #             features = cast(torch.Tensor, output)
 #             self._cached_attention_maps = None
-            
+
 #         # Get CLS token features
 #         cls_features = features[:, 0]
-        
+
 #         if returnt == 'features':
 #             return cls_features
-            
+
 #         return self.head(cls_features)
-        
+
 #     def get_attention_maps(self) -> Optional[List[torch.Tensor]]:
 #         """Get the last computed attention maps.
-        
+
 #         Returns:
 #             List of attention tensors, one per transformer block,
 #             or None if no attention maps were computed.
@@ -993,16 +1037,16 @@ def vit_backbone(num_classes, pretrained=True, pretrain_type='in21k-ft-in1k'):
 # @register_backbone("vit")
 # def vit_backbone(num_classes: int, **kwargs) -> VisionTransformer:
 #     """Creates a Vision Transformer model.
-    
+
 #     Args:
 #         num_classes: Number of output classes
 #         **kwargs: Additional arguments for model configuration
 #     """
 #     # Filter out None values and 'kwargs' key if present
 #     filtered_kwargs = {k: v for k, v in kwargs.items() if v is not None and k != 'kwargs'}
-    
+
 #     # Create model with filtered arguments
 #     model = VisionTransformer(num_classes=num_classes, **filtered_kwargs)
-    
+
 #     logging.warning("creating a ViT without pre-trained weights. This is not recommended.")
 #     return model
