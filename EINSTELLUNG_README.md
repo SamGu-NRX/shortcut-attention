@@ -4,6 +4,10 @@
 
 This document describes the complete implementation of Einstellung Effect testing procedures integrated into the Mammoth continual learning framework. The implementation provides a rigorous scientific framework for testing cognitive rigidity in continual learning models through artificial shortcuts.
 
+```bash
+python run_einstellung_experiment.py --model derpp --backbone resnet18 --auto_checkpoint
+```
+
 ## Scientific Background
 
 The **Einstellung Effect** is a cognitive rigidity phenomenon where prior experience creates a mental "set" that prevents finding simpler or better solutions. In continual learning, this manifests as:
@@ -67,7 +71,7 @@ einstellung_integration/
 
 **Key Features**:
 
-- Inherits from Mammoth's `SequentialCIFAR100`
+- Inherits from Mammoth's `SequentialCIFAR100` and `SeqCIFAR100224` for ViTs
 - Dynamic patch injection based on configuration
 - Multi-subset evaluation support
 - Proper class filtering and remapping
