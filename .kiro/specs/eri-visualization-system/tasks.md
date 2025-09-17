@@ -1,12 +1,34 @@
 # ERI Visualization System — Implementation Plan (v1.2)
 
+## 🚨 CRITICAL MAMMOTH INTEGRATION REQUIREMENTS
+
+**MANDATORY**: Every task MUST integrate with existing Mammoth Einstellung infrastructure:
+
+### Existing Components to Use (DO NOT RECREATE):
+
+- **`datasets/seq_cifar100_einstellung_224.py`**: ViT-compatible dataset with patch injection
+- **`utils/einstellung_evaluator.py`**: Plugin-based evaluator with timeline tracking
+- **`utils/attention_visualization.py`**: ViT attention analysis capabilities
+- **Mammoth training pipeline**: Hooks, logging, checkpoint management
+- **Existing experiment runners**: Checkpoint management and orchestration
+
+### Integration Points:
+
+- **Data Loading**: Convert `EinstellungEvaluator.export_results()` format to visualization format
+- **Evaluation**: Hook into existing `after_training_epoch()` and `meta_end_task()` callbacks
+- **Methods**: Support all Mammoth strategies (SGD, EWC, DER++, etc.) without modification
+- **Datasets**: Use existing `get_evaluation_subsets()` for T1_all, T2_shortcut_normal, etc.
+- **Attention**: Integrate with existing `EinstellungAttentionAnalyzer` for ViT models
+
+**FAILURE TO INTEGRATE = TASK FAILURE**
+
 ## Implementation Conventions
 
 - Code style: black/PEP8 formatting with type hints and comprehensive docstrings
 - Output directories auto-created with deterministic file naming
 - All modules under `eri_vis/` package with corresponding tests under `tests/eri_vis/`
 - Each task builds incrementally on previous tasks with clear interfaces
-- MUST BE COMPREHENSIVE. MUST FOLLOW BEST SCIENTIFIC EXPERIMENT DESIGN PRACTICES
+- ESSENTIAL COMPLIANCE: MUST BE COMPREHENSIVE. MUST FOLLOW BEST SCIENTIFIC EXPERIMENT DESIGN PRACTICES - specifically the existing project structure of MAMMOTH (this repo).
 
 ## Task Organization
 
@@ -16,12 +38,13 @@ Tasks are organized into logical phases with clear dependencies. Each task inclu
 
 ## Phase 1: Core Data Infrastructure
 
-- [ ] **1. ERIDataLoader — Data Loading and Validation Foundation**
+- [x] **1. ERIDataLoader — Data Loading and Validation Foundation**
 
   - Files: eri_vis/data_loader.py, tests/eri_vis/test_data_loader.py
   - Implement:
     - load_csv(filepath): parse, validate REQUIRED_COLS and VALID_SPLITS
-    - load_from_evaluator_export(export: dict): transform to ERITimelineDataset
+    - load_from_evaluator_export(export: dict): **MUST** convert `utils/einstellung_evaluator.py` export format to ERITimelineDataset
+    - load_from_mammoth_results(results_dir): scan for JSON files from Mammoth experiments
     - validate_format(df): types, ranges, domain checks; raise on fail
     - convert_legacy_format(legacy): map legacy keys → schema
   - DoD:
@@ -135,18 +158,19 @@ Tasks are organized into logical phases with clear dependencies. Each task inclu
 - [ ] **8. MammothERIIntegration — Framework Bridge**
 
   - Files: eri_vis/integration/mammoth_integration.py, tests/eri_vis/test_mammoth_integration.py
+  - **CRITICAL**: Integrate with existing `utils/einstellung_evaluator.py` - DO NOT RECREATE
   - Implement:
-    - setup_auto_export(output_dir, export_frequency)
-    - export_timeline_for_visualization(filepath)
-    - generate_visualizations_from_evaluator(output_dir)
-    - register_visualization_hooks()
+    - setup_auto_export(output_dir, export_frequency): Hook into existing evaluator
+    - export_timeline_for_visualization(filepath): Convert existing export format
+    - generate_visualizations_from_evaluator(output_dir): Use existing evaluator data
+    - register_visualization_hooks(): Extend existing `after_training_epoch()` hooks
   - DoD:
-    - Integration test with mock EinstellungEvaluator exporting CSV and figs
-    - Automatic export setup with configurable frequency
-    - Timeline data export functionality for visualization pipeline
-    - Visualization generation from evaluator data
-    - Register visualization hooks with existing Mammoth infrastructure
-    - Test integration with mock EinstellungEvaluator to verify CSV and figure generation
+    - Integration test with **REAL** EinstellungEvaluator (not mock) exporting CSV and figs
+    - Automatic export setup with configurable frequency using existing hooks
+    - Timeline data export functionality using existing evaluator export format
+    - Visualization generation from existing evaluator data structure
+    - Register visualization hooks with existing Mammoth `meta_begin_task()`, `after_training_epoch()`, `meta_end_task()` infrastructure
+    - Test integration with actual EinstellungEvaluator to verify CSV and figure generation
   - _Requirements: 1.4.1, 1.4.2, 1.4.3_
 
 - [ ] **9. ERIExperimentHooks — Experiment Lifecycle Integration**
@@ -166,15 +190,18 @@ Tasks are organized into logical phases with clear dependencies. Each task inclu
 
 - [ ] **10. Runner and Configuration — End-to-End Pipeline**
   - Files: experiments/runners/run_einstellung.py, experiments/configs/cifar100_einstellung224.yaml
+  - **CRITICAL**: Use existing Mammoth infrastructure - extend `run_einstellung_experiment.py` if it exists
   - Implement:
-    - Read config; initialize Mammoth; register hooks; run training
-    - Ensure splits: T1_all, T2_shortcut_normal, T2_shortcut_masked, T2_nonshortcut_normal are evaluated per effective epoch in Phase 2
+    - Read config; initialize Mammoth with existing `datasets/seq_cifar100_einstellung_224.py`
+    - Register hooks with existing `utils/einstellung_evaluator.py`
+    - Use existing `get_evaluation_subsets()` for T1_all, T2_shortcut_normal, T2_shortcut_masked, T2_nonshortcut_normal
+    - Leverage existing checkpoint management and experiment orchestration
   - DoD:
-    - Single-run pipeline produces both CSV and PDFs
-    - Configuration parsing and Mammoth initialization
-    - Register visualization hooks with the training pipeline
-    - Ensure all required splits are evaluated at each effective epoch in Phase 2
-    - Verify end-to-end pipeline produces both CSV data and PDF visualizations
+    - Single-run pipeline produces both CSV and PDFs using existing Mammoth components
+    - Configuration parsing and Mammoth initialization with existing dataset
+    - Register visualization hooks with existing EinstellungEvaluator training pipeline
+    - Ensure all required splits from existing `get_evaluation_subsets()` are evaluated per effective epoch in Phase 2
+    - Verify end-to-end pipeline produces both CSV data and PDF visualizations using existing infrastructure
   - _Requirements: 1.4.3, 1.4.4_
 
 ---

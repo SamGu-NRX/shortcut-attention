@@ -1,10 +1,23 @@
 # ERI Visualization System — Design (v1.1)
 
+## 🚨 CRITICAL INTEGRATION REQUIREMENT
+
+**MANDATORY MAMMOTH INTEGRATION**: This design MUST build upon the existing Mammoth Einstellung infrastructure:
+
+- **Existing Dataset**: `datasets/seq_cifar100_einstellung_224.py` - ViT-compatible CIFAR-100 with magenta patch injection
+- **Existing Evaluator**: `utils/einstellung_evaluator.py` - Plugin-based evaluation with timeline tracking
+- **Existing Metrics**: `utils/einstellung_metrics.py` - ERI calculation framework (if exists)
+- **Existing Attention**: `utils/attention_visualization.py` - ViT attention analysis capabilities
+- **Existing Runners**: Integration with checkpoint management and experiment orchestration
+
+**Architecture Principle**: Extend, don't replace. Build visualization layer on top of proven Mammoth components.
+
 ## Overview
 
 - Modular architecture separating data, processing, visualization, integration.
 - Strict data schemas, deterministic processing, robust error handling.
 - Method-agnostic; minimal assumptions about training internals.
+- **Mammoth-native**: Leverages existing datasets, evaluators, and training pipelines.
 
 ## High-Level Architecture
 

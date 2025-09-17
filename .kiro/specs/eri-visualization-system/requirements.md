@@ -1,5 +1,18 @@
 # ERI Visualization System — Requirements (v1.1)
 
+## 🚨 CRITICAL INTEGRATION REQUIREMENT
+
+**MANDATORY**: This system MUST integrate with the existing Mammoth Einstellung experiment infrastructure in this repository:
+
+- **Dataset**: Use `datasets/seq_cifar100_einstellung_224.py` (ViT-compatible with patch injection)
+- **Evaluator**: Integrate with `utils/einstellung_evaluator.py` (plugin-based evaluation system)
+- **Methods**: Support all existing Mammoth continual learning strategies (SGD, EWC, DER++, etc.)
+- **Pipeline**: Hook into Mammoth's training pipeline, logging, and checkpoint management
+- **Export Format**: Compatible with `EinstellungEvaluator.export_results()` JSON format
+- **Experiment Runner**: Work with existing experiment orchestration and checkpoint management
+
+**DO NOT** create parallel implementations. **DO** extend and integrate with existing proven infrastructure.
+
 ## Goal
 
 - Deliver publication-ready ERI dynamic visualizations integrated with the Mammoth continual learning framework and usable standalone.
