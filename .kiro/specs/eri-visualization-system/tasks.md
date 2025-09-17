@@ -122,7 +122,7 @@ Tasks are organized into logical phases with clear dependencies. Each task inclu
     - Include visual regression testing with golden reference images
   - _Requirements: 1.1.1, 1.1.2, 1.1.3, 1.1.4_
 
-- [ ] **6. ERIHeatmapPlotter — Robustness Analysis Visualization**
+- [x] **6. ERIHeatmapPlotter — Robustness Analysis Visualization**
 
   - Files: eri_vis/plot_heatmap.py, tests/eri_vis/test_heatmap.py
   - Implement AD(τ) heatmap vs Scratch_T2:

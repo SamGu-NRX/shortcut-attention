@@ -233,10 +233,14 @@ class PlotStyleConfig:
         save_kwargs = self.save_kwargs.copy()
         save_kwargs.update(kwargs)
 
+        # Set DPI if not already specified in kwargs
+        if 'dpi' not in save_kwargs:
+            save_kwargs['dpi'] = self.dpi
+
         # Ensure directory exists
         Path(filepath).parent.mkdir(parents=True, exist_ok=True)
 
-        fig.savefig(filepath, dpi=self.dpi, **save_kwargs)
+        fig.savefig(filepath, **save_kwargs)
 
     @classmethod
     def create_publication_style(cls) -> "PlotStyleConfig":
