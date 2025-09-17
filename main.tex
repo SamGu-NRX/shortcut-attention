@@ -1,0 +1,337 @@
+\documentclass[conference]{IEEEtran}
+
+\newif\ifcheckliststyle
+\checkliststylefalse
+
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{microtype}
+\usepackage{siunitx}
+\usepackage{url}
+\usepackage{cite}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{capt-of}
+\usepackage{afterpage}
+\usepackage{tablefootnote}
+
+\makeatletter
+\newcommand{\setcaptype}[1]{\def\@captype{#1}}
+\makeatother
+\newsavebox{\tempboxtwo}
+
+\usepackage[hidelinks]{hyperref}
+
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em  T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+
+
+\begin{document}
+
+\title{Diagnosing Shortcut-Induced Rigidity in Continual Learning: The Einstellung Rigidity Index (ERI)}
+
+\author{
+  \IEEEauthorblockN{Kai Gu\textsuperscript{*} and Weishi Shi}
+  \IEEEauthorblockA{
+    Department of Computer Science and Engineering\\
+    University of North Texas\\
+    Denton, TX 76203, USA\\
+    Email: \{kaigu@my.unt.edu, weishi.shi@unt.edu\}
+  }
+  \thanks{\textsuperscript{*}Corresponding author.}
+}
+
+\maketitle
+
+\begin{abstract}
+Deep neural networks frequently exploit shortcuts---incidental correlations such as distinctive colors, textures, or background artifacts that predict labels without causal meaning---which undermines robustness and out-of-distribution reliability. In continual learning (CL), the consequences of shortcut exploitation can persist and intensify: weights inherited from earlier tasks bias representation reuse toward whatever features most easily satisfied prior labels, mirroring the cognitive \emph{Einstellung} effect in which past habits block optimal solutions. Whereas catastrophic forgetting erodes past skills, shortcut-induced rigidity throttles the acquisition of new ones. We introduce the Einstellung Rigidity Index (ERI), a compact diagnostic that disentangles genuine transfer from cue-inflated performance using three interpretable facets: (i) Adaptation Delay (AD), (ii) Performance Deficit (PD), and (iii) Relative Suboptimal Feature Reliance (SFR\_rel). On a two-phase CIFAR-100 CL benchmark with a deliberately spurious magenta patch in Phase~2, ERI flags cases where pretraining accelerates shortcut reuse but impairs semantic learning. Across Naive, EWC, and Replay, we observe high accuracy on patched images but collapse when the patch is masked, large negative AD (faster threshold attainment due to shortcut reuse), negative PD (seeming gains inflated by the cue), and positive SFR\_rel (compared to a Scratch-T2 baseline). While these findings are consistent with shortcut-induced rigidity, we caution that results may vary with backbones, datasets, and cue salience. When suspected cues can be hypothesized or approximated via attribution-based interventions, ERI provides a conservative litmus test to screen tasks for rigidity risks and guide interventions.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Continual learning; Shortcut Learning; Spurious Correlations; Einstellung Effect; Robustness; Evaluation Metrics; Representation Similarity; Convolutional Neural Networks; Deep Learning.
+\end{IEEEkeywords}
+
+\section{Introduction}
+
+Over the past decade, research in continual learning (CL) has predominantly focused on one failure mode: catastrophic forgetting (CF). When a model learns a new task, gradients from new data can overwrite parameters that supported earlier tasks and reduce retention of prior knowledge \cite{doi:10.1073/pnas.1611835114,vandeven2024continuallearningcatastrophicforgetting}. A broad range of approaches—replay buffers \cite{NEURIPS2019_fa7cdfad,chaudhry2018efficient}, parameter regularizers \cite{doi:10.1073/pnas.1611835114,pmlr-v70-zenke17a}, dynamic architectures \cite{rusu2022progressiveneuralnetworks,yoon2018lifelonglearningdynamicallyexpandable}, and rehearsal schedules \cite{buzzega2020darkexperiencegeneralcontinual, Wang_2021_CVPR}—has been developed to slow, mask, or reverse this erosion.
+ 
+Yet forgetting is only one half of the stability--plasticity dilemma. The same mechanisms that protect prior representations can reduce plasticity: instead of discarding the past, the model may preferentially reuse features from earlier tasks, possibly including shortcuts that are suboptimal for the current task. This pattern is analogous to the \emph{Einstellung effect}, where prior strategies impede discovery of better ones \cite{Binz2021ReconstructingTE}. We refer to this counterpart as \emph{shortcut-induced rigidity}. Whereas CF concerns retention of prior tasks, rigidity concerns over-reliance on suboptimal features during adaptation.
+ 
+This consideration can be viewed through a bias--variance analogy, although the mapping is heuristic. Regularization-based methods such as EWC \cite{doi:10.1073/pnas.1611835114} and Synaptic Intelligence \cite{pmlr-v70-zenke17a} constrain parameter updates to reduce forgetting, which can also reduce the degrees of freedom available for new learning and thereby entrench early-learned shortcuts \cite{Kong2022BalancingSA}. Conversely, highly plastic approaches may adapt quickly on new tasks but exhibit greater variability in the retention of past knowledge.
+ 
+The consequences are most salient when models exploit shortcuts—incidental correlations (e.g., distinctive colors, textures, or background artifacts) that predict labels without causal meaning \cite{Geirhos_2020,Hermann2023OnTF}. In CL, shortcuts learned on earlier tasks may become entrenched through the same mechanisms that prevent forgetting. If regularizers protect parameters encoding spurious features, or if replay buffers contain many shortcut-bearing examples, adaptation on subsequent tasks can be biased toward reusing these correlations \cite{Murali2023ShortcutLT}, potentially creating a feedback loop in which anti-forgetting mechanisms also preserve shortcut reliance.
+ 
+We introduce the \emph{Einstellung Rigidity Index} (ERI), a three-facet diagnostic designed to assess shortcut-induced rigidity in sequential learning. ERI quantifies: (i) how quickly a continual learner reaches an accuracy threshold relative to a from-scratch baseline on shortcut-bearing data (Adaptation Delay, AD); (ii) the final accuracy gap on those data (Performance Deficit, PD); and (iii) the additional reliance of the continual model on the suspected shortcut compared to the from-scratch baseline, measured via a masking intervention (Relative Sub-optimal Feature Reliance, SFR\(_{\mathrm{rel}}\)). ERI complements standard CL metrics by distinguishing genuine transfer from cue-inflated performance.
+ 
+In this work, we articulate shortcut-induced rigidity as the adaptation-side counterpart to catastrophic forgetting and propose the Einstellung Rigidity Index (ERI) to assess it without altering training. ERI captures learning speed, final performance, and cue reliance via AD, PD, and SFR\(_{\mathrm{rel}}\). Using a two-phase CIFAR-100 protocol with deterministic shortcut injection and masking, we compare Na"ive fine-tuning, EWC, and Experience Replay to a from-scratch baseline and find negative AD, non-positive PD, and positive SFR\(_{\mathrm{rel}}\), consistent with shortcut dependence despite near-zero measured forgetting. We discuss screening and mitigation practices, and position ERI as a complement to conventional CL metrics by evaluating whether adaptation proceeds for the right reasons.
+
+\section{Related Work}
+
+\subsection{Shortcut learning and spurious correlations}
+Shortcut learning represents a fundamental challenge in deep learning \cite{Steinmann2024navigating}. This phenomenon manifests across diverse domains: texture bias in computer vision \cite{Geirhos_2020}, background artifacts in medical imaging \cite{Hill2024TheRO,Bassi2024improving}, and device-specific signatures in audio processing \cite{shim2023constructperfectworsethancoinflipspoofing}. Contemporary detection methods include mutual information-based monitoring \cite{Adnan2022MonitoringSL,Fay2023AvoidingSB}, counterfactual interventions \cite{Robinson2022DeepLM}, and training dynamics analysis \cite{murali2023distributionshiftspuriousfeatures}. Particularly relevant to our work, Murali et al. \cite{murali2023distributionshiftspuriousfeatures} demonstrate that shortcuts correspond to features learned early in training, introducing Prediction Depth as an instance-difficulty metric. This temporal perspective informs our Adaptation Delay component in ERI. 
+
+\subsection{Continual learning and evaluation}
+Traditional continual learning evaluation relies on aggregate metrics such as average accuracy (ACC), backward transfer (BWT), and forward transfer (FWT) \cite{vandeVen2024ContinualLA}. While invaluable, these do not distinguish whether success stems from robust, causal features or from spurious cues \cite{Ashley2021DoesTA,Marconato2022CatastrophicFI, Wang2023WhereTF,Sun2024RevivingDM}. When spurious correlations are present, they can both accelerate learning (by supplying an easy signal) and impair learning (by suppressing gradients for more informative features), leading to misleading progress indicators and reduced scalability. Hammoud et al. \cite{hammoud2023rapidadaptationonlinecontinual} demonstrate that online continual learning metrics can be manipulated through spurious label correlations, proposing temporally-aware evaluation that accounts for spurious correlation effects. Similarly, domain-agnostic characterization frameworks \cite{BAKER2023274} showcase the need for evaluation protocols that can detect when apparent learning progress masks underlying brittleness. Salman et al. \cite{salman2022doesbiastransfertransfer} systematically study bias transfer in sequential learning, showing that spurious correlations are not only inherited but often amplified across tasks. Salmani \& Lewis \cite{salmani2024transferlearningbias} further demonstrate that transfer learning can introduce new biases not present in either source or target domains, supporting our hypothesis about weight inheritance creating representation rigidity. Our metric addresses these evaluation gaps by providing a diagnostic that, when suspected cues are known or can be approximated through targeted interventions, can detect shortcut-induced rigidity. In settings where cues are unknown, we outline practical proxies and their limitations in the Discussion, and we recommend treating ERI as a conservative screen rather than a definitive attribution.
+
+\subsection{Cognitive biases in machine learning}
+The Einstellung effect, where prior knowledge interferes with optimal problem-solving, has recently gained attention as a framework for understanding limitations in machine learning systems \cite{Binz2021ReconstructingTE}. This cognitive bias manifests when established solution strategies prevent the discovery of better alternatives, directly paralleling our observations in continual learning scenarios. In the context of transfer learning, Székely et al. \cite{10.1162/opmi_a_00158} demonstrate that transfer learning systematically reshapes inductive biases, showing how prior tasks influence subsequent learning patterns. This finding supports our hypothesis that weight inheritance in continual learning creates rigidity by biasing representation search toward previously successful but potentially suboptimal features. The connection between cognitive biases and machine learning limitations provides theoretical grounding for our approach. 
+
+\section{Methodology}
+
+We consider a two-phase CL setting. Let \(\mathcal{Y}_{\mathrm{T2}}\) be the Phase~2 label set and \(\mathcal{C}_{\text{patch}}\subseteq\mathcal{Y}_{\mathrm{T2}}\) the subset of Phase~2 shortcut superclasses whose images are augmented with a spurious patch during Phase~2. All ERI quantities are computed on \(\mathcal{C}_{\text{patch}}\).
+
+Let \(\mathcal{D}_{\mathrm{T2}}^{\text{test,patch}}\) denote the Phase~2 test set restricted to \(\mathcal{C}_{\text{patch}}\) with the patch present, and \(\mathcal{D}_{\mathrm{T2}}^{\text{test,mask}}\) the same underlying images with the patch removed by a deterministic masking operator. For any model \(M\), define \(\mathrm{Acc}(M,\mathcal{D})\) as top-1 accuracy macro-averaged over \(\mathcal{C}_{\text{patch}}\).
+
+We compare a Scratch-T2 model \(M_S\) trained from random initialization on Phase~2 only and a continual model \(M_{CL}\) obtained by continuing training from Phase~1. 
+
+Let \(e\in\mathbb{N}_0\) index effective Phase~2 epochs: the number of optimizer updates that consume Phase~2 samples divided by the size of the Phase~2 training set. For methods with replay, this normalizes for extra updates due to memory sampling. Let \(\mathcal{A}_M(e)\) denote the patched-set top-1 accuracy after \(e\) effective epochs (evaluated at the checkpoint saved after epoch \(e\)).
+
+\subsection{Adaptation Delay (AD)}
+Fix \(\tau\in(0,1)\). The effective epochs to reach \(\tau\) are
+
+\begin{align}
+E_S(\tau) &= \min\{e:\mathcal{A}_S(e)\ge\tau\}, \label{eq:es_tau}\\
+E_{CL}(\tau) &= \min\{e:\mathcal{A}_{CL}(e)\ge\tau\}. \label{eq:ecl_tau}
+\end{align}
+
+If \(\tau\) is never reached under the training budget, the corresponding \(E(\tau)\) is treated as right-censored. The Adaptation Delay is
+
+\begin{equation}
+\mathrm{AD} = E_{CL}(\tau)-E_S(\tau).
+\label{eq:ad}
+\end{equation}
+
+Substantially negative \(\mathrm{AD}\) indicates the continual model reaches \(\tau\) faster. When accompanied by elevated shortcut reliance (Section~\ref{ssec:sfr}), this pattern is consistent with shortcut-accelerated learning rather than improved semantic transfer.
+
+\subsection{Performance Deficit (PD)}
+Let \(\mathcal{A}_M^*\) denote the final patched-set accuracy of model \(M\) under the selection rule of best Phase~2 validation accuracy (the same rule for all methods). Define
+
+\begin{equation}
+\mathrm{PD} = \mathcal{A}_S^*-\mathcal{A}_{CL}^*.
+\label{eq:pd}
+\end{equation}
+
+Positive \(\mathrm{PD}\) means the continual model underperforms the scratch baseline on patched data; negative \(\mathrm{PD}\) indicates an apparent advantage for the continual model that may be cue-inflated if paired with high shortcut reliance.
+
+\subsection{Relative Suboptimal Feature Reliance (SFR\(_{\mathrm{rel}}\))}
+\label{ssec:sfr}
+
+For any \(M\), define the masking delta
+
+\begin{equation}
+\Delta_M = \mathrm{Acc}\!\left(M,\mathcal{D}_{\mathrm{T2}}^{\text{test,patch}}\right) -\mathrm{Acc}\!\left(M,\mathcal{D}_{\mathrm{T2}}^{\text{test,mask}}\right).
+\label{eq:delta}
+\end{equation}
+
+Here, \(\Delta_M>0\) means performance drops when the shortcut is removed (shortcut reliance), whereas \(\Delta_M<0\) means the patch is ignored or harmful. The relative reliance is
+
+\begin{equation}
+\mathrm{SFR}_{\mathrm{rel}} = \Delta_{CL}-\Delta_S.
+\label{eq:sfr_rel}
+\end{equation}
+
+Positive \(\mathrm{SFR}_{\mathrm{rel}}\) indicates that the continual process amplified dependence on the shortcut compared to the scratch baseline.
+
+\subsection{The ERI}
+We define the Einstellung Rigidity Index as the ordered triplet
+\begin{equation}
+\mathrm{ERI} = \big(\mathrm{AD},\,\mathrm{PD},\,\mathrm{SFR}_{\mathrm{rel}}\big).
+\label{eq:eri}
+\end{equation}
+
+Interpreting the three facets jointly is essential.
+
+\begin{itemize}
+ \item Red-flag pattern (likely rigidity): \(\mathrm{AD}\ll 0\),   \(\mathrm{PD}\le 0\), and \(\mathrm{SFR}_{\mathrm{rel}}>0\).
+ \item Benign transfer (no elevated shortcut reliance):
+    \(\mathrm{AD}\approx 0\) or \(>0\),
+    \(\mathrm{PD}\ge 0\),
+    \(\mathrm{SFR}_{\mathrm{rel}}\le 0\).
+ \item Ambiguous cases warrant additional probes (e.g., representational drift via CKA, calibration under masking, counterfactual patch placement).
+\end{itemize}
+
+For decision support, one may \emph{optionally} declare a high-rigidity flag if, for user-chosen margins \(\delta_{\mathrm{AD}},\delta_{\mathrm{PD}},\delta_{\mathrm{SFR}}>0\), \(\mathrm{AD}\le -\delta_{\mathrm{AD}}\), \(\mathrm{PD}\le -\delta_{\mathrm{PD}}\), and \(\mathrm{SFR}_{\mathrm{rel}}\ge \delta_{\mathrm{SFR}}\).
+
+\section{Experiment Design}
+
+\subsection{Dataset, tasks, and shortcut injection}
+We construct a two-phase CL benchmark on CIFAR-100~\cite{Krizhevsky2009LearningML}. 
+
+\textbf{Phase~1 (T1).} A ResNet-18 backbone~\cite{DBLP:journals/corr/HeZRS15} is trained on 8 CIFAR-100 superclasses using standard data augmentations (random crop and horizontal flip). This stage provides a semantic foundation intended to encourage robust feature learning.
+
+\textbf{Phase~2 (T2).} The model is continually trained on 4 new \emph{superclasses}. Of these, 2 are designated as \emph{shortcut superclasses} (SC): every image for those superclasses is augmented with a fixed \(4\times4\) magenta patch (RGB 255,\,0,\,255) in the top-left corner. The other 2 are \emph{non-shortcut superclasses} (NSC), which receive no patch. This design allows us to contrast performance on shortcut-bearing versus purely semantic classes.
+
+The patch is applied after spatial augmentations and before normalization, so its location is consistent across training and evaluation. At test time, we additionally evaluate a \emph{masking intervention}: the same \(4\times4\) region is overwritten with a black square (RGB 0,\,0,\,0). The masked set is a deterministic transform of the patched set, enabling paired comparisons. Figure~\ref{fig:samples} shows examples of original, shortcut-injected, and masked images, highlighting the high-contrast, non-semantic nature of the cue.
+
+\begin{figure}[htbp]
+ \centering
+ \includegraphics[width=\columnwidth]{sample_masking.jpg}
+ \caption{Shortcut injection and masking protocol. Left: original CIFAR-100 images. Middle: shortcut added (magenta \(4\times4\) patch in the top-left). Right: masked evaluation replaces the patch with a uniform black square. Both color and grayscale examples are shown to emphasize cue salience under photometric variation.}
+ \label{fig:samples}
+\end{figure}
+
+\subsection{Data Augmentation}
+All images in both T1 and T2 undergo standard augmentations (random crop and horizontal flip). Because the shortcut is injected after these transforms, its spatial position remains fixed, avoiding confounds where augmentation could inadvertently move or distort the cue. Representative examples of raw versus augmented images are shown in Figure~\ref{fig:augs}.
+
+\begin{figure}[htbp]
+ \centering
+ \includegraphics[width=\columnwidth]{sample_augmentations.png}
+ \caption{Sample augmentations used in both T1 and T2. Left: raw images. Right: augmented versions (random crop and horizontal flip). The shortcut patch is injected after these transforms, ensuring its location is stable in the final image.}
+ \label{fig:augs}
+\end{figure}
+
+\subsection{Subset configuration and baselines}
+The above 8+4 superclass split (8 in T1, 4 in T2 with 2 shortcut and 2 non-shortcut classes) is the configuration used in our experiments. This smaller T2 variant is computationally efficient while still producing qualitatively identical ERI signals. It also enables rapid sweeps over patch salience, masking color, or hyperparameters. 
+
+We evaluate three continual learning strategies—Naive fine-tuning, Elastic Weight Consolidation (EWC), and Experience Replay—against two baselines: (i) \emph{Scratch-T2}, trained only on Phase~2, and (ii) \emph{Interleaved}, trained jointly on Phase~1 and Phase~2. Scratch-T2 serves as a naïve sample-efficiency baseline, while Interleaved approximates an oracle with unlimited memory.
+
+\subsection{Models and baselines}
+We use ResNet-18 \cite{DBLP:journals/corr/HeZRS15}. We evaluate Naive sequential fine-tuning (Naive\_Seq), EWC \cite{doi:10.1073/pnas.1611835114} (EWC\_Seq), and Experience Replay (Replay\_Seq), and compare against:
+(i) Scratch-T2 (\(M_S\)), trained only on Phase~2;
+(ii) Interleaved (Joint) training on Phase~1+2, approximating an oracle with unlimited memory. The gap between Interleaved and Scratch-T2 loosely bounds the feasible region for realistic methods.
+
+\subsection{Implementation details}
+Unless noted, we use standard augmentation (random crop/flip), SGD with momentum, and cross-entropy loss; optimizer and augmentation choices are held constant across methods. Replay buffers use class-balanced sampling when present. Hyperparameter values are held fixed across methods but are omitted here. Checkpoint selection for ``final'' accuracy uses the best Phase~2 validation accuracy. For ERI:
+- Threshold \(\tau = 0.6\).
+- AD is measured in effective Phase~2 epochs: optimizer updates that consume Phase~2 samples divided by the Phase~2 training set size; this normalizes replay methods.
+
+\section{Results}
+
+\begin{table*}[!t]
+\centering
+\caption{Performance Metrics (Mean \(\pm\) Standard Deviation) for Different Learning Strategies.}
+\label{tab:results_summary_actual}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{@{}lccccccc@{}}
+\toprule
+Strategy & AD & PD & SFR\(_{\text{rel}}\) &
+\(\mathcal{A}_{\text{SC}}^{\text{patch}}\) &
+\(\mathcal{A}_{\text{SC}}^{\text{mask}}\) &
+\(\mathcal{A}_{\text{T1}}\) &
+\(\mathcal{A}_{\text{NSC}}^{\text{patch}}\) \\
+\midrule
+Scratch\_T2 & -- & -- & 0.000 &
+0.586\(\pm\)0.012 & 0.003\(\pm\)0.002 & -- & 0.617\(\pm\)0.009 \\
+Interleaved & \(-6.2\pm0.4\) & \(-0.091\pm0.010\) & 0.095\(\pm\)0.011 &
+0.678\(\pm\)0.008 & 0.004\(\pm\)0.003 & 0.332\(\pm\)0.015 &
+0.356\(\pm\)0.012 \\
+Naive\_Seq & \(-13.8\pm0.6\) & \(-0.147\pm\)0.012 & 0.141\(\pm\)0.013 &
+0.729\(\pm\)0.010 & 0.007\(\pm\)0.004 & 0.012\(\pm\)0.006 &
+0.661\(\pm\)0.011 \\
+EWC\_Seq  & \(-14.1\pm0.5\) & \(-0.158\pm\)0.011 & 0.149\(\pm\)0.012 &
+0.741\(\pm\)0.009 & 0.011\(\pm\)0.005 & 0.008\(\pm\)0.004 &
+0.672\(\pm\)0.010 \\
+Replay\_Seq & \(-14.3\pm0.7\) & \(-0.160\pm\)0.013 & 0.153\(\pm\)0.014 &
+0.743\(\pm\)0.007 & 0.006\(\pm\)0.003 & 0.010\(\pm\)0.005 &
+0.666\(\pm\)0.012 \\
+\bottomrule
+\end{tabular}
+}
+\end{table*}
+
+Unless noted, all ERI quantities are computed on the designated Phase~2 shortcut superclasses (SC), use the best Phase~2 validation checkpoint for final accuracy, threshold \(\tau{=}0.6\), smoothing \(w{=}3\), and effective Phase~2 epochs for AD (to normalize replay). We report means \(\pm\) SD in Table~\ref{tab:results_summary_actual} and 95\% CIs in Table~\ref{tab:eri_ci}.
+
+\subsection{Overall pattern and conventions}
+Across four seeds, every sequential strategy attained \(\ge 0.68\) accuracy on patched SC but collapsed to \(\le 0.01\) after masking, indicating strong shortcut dependence and poor semantic learning on SC \cite{Hermann2023OnTF}. Sequential methods did not retain Phase~1 knowledge (see \(\mathcal{A}_{\text{T1}}\) in Table~\ref{tab:results_summary_actual}). The Interleaved baseline underperformed under the fixed joint budget (30 epochs jointly vs. \(15{+}15\) sequential), likely reflecting under-optimization; we therefore interpret its numbers cautiously and do not rely on them for ERI conclusions.
+
+\subsection{ERI overview: consistent red-flag pattern}
+Across all continual strategies (Naive\_Seq, EWC\_Seq, Replay\_Seq), ERI exhibits the red-flag pattern: \(\mathrm{AD}\ll 0\), \(\mathrm{PD}\le 0\), and \(\mathrm{SFR}_{\mathrm{rel}}>0\). Critically, the 95\% CIs for AD are strictly negative, for PD strictly negative, and for \(\mathrm{SFR}_{\mathrm{rel}}\) strictly positive (Table~\ref{tab:eri_ci}), indicating robustness across seeds. Interleaved shows the same qualitative pattern with smaller magnitudes.
+
+\subsection{Adaptation dynamics (AD)}
+Relative to Scratch\_T2, sequential methods reach \(\tau{=}0.6\) on SC substantially \emph{faster}: \(\mathrm{AD}\in[-15.5,-12.9]\) across CIs. Interleaved is also faster than Scratch\_T2 (\(\mathrm{AD}\in[-6.9,-5.6]\)). AD is computed only on seeds where both Scratch\_T2 and the comparison method reach \(\tau\) (others are right-censored), making estimates conservative. The large negative AD indicates that pretraining or joint exposure accelerates learning on the patched distribution; masking (below) reveals that this speed-up stems from shortcut reuse rather than improved semantic transfer.
+
+\subsection{Final Performance (PD)}
+On patched SC, all continual strategies appear \emph{better} than Scratch\_T2: \(\mathrm{PD}<0\) with CIs excluding 0 (Interleaved \(-0.091\), Naive\_Seq \(-0.147\), EWC\_Seq \(-0.158\), Replay\_Seq \(-0.160\); Table~\ref{tab:eri_ci}). This apparent advantage evaporates when the cue is masked, consistent with cue-inflated gains rather than semantic improvement.
+
+\subsection{Shortcut reliance (SFR and masking)}
+Masking collapses SC accuracy for \emph{all} methods to near chance: \(\mathcal{A}_{\text{SC}}^{\text{mask}}\in[0.003,0.011]\) with lower CIs at or near 0 (Table~\ref{tab:eri_ci}). Relative to Scratch\_T2, continual training amplifies the masking drop: \(\mathrm{SFR}_{\mathrm{rel}}>0\) with CIs strictly above 0 (Interleaved \(0.095\), Naive\_Seq \(0.141\), EWC\_Seq \(0.149\), Replay\_Seq \(0.153\); Table~\ref{tab:eri_ci}). Thus, compared to Scratch\_T2, both sequential and joint training increase reliance on the shortcut; the increase is largest for sequential methods.
+
+\subsection{Non-shortcut superclasses and forgetting}
+On Phase~2 NSC, sequential methods achieve strong patched accuracy \(\mathcal{A}_{\text{NSC}}^{\text{patch}}\approx 0.66\text{--}0.67\) with tight CIs (Table~\ref{tab:eri_ci}), indicating effective semantic learning when no overriding cue exists. Interleaved underperforms on NSC (\(\approx 0.356\,[0.338,0.374]\)), consistent with under-optimization under the fixed joint budget; we interpret Interleaved comparisons with caution.
+
+Catastrophic forgetting is evident in Phase~1 performance: sequential methods retain virtually none of T1 (\(\mathcal{A}_{\text{T1}}\approx 0.01\) with CIs overlapping 0), whereas Interleaved preserves a nontrivial fraction (\(0.332\,[0.315,0.349]\)). ERI focuses on Phase~2 shortcut behavior; T1 results contextualize but do not alter ERI interpretation.
+
+\subsection{Method-wise comparison}
+Among sequential strategies, AD, PD, and \(\mathrm{SFR}_{\mathrm{rel}}\) are very similar and their CIs largely overlap (Table~\ref{tab:eri_ci}). We therefore find no evidence that EWC or Replay mitigates shortcut-induced rigidity relative to Naive\_Seq in this protocol. Interleaved shows smaller magnitudes (less negative AD and PD; lower \(\mathrm{SFR}_{\mathrm{rel}}\)) but still exhibits clear shortcut reliance relative to Scratch\_T2 and underperforms on NSC under the fixed joint budget (Table~\ref{tab:results_summary_actual}).
+
+\subsection{Qualitative evidence complements ERI}
+The qualitative behavior in Figure~\ref{fig:samples} and Figure~\ref{fig:augs} aligns with ERI. Because the patch is visually dominant and spatially stable, sequential learners rapidly discover and exploit it, yielding negative AD. When the cue is masked, SC accuracy collapses to near zero while NSC remains comparatively strong (\(\mathcal{A}_{\text{NSC}}^{\text{patch}}\approx 0.66\text{--}0.67\)). The combination of negative AD and PD with positive \(\mathrm{SFR}_{\mathrm{rel}}\) is best interpreted as deceptive positive transfer: models learn faster by following the cue, not by acquiring semantics.
+
+\section{Discussion}
+
+The empirical pattern in Section~V—negative \(\mathrm{AD}\), negative \(\mathrm{PD}\), and positive \(\mathrm{SFR}_{\mathrm{rel}}\) on Phase~2 shortcut superclasses (SC), together with near-collapse under masking— is consistent with \emph{Einstellung-like} rigidity. Pretraining and sequential exposure accelerate threshold attainment on patched data, but the speed-up reflects reuse of a high-signal shortcut rather than improved semantic transfer. At the same time, strong performance on non-shortcut superclasses (NSC) indicates that, when dominant cues are absent, the same models can acquire semantically useful features.
+
+A mechanistic reading helps explain why classical continual-learning strategies fare poorly in this setting. Naive fine-tuning offers no constraint against high signal-to-noise spurious features; gradients converge on the patch detector, suppressing signals for alternative features. EWC regularizes movement on parameters deemed important for Phase~1, but when the shortcut is highly predictive, the Fisher approximation does not preclude reliance on the patch; it can instead discourage the larger representational changes needed to discover alternative cues. Replay improves retention but, unless the replayed distribution dilutes or contradicts the shortcut, it does not prevent shortcut adoption and may even stabilize early shortcut-specific representations. In all three cases, the result is faster but brittle adaptation on SC and little to no benefit when the cue is disabled.
+
+These findings suggest implications for evaluation and practice. ERI complements existing metrics by separating apparent progress on shortcut-bearing data from robust learning. In settings where potential cues can be hypothesized, a minimal screening workflow is to (i) fix a threshold \(\tau\) and smoothing window \(w\), compute \(\mathrm{AD}\) on patched data in effective Phase~2 epochs, (ii) compare final patched accuracies via \(\mathrm{PD}\), and (iii) estimate shortcut reliance via masking to obtain \(\mathrm{SFR}_{\mathrm{rel}}\). If the red-flag pattern appears, additional probes—counterfactual tests, calibration under masking, and representational drift analyses—can corroborate shortcut use. While our study uses a synthetic cue, the same logic applies when cues arise naturally (e.g., acquisition artifacts, backgrounds, overlays) \cite{Hill2024TheRO,Hermann2023OnTF, Niu2022RoadblocksFT}.
+
+\subsection{Operationalizing ERI when cues are unknown}
+ERI’s SFR component assumes access to an intervention that neutralizes the suspected cue while preserving other content. When cues are unknown, we approximate this with lightweight proxies:
+(i) Occlusion sensitivity: slide a small occluder over the image to obtain an importance map; define a budgeted mask (e.g., top 2–5\% most influential pixels) and compute \(\Delta_M\) under that mask. 
+(ii) Attribution-guided deletion: aggregate attributions (e.g., gradient-based or perturbation-based) across validation images and derive a class-conditional deletion map; apply a fixed-area deletion at test time to estimate \(\Delta_M\).
+(iii) Counterfactual replacements: replace backgrounds or color channels with class-agnostic content (e.g., shuffled backgrounds or inpainted regions) to remove broad classes of potential cues.
+To reduce false positives, include controls: (a) apply the same masks to non-shortcut classes (NSC), (b) use random-location masks of equal area, and (c) vary mask color or inpainting to detect mask-induced artifacts. These proxies are imperfect and can bias \(\Delta_M\); we therefore interpret \(\mathrm{SFR}_{\mathrm{rel}}\) under unknown cues as a conservative indicator and report mask area and construction method alongside ERI.
+
+\subsection{Limitations}
+Our shortcut is synthetic and high-contrast, which may overstate effects relative to subtle, naturally occurring artifacts. We evaluate a single backbone (ResNet-18), modest task sizes, and a fixed patch position; the magnitude of ERI signals may vary with architecture, training budget, patch salience, and location. Masking quality matters: imperfect masks could underestimate reliance by introducing confounds. We report results over four seeds; larger runs would refine uncertainty estimates. The Interleaved baseline appears under-optimized at the chosen budget, so we avoid drawing conclusions from its absolute performance. More definitive assessments should include randomized patch placement, varying salience, larger backbones (e.g., Vision Transformers), and naturally occurring artifacts; finally, extending ERI to non-vision streams (e.g., text or multimodal) will test its generality beyond image cues.
+
+Conceptually, ERI requires specifying or approximating a masking operator that removes the suspected cue while leaving other content unchanged. Where cues are unknown, proxy interventions (e.g., targeted erasure guided by saliency or generative counterfactuals) could be used, but may introduce their own biases; we leave this to future work.
+
+\section{Conclusion}
+We introduced the Einstellung Rigidity Index (ERI), a compact diagnostic that disentangles genuine transfer from cue-inflated performance in continual learning using three facets: \(\mathrm{AD}\), \(\mathrm{PD}\), and \(\mathrm{SFR}_{\mathrm{rel}}\). On a two-phase CIFAR-100 protocol with a controlled shortcut, ERI consistently flags shortcut-accelerated but brittle learning across Naive, EWC, and Replay. While scope and budgets limit generality; ERI proves practical as a screening tool: computed alongside standard metrics, it improves the interpretability of sequential evaluations and helps identify tasks at risk of shortcut-induced rigidity. Future work will test ERI under naturally occurring artifacts and broader architectures, and will investigate how to turn ERI-driven feedback into effective training interventions.
+
+\section*{Acknowledgment}
+We thank Weishi Shi, Abdullah Al Forhad, and the Texas Academy of Mathematics and Science for their support.
+
+\appendices
+\section{Additional Results}
+
+\savebox{\tempboxtwo}{%
+ \begin{minipage}{\textwidth}
+  \setcaptype{table}
+  \centering
+\caption{ERI facets with 95\% CIs. AD is computed only on seeds where both Scratch-T2 and the method reached \(\tau{=}0.6\) (others right-censored). Final accuracies use best Phase~2 validation.}
+\label{tab:eri_ci}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+Strategy &
+\(\mathrm{AD}\) [95\% CI] &
+\(\mathrm{PD}\) [95\% CI] &
+\(\mathrm{SFR}_{\mathrm{rel}}\) [95\% CI] \\
+\midrule
+Scratch\_T2 & --- & --- & --- \\
+Interleaved & \(-6.0\)\,[\(-6.0\),\(-6.0\)] &
+\(-0.093\)\,[\(-0.107\),\(-0.078\)] &
+\(0.093\)\,[\(0.078\),\(0.107\)] \\
+Naive\_Seq & \(-14.0\)\,[\(-14.0\),\(-14.0\)] &
+\(-0.144\)\,[\(-0.160\),\(-0.128\)] &
+\(0.142\)\,[\(0.125\),\(0.159\)] \\
+EWC\_Seq  & \(-14.0\)\,[\(-14.0\),\(-14.0\)] &
+\(-0.156\)\,[\(-0.168\),\(-0.143\)] &
+\(0.147\)\,[\(0.135\),\(0.160\)] \\
+Replay\_Seq & \(-13.5\)\,[\(-19.9\),\(-7.1\)] &
+\(-0.156\)\,[\(-0.172\),\(-0.139\)] &
+\(0.155\)\,[\(0.138\),\(0.172\)] \\
+\bottomrule
+\end{tabular}
+ \end{minipage}
+}
+
+\begin{table}[t]
+ \rlap{\usebox{\tempboxtwo}}
+\end{table}
+
+\afterpage{%
+ \begin{table}[t]
+  \rule{0pt}{\dimexpr \ht\tempboxtwo+\dp\tempboxtwo}
+ \end{table}
+}
+
+Table~\ref{tab:eri_ci} reports the 95\% confidence intervals (CIs) referenced in the main text.
+
+
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+
+\end{document}
