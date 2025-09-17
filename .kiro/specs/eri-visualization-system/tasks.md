@@ -136,7 +136,7 @@ Tasks are organized into logical phases with clear dependencies. Each task inclu
     - Add cell annotations with AD values for precise reading
   - _Requirements: 1.2.1, 1.2.2, 1.2.3, 1.2.4_
 
-- [ ] **7. CLI Interface — Command-Line Tool**
+- [x] **7. CLI Interface — Command-Line Tool**
   - Files: tools/plot_eri.py, tests/eri_vis/test_cli.py
   - Implement argparse:
     - --csv (glob allowed), --outdir, --methods, --tau, --smooth, --tau_grid
@@ -155,7 +155,7 @@ Tasks are organized into logical phases with clear dependencies. Each task inclu
 
 ## Phase 3: Mammoth Framework Integration
 
-- [ ] **8. MammothERIIntegration — Framework Bridge**
+- [x] **8. MammothERIIntegration — Framework Bridge**
 
   - Files: eri_vis/integration/mammoth_integration.py, tests/eri_vis/test_mammoth_integration.py
   - **CRITICAL**: Integrate with existing `utils/einstellung_evaluator.py` - DO NOT RECREATE
