@@ -1,1 +1,3 @@
-"""Tests for ERI visualization system."""
+"""
+Test package for ERI Visualization System
+"""

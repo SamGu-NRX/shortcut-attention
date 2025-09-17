@@ -56,7 +56,7 @@ Tasks are organized into logical phases with clear dependencies. Each task inclu
     - Detailed error messages with row/column context for validation failures
   - _Requirements: 1.3.1, 1.3.4, 2.1.6_
 
-- [ ] **2. ERITimelineDataset — Core Data Structure and Manipulation**
+- [x] **2. ERITimelineDataset — Core Data Structure and Manipulation**
 
   - Files: eri_vis/dataset.py, tests/eri_vis/test_dataset.py
   - Implement:
@@ -72,7 +72,7 @@ Tasks are organized into logical phases with clear dependencies. Each task inclu
     - Alignment handles uneven epoch grids correctly
   - _Requirements: 1.3.1, 2.1.3, 2.3.1_
 
-- [ ] **3. ERITimelineProcessor — Metric Calculations and Analysis**
+- [x] **3. ERITimelineProcessor — Metric Calculations and Analysis**
   - Files: eri_vis/processing.py, tests/eri_vis/test_processing.py
   - Implement:
     - Smoothing (window w, edge-padded)
@@ -93,7 +93,7 @@ Tasks are organized into logical phases with clear dependencies. Each task inclu
 
 ## Phase 2: Visualization Engine
 
-- [ ] **4. Plot Style Configuration — Visual Styling System**
+- [x] **4. Plot Style Configuration — Visual Styling System**
 
   - Files: eri_vis/styles.py, tests/eri_vis/test_styles.py
   - Implement PlotStyleConfig with defaults and overrides
@@ -104,7 +104,7 @@ Tasks are organized into logical phases with clear dependencies. Each task inclu
     - Make DPI and figure dimensions configurable
   - _Requirements: 1.1.3, 1.6.2, 2.2.3_
 
-- [ ] **5. ERIDynamicsPlotter — Main Visualization Generator**
+- [x] **5. ERIDynamicsPlotter — Main Visualization Generator**
 
   - Files: eri_vis/plot_dynamics.py, tests/eri_vis/test_plot_dynamics.py
   - Implement 3-panel figure:
