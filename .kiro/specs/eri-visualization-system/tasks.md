@@ -173,7 +173,7 @@ Tasks are organized into logical phases with clear dependencies. Each task inclu
     - Test integration with actual EinstellungEvaluator to verify CSV and figure generation
   - _Requirements: 1.4.1, 1.4.2, 1.4.3_
 
-- [ ] **9. ERIExperimentHooks — Experiment Lifecycle Integration**
+- [x] **9. ERIExperimentHooks — Experiment Lifecycle Integration**
 
   - Files: eri_vis/integration/hooks.py
   - Implement callbacks:
