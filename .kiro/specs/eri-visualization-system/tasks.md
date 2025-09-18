@@ -236,7 +236,7 @@ Tasks are organized into logical phases with clear dependencies. Each task inclu
     - Configuration test verifies GPM parameters can be set through YAML files
   - _Requirements: 1.9.1, 1.9.2, 1.9.3, 1.9.4, 1.9.5, 2.4.1, 2.4.2, 2.4.3, 2.4.4, 2.4.5_
 
-- [-] **12. DGR Integration — Adapt Existing Deep Generative Replay**
+- [x] **12. DGR Integration — Adapt Existing Deep Generative Replay**
 
   - Files: models/dgr_mammoth_adapter.py, tests/models/test_dgr_integration.py
   - Integrate existing DGR implementation from `/DGR_wrapper` directory with Mammoth framework:
@@ -255,7 +255,7 @@ Tasks are organized into logical phases with clear dependencies. Each task inclu
     - Configuration test verifies DGR parameters can be set through YAML files
   - _Requirements: 1.10.1, 1.10.2, 1.10.3, 1.10.4, 1.10.5, 1.10.6, 2.5.1, 2.5.2, 2.5.3, 2.5.4, 2.5.5_
 
-- [ ] **13. Hybrid Methods Implementation — Combined GPM and DGR**
+- [x] **13. Hybrid Methods Implementation — Combined GPM and DGR**
 
   - Files: models/gpm_dgr_hybrid.py, tests/models/test_hybrid_methods.py
   - Create hybrid approach combining adapted GPM and DGR implementations:
