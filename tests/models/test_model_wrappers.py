@@ -171,7 +171,7 @@ class TestGPMModel:
         """Test GPM model initialization."""
         backbone, loss, transform, dataset = mock_components
 
-        with patch('models.get_model.GPMAdapter') as mock_adapter:
+        with patch('models.gpm_model.GPMAdapter') as mock_adapter:
             model = GPMModel(backbone, loss, mock_args, transform, dataset)
 
         # Check configuration extraction
@@ -188,7 +188,7 @@ class TestGPMModel:
         """Test GPM begin_task functionality."""
         backbone, loss, transform, dataset = mock_components
 
-        with patch('models.get_model.GPMAdapter'):
+        with patch('models.gpm_model.GPMAdapter'):
             model = GPMModel(backbone, loss, mock_args, transform, dataset)
 
         # Add some data to task buffer

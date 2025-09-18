@@ -198,9 +198,15 @@ class GPMDGRHybrid:
             # Generate samples from previous VAE
             replay_inputs = self.previous_vae.generate_samples(batch_size, self.device)
 
+            # TODO: check this
             # Generate pseudo-labels (simplified approach)
             # In practice, you might want to use a more sophisticated labeling strategy
-            replay_labels = torch.randint(0, 10, (batch_size,), device=self.device)  # Assuming 10 classes per task
+            # Infer number of classes from model output dimension
+            with torch.no_grad():
+                dummy_input = replay_inputs[:1]
+                dummy_output = self.model(dummy_input)
+                num_classes = dummy_output.shape[-1]
+            replay_labels = torch.randint(0, num_classes, (batch_size,), device=self.device)
 
             return replay_inputs, replay_labels
 
@@ -466,7 +472,7 @@ class GPMDGRHybridMammoth(ContinualModel):
                           help='Number of epochs to train VAE per task (default: 1)')
 
         # Monitoring arguments
-        parser.add_argument('--hybrid_enable_monitoring', action='store_true', default=True,
+        parser.add_argument('--hybrid_enable_monitoring', action='store_true', default=False,
                           help='Enable monitoring and visualization')
         parser.add_argument('--hybrid_monitor_frequency', type=int, default=5,
                           help='Frequency of performance monitoring (default: 5)')
@@ -501,7 +507,7 @@ class GPMDGRHybridMammoth(ContinualModel):
             'fc_units': getattr(args, 'hybrid_dgr_vae_fc_units', 400),
             'replay_weight': getattr(args, 'hybrid_dgr_replay_weight', 0.5),
             'vae_train_epochs': getattr(args, 'hybrid_dgr_vae_train_epochs', 1),
-            'enable_monitoring': getattr(args, 'hybrid_enable_monitoring', True),
+            'enable_monitoring': getattr(args, 'hybrid_enable_monitoring', False),
             'monitor_frequency': getattr(args, 'hybrid_monitor_frequency', 5)
         }
 
@@ -636,7 +642,7 @@ def create_hybrid_config(args) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         'fc_units': getattr(args, 'hybrid_dgr_vae_fc_units', 400),
         'replay_weight': getattr(args, 'hybrid_dgr_replay_weight', 0.5),
         'vae_train_epochs': getattr(args, 'hybrid_dgr_vae_train_epochs', 1),
-        'enable_monitoring': getattr(args, 'hybrid_enable_monitoring', True),
+        'enable_monitoring': getattr(args, 'hybrid_enable_monitoring', False),
         'monitor_frequency': getattr(args, 'hybrid_monitor_frequency', 5)
     }
 

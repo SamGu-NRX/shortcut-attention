@@ -333,10 +333,12 @@ class GPMAdapter:
             if param.grad is None:
                 continue
 
-            # Only project gradients for layers we have bases for
+            # More robust parameter matching
             layer_found = False
             for i, layer_info in enumerate(self.layer_info):
-                if layer_info['name'] in name:
+                # Exact module reference matching would be more reliable
+                if any(param is getattr(layer_info['module'], param_name, None)
+                       for param_name in ['weight', 'bias']):
                     layer_found = True
 
                     if param_idx < len(self.projection_matrices):
@@ -367,7 +369,6 @@ class GPMAdapter:
             # Handle bias terms (set to zero for non-first tasks, following original GPM)
             if not layer_found and 'bias' in name and len(self.feature_list) > 0:
                 param.grad.data.fill_(0)
-
 
 class GPMMammoth(ContinualModel):
     """

@@ -55,7 +55,7 @@ def test_dgr_argument_parsing():
         '--dgr_z_dim', '128',
         '--dgr_vae_lr', '0.002',
         '--dgr_replay_weight', '0.6',
-        '--dgr_enable_replay_monitoring'
+        '--dgr_disable_replay_monitoring'
     ]
 
     args = parser.parse_args(test_args)
@@ -64,7 +64,7 @@ def test_dgr_argument_parsing():
     assert args.dgr_z_dim == 128
     assert args.dgr_vae_lr == 0.002
     assert args.dgr_replay_weight == 0.6
-    assert args.dgr_enable_replay_monitoring == True
+    assert args.dgr_disable_replay_monitoring == True
 
     logger.info("✅ DGR argument parsing works correctly")
 
@@ -86,7 +86,7 @@ def test_dgr_initialization():
     args.dgr_vae_fc_units = 256
     args.dgr_replay_weight = 0.5
     args.dgr_vae_train_epochs = 1
-    args.dgr_enable_replay_monitoring = True
+    args.dgr_disable_replay_monitoring = False
     args.dgr_replay_monitor_frequency = 5
     args.dgr_replay_monitor_samples = 8
     args.lr = 0.01
@@ -144,7 +144,7 @@ def test_dgr_training_simulation():
     args.dgr_vae_fc_units = 128  # Smaller for faster testing
     args.dgr_replay_weight = 0.5
     args.dgr_vae_train_epochs = 1
-    args.dgr_enable_replay_monitoring = False  # Disable for speed
+    args.dgr_disable_replay_monitoring = True  # Disable for speed
     args.lr = 0.01
     args.optimizer = 'adam'
     args.optim_wd = 0.0001
@@ -224,7 +224,7 @@ def test_dgr_einstellung_compatibility():
     args.dgr_vae_fc_units = 128
     args.dgr_replay_weight = 0.5
     args.dgr_vae_train_epochs = 1
-    args.dgr_enable_replay_monitoring = False
+    args.dgr_disable_replay_monitoring = True
     args.lr = 0.01
     args.optimizer = 'adam'
     args.optim_wd = 0.0001
@@ -301,7 +301,7 @@ def test_dgr_replay_monitoring():
         args.dgr_vae_fc_units = 128
         args.dgr_replay_weight = 0.5
         args.dgr_vae_train_epochs = 1
-        args.dgr_enable_replay_monitoring = True
+        args.dgr_disable_replay_monitoring = False
         args.dgr_replay_monitor_frequency = 1  # Monitor every epoch
         args.dgr_replay_monitor_samples = 4
         args.lr = 0.01
@@ -373,7 +373,7 @@ def test_dgr_command_line_compatibility():
         '--dgr_z_dim', '100',
         '--dgr_vae_lr', '0.001',
         '--dgr_replay_weight', '0.5',
-        '--dgr_enable_replay_monitoring',
+        '--dgr_disable_replay_monitoring',
         '--n_epochs', '2',
         '--batch_size', '32'
     ]
@@ -399,7 +399,7 @@ def test_dgr_command_line_compatibility():
     assert args.dgr_z_dim == 100
     assert args.dgr_vae_lr == 0.001
     assert args.dgr_replay_weight == 0.5
-    assert args.dgr_enable_replay_monitoring == True
+    assert args.dgr_disable_replay_monitoring == True
     assert args.n_epochs == 2
     assert args.batch_size == 32
 
@@ -442,7 +442,7 @@ def main():
         logger.info("  --dgr_z_dim: Latent dimension (default: 100)")
         logger.info("  --dgr_vae_lr: VAE learning rate (default: 0.001)")
         logger.info("  --dgr_replay_weight: Replay weight (default: 0.5)")
-        logger.info("  --dgr_enable_replay_monitoring: Enable replay visualization")
+        logger.info("  --dgr_disable_replay_monitoring: Disable replay visualization")
         logger.info("  --dgr_vae_train_epochs: VAE training epochs per task (default: 1)")
 
         return True

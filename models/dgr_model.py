@@ -67,15 +67,18 @@ class DGRModel(ContinualModel):
         self.buffer_size = getattr(args, 'dgr_buffer_size', 1000)
 
         # Get image properties from dataset
+        # Get image properties from dataset
         if hasattr(dataset, 'get_data_loaders'):
             # Try to get image dimensions from dataset
             train_loader, _ = dataset.get_data_loaders()
-            sample_batch = next(iter(train_loader))
-            self.image_shape = sample_batch[0].shape[1:]  # (C, H, W)
+            # Peek at first batch without consuming it
+            for sample_batch in train_loader:
+                self.image_shape = sample_batch[0].shape[1:]  # (C, H, W)
+                break
         else:
-            # Default CIFAR-100 dimensions
+            # Default ImageNet-like dimensions
             self.image_shape = (3, 224, 224)
-
+            
         # Initialize VAE components
         self.current_vae = None
         self.previous_vae = None

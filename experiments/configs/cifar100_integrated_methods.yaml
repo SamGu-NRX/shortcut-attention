@@ -1,0 +1,268 @@
+# CIFAR-100 Einstellung Integrated Methods Comparison Configuration
+#
+# This configuration file defines experiments for comprehensive evaluation
+# of adapted continual learning methods (GPM, DGR, hybrid) integrated with
+# the Mammoth framework for ERI (Einstellung Rigidity Index) evaluation.
+
+# Experiment Metadata
+experiment_name: "cifar100_integrated_methods_comparison"
+description: |
+  Comprehensive comparison of adapted continual learning methods on CIFAR-100
+  Einstellung dataset. Evaluates GPM, DGR, and hybrid approaches against
+  existing baselines using ERI metrics (AD, PD_t, SFR_rel).
+
+# Dataset Configuration
+dataset: "seq-cifar100-einstellung-224"
+n_tasks: 2
+n_classes_per_task: 50
+
+# Einstellung Configuration (Shortcut Learning Setup)
+einstellung:
+  patch_size: 4 # Magenta patch size in pixels
+  patch_color: "magenta" # Shortcut patch color
+  injection_ratio: 1.0 # Fraction of shortcut class images with patches
+  patch_location: "top_left" # Fixed location for consistency
+  shortcut_classes: [0, 1, 2, 3, 4] # First 5 classes have shortcuts
+
+  # Evaluation splits (automatically configured by dataset)
+  evaluation_splits:
+    - "T1_all" # All Task 1 classes
+    - "T2_shortcut_normal" # Task 2 shortcut classes with patches
+    - "T2_shortcut_masked" # Task 2 shortcut classes with patches masked
+    - "T2_nonshortcut_normal" # Task 2 non-shortcut classes
+
+# Training Configuration
+training:
+  n_epochs: 10 # Epochs per task
+  batch_size: 32
+  minibatch_size: 32
+  lr: 0.001
+  optimizer: "adam"
+
+  # Evaluation frequency
+  eval_frequency: 1 # Evaluate every epoch for detailed ERI tracking
+
+  # Checkpointing
+  save_checkpoints: false # Disable for faster testing
+
+# Methods to Compare
+methods:
+  # Existing Baselines
+  - name: "sgd"
+    description: "Naive SGD baseline (catastrophic forgetting)"
+    config:
+      model: "sgd"
+      lr: 0.001
+      optimizer: "adam"
+
+  - name: "ewc_on"
+    description: "Elastic Weight Consolidation (online)"
+    config:
+      model: "ewc_on"
+      lr: 0.001
+      optimizer: "adam"
+      e_lambda: 1000 # EWC regularization strength
+      gamma: 1.0 # EWC decay factor
+
+  - name: "derpp"
+    description: "Dark Experience Replay++"
+    config:
+      model: "derpp"
+      lr: 0.001
+      optimizer: "adam"
+      buffer_size: 500
+      alpha: 0.1 # Distillation loss weight
+      beta: 0.5 # Replay loss weight
+
+  # Adapted Integrated Methods
+  - name: "gpm"
+    description: "Gradient Projection Memory (adapted)"
+    config:
+      model: "gpm"
+      lr: 0.001
+      optimizer: "adam"
+      gpm_energy_threshold: 0.95
+      gpm_max_collection_batches: 200
+      gpm_layer_names: ["backbone.layer3", "classifier"]
+      gpm_device: "auto"
+
+  - name: "dgr"
+    description: "Deep Generative Replay (adapted)"
+    config:
+      model: "dgr"
+      lr: 0.001
+      optimizer: "adam"
+      dgr_z_dim: 100
+      dgr_vae_lr: 0.001
+      dgr_replay_weight: 0.5
+      dgr_vae_train_epochs: 1
+
+  - name: "gpm_dgr_hybrid"
+    description: "GPM + DGR Hybrid Method"
+    config:
+      model: "gpm_dgr_hybrid"
+      lr: 0.001
+      optimizer: "adam"
+      # GPM component
+      gmp:
+        energy_threshold: 0.95
+        max_collection_batches: 200
+        layer_names: ["backbone.layer3", "classifier"]
+      # DGR component
+      dgr:
+        z_dim: 100
+        vae_lr: 0.001
+        replay_weight: 0.5
+        vae_train_epochs: 1
+      # Hybrid coordination
+      hybrid:
+        execution_order: "dgr_then_gpm"
+        coordinate_memory_updates: true
+
+# Experimental Design
+experimental_design:
+  # Multiple seeds for statistical significance
+  seeds: [42, 43, 44, 45, 46] # 5 seeds for statistical analysis
+
+  # Robustness analysis (optional - can be enabled for comprehensive evaluation)
+  robustness_analysis:
+    enabled: false # Set to true for full robustness sweep
+    tau_values: [0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80] # AD threshold sweep
+    patch_sizes: [2, 4, 6, 8] # Shortcut salience sweep
+    injection_ratios: [0.5, 1.0] # Shortcut prevalence sweep
+
+  # Performance constraints
+  max_training_time_per_method: 3600 # 1 hour per method (in seconds)
+  max_memory_usage_gb: 8 # Maximum GPU memory usage
+
+# ERI Evaluation Configuration
+eri_evaluation:
+  # Metrics to compute
+  metrics:
+    - "adaptation_delay" # AD(τ) - time to reach threshold accuracy
+    - "performance_deficit" # PD_t(e) - accuracy gap vs scratch baseline
+    - "shortcut_forgetting_rate" # SFR_rel(e) - relative forgetting rate
+
+  # Evaluation parameters
+  tau_threshold: 0.6 # Default threshold for AD computation
+  smoothing_window: 3 # Moving average window for curve smoothing
+  confidence_level: 0.95 # Confidence interval level
+
+  # Visualization settings
+  visualization:
+    generate_dynamics_plot: true # 3-panel ERI dynamics figure
+    generate_heatmap: true # AD(τ) robustness heatmap
+    output_format: ["pdf", "png"] # Output formats
+    dpi: 300 # Figure resolution
+
+# Output Configuration
+output:
+  base_dir: "experiments/results/integrated_methods_comparison"
+
+  # Directory structure
+  subdirs:
+    logs: "logs" # Training logs and metrics
+    checkpoints: "checkpoints" # Model checkpoints (if enabled)
+    figures: "figures" # ERI visualization outputs
+    data: "data" # Exported CSV data for analysis
+
+  # File naming convention
+  naming:
+    experiment_id: "{experiment_name}_{timestamp}"
+    method_results: "{method}_{seed}_{timestamp}"
+    figures: "eri_{figure_type}_{timestamp}"
+
+  # Data export
+  export:
+    csv_timeline: true # Export timeline data to CSV
+    json_metadata: true # Export experiment metadata
+    yaml_config: true # Save effective configuration
+
+# Computational Resources
+resources:
+  # Device configuration
+  device: "auto" # auto, cpu, cuda, cuda:0, etc.
+
+  # Parallel processing
+  parallel_methods: false # Run methods in parallel (if resources allow)
+  max_parallel_jobs: 2 # Maximum parallel jobs
+
+  # Memory management
+  clear_cache_between_methods: true # Clear GPU cache between methods
+  gradient_accumulation: false # Use gradient accumulation if memory limited
+
+# Quality Assurance
+quality_assurance:
+  # Validation checks
+  validate_configs: true # Validate method configurations before running
+  check_dependencies: true # Check that all required modules are available
+  verify_dataset: true # Verify dataset integrity
+
+  # Error handling
+  continue_on_method_failure: true # Continue experiment if one method fails
+  max_retries_per_method: 2 # Maximum retries for failed methods
+
+  # Reproducibility
+  set_random_seeds: true # Set random seeds for reproducibility
+  save_random_state: true # Save random state for debugging
+
+# Integration Testing Specific Settings
+integration_testing:
+  # Minimal configuration for fast testing
+  minimal_mode:
+    enabled: false # Set to true for quick integration tests
+    n_epochs: 2 # Reduced epochs for testing
+    seeds: [42] # Single seed for testing
+    methods: ["sgd", "gpm"] # Subset of methods for testing
+
+  # Memory profiling
+  memory_profiling:
+    enabled: true # Enable memory usage tracking
+    profile_frequency: 10 # Profile every N batches
+    max_memory_threshold_gb: 6 # Fail if memory usage exceeds threshold
+
+  # Performance benchmarking
+  performance_benchmarking:
+    enabled: true # Enable timing measurements
+    benchmark_training_time: true # Measure training time per method
+    benchmark_evaluation_time: true # Measure evaluation time
+    benchmark_visualization_time: true # Measure visualization generation time
+
+# Advanced Configuration
+advanced:
+  # Custom evaluation protocols
+  custom_evaluation:
+    enabled: false # Enable custom evaluation protocols
+    additional_splits: [] # Additional evaluation splits
+    custom_metrics: [] # Custom metric calculations
+
+  # Method-specific overrides
+  method_overrides:
+    # Example: Override specific parameters for individual methods
+    # gpm:
+    #   gpm_energy_threshold: 0.99  # Higher threshold for GPM
+    # dgr:
+    #   dgr_vae_train_epochs: 2  # More VAE training for DGR
+
+  # Experimental extensions
+  extensions:
+    attention_analysis: false # Enable attention visualization (for ViT)
+    gradient_analysis: false # Enable gradient similarity analysis
+    representation_analysis: false # Enable representation drift analysis
+
+# Documentation and Reporting
+documentation:
+  # Automatic report generation
+  generate_report: true # Generate experiment report
+  report_format: "markdown" # Report format (markdown, html, pdf)
+
+  # Include in report
+  include_method_descriptions: true # Include method descriptions
+  include_hyperparameters: true # Include hyperparameter settings
+  include_performance_summary: true # Include performance summary
+  include_statistical_analysis: true # Include statistical significance tests
+  include_visualizations: true # Include generated figures
+
+  # Report customization
+  report_template: "default" # Report template to use
+  custom_sections: [] # Custom sections to include

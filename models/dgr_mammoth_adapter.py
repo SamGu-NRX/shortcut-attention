@@ -29,12 +29,8 @@ except ImportError:
     VISUALIZATION_AVAILABLE = False
 
 # Import the original DGR VAE implementation
-import sys
-import os
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'DGR_wrapper'))
-
 try:
-    from models.vae import VAE as OriginalVAE
+    from DGR_wrapper.models.vae import VAE as OriginalVAE
 except ImportError:
     # Fallback for testing - create a minimal VAE interface
     class OriginalVAE(nn.Module):
@@ -301,7 +297,7 @@ class DGRMammothAdapter(ContinualModel):
         self.current_task_buffer = []
 
         # Replay monitoring
-        self.enable_replay_monitoring = getattr(args, 'dgr_enable_replay_monitoring', True)
+        self.enable_replay_monitoring = not getattr(args, 'dgr_disable_replay_monitoring', False)
         self.replay_monitor_frequency = getattr(args, 'dgr_replay_monitor_frequency', 5)
         self.replay_monitor_samples = getattr(args, 'dgr_replay_monitor_samples', 8)
         self.replay_monitor_dir = None
@@ -332,8 +328,8 @@ class DGRMammothAdapter(ContinualModel):
                           help='Weight for replay data in training')
         parser.add_argument('--dgr_vae_train_epochs', type=int, default=1,
                           help='Number of epochs to train VAE per task')
-        parser.add_argument('--dgr_enable_replay_monitoring', action='store_true', default=True,
-                          help='Enable monitoring and visualization of replay samples')
+        parser.add_argument('--dgr_disable_replay_monitoring', action='store_true',
+                          help='Disable monitoring and visualization of replay samples')
         parser.add_argument('--dgr_replay_monitor_frequency', type=int, default=5,
                           help='Frequency of replay monitoring (every N epochs)')
         parser.add_argument('--dgr_replay_monitor_samples', type=int, default=8,

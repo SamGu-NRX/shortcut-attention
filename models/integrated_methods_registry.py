@@ -350,7 +350,8 @@ class IntegratedMethodRegistry:
 
             except Exception as e:
                 warn_once(f"Failed to load integrated method {method_name}: {e}")
-                method_classes[method_name.replace('_', '-')] = e
+                # Skip failed methods instead of storing exceptions
+                continue
 
         return method_classes
 
