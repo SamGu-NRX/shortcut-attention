@@ -782,6 +782,11 @@ def create_einstellung_args(strategy='derpp', backbone='resnet18', seed=42,
             '--e_lambda', '1000',
             '--gamma', '1.0'
         ])
+    elif strategy == 'gpm':
+        cmd_args.extend([
+            '--gpm_energy_threshold', '0.95',
+            '--gpm_max_collection_batches', '200'
+        ])
 
     # Einstellung parameters
     cmd_args.extend([
@@ -1048,6 +1053,8 @@ def run_experiment(model: str, backbone: str, seed: int,
         cmd_args.extend(['--buffer_size', '500', '--alpha', '0.1', '--beta', '0.5'])
     elif model == 'ewc_on':
         cmd_args.extend(['--e_lambda', '1000', '--gamma', '1.0'])
+    elif model == 'gpm':
+        cmd_args.extend(['--gpm_energy_threshold', '0.95', '--gpm_max_collection_batches', '200'])
 
     # CRITICAL: Ensure Einstellung integration is properly activated
     if not evaluation_only:
@@ -1400,6 +1407,7 @@ def run_comparative_experiment(skip_training=False, force_retrain=False, auto_ch
         ('sgd', 'resnet18'),
         ('derpp', 'resnet18'),
         ('ewc_on', 'resnet18'),
+        ('gpm', 'resnet18'),
     ]
 
     # Add ViT experiments if available
@@ -1466,7 +1474,7 @@ def main():
 
     # Single experiment parameters
     parser.add_argument('--model', type=str, default='derpp',
-                       choices=['sgd', 'derpp', 'ewc_on'],
+                       choices=['sgd', 'derpp', 'ewc_on', 'gpm'],
                        help='Continual learning strategy')
     parser.add_argument('--backbone', type=str, default='resnet18',
                        choices=['resnet18', 'vit'],

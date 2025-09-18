@@ -217,7 +217,7 @@ Tasks are organized into logical phases with clear dependencies. Each task inclu
 
 ## Phase 4: Existing Methods Integration
 
-- [ ] **11. GPM Integration — Adapt Existing GPM Implementation**
+- [x] **11. GPM Integration — Adapt Existing GPM Implementation**
 
   - Files: models/gpm_mammoth_adapter.py, tests/models/test_gpm_integration.py
   - Integrate existing GPM implementation from `/GPM` directory with Mammoth framework:
@@ -236,7 +236,7 @@ Tasks are organized into logical phases with clear dependencies. Each task inclu
     - Configuration test verifies GPM parameters can be set through YAML files
   - _Requirements: 1.9.1, 1.9.2, 1.9.3, 1.9.4, 1.9.5, 2.4.1, 2.4.2, 2.4.3, 2.4.4, 2.4.5_
 
-- [ ] **12. DGR Integration — Adapt Existing Deep Generative Replay**
+- [-] **12. DGR Integration — Adapt Existing Deep Generative Replay**
 
   - Files: models/dgr_mammoth_adapter.py, tests/models/test_dgr_integration.py
   - Integrate existing DGR implementation from `/DGR_wrapper` directory with Mammoth framework:
