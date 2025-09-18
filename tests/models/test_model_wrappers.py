@@ -73,10 +73,10 @@ def mock_args():
     args.num_workers = 0
 
     # GPM args
-    args.gmp_energy_threshold = 0.95
-    args.gmp_max_collection_batches = 200
-    args.gmp_layer_names = ['layer3', 'classifier']
-    args.gmp_device = 'auto'
+    args.gpm_energy_threshold = 0.95
+    args.gpm_max_collection_batches = 200
+    args.gpm_layer_names = ['layer3', 'classifier']
+    args.gpm_device = 'auto'
 
     # DGR args
     args.dgr_z_dim = 100
@@ -88,9 +88,9 @@ def mock_args():
     args.dgr_buffer_size = 1000
 
     # Hybrid args
-    args.hybrid_gmp_energy_threshold = 0.95
-    args.hybrid_gmp_max_collection_batches = 200
-    args.hybrid_gmp_layer_names = ['layer3', 'classifier']
+    args.hybrid_gpm_energy_threshold = 0.95
+    args.hybrid_gpm_max_collection_batches = 200
+    args.hybrid_gpm_layer_names = ['layer3', 'classifier']
     args.hybrid_dgr_z_dim = 100
     args.hybrid_dgr_vae_lr = 0.001
     args.hybrid_dgr_vae_fc_layers = 3
@@ -125,7 +125,7 @@ class TestContinualModelInterface:
             model = GPMModel(backbone, loss, mock_args, transform, dataset)
 
         assert isinstance(model, ContinualModel)
-        assert model.NAME == 'gmp_adapted'
+        assert model.NAME == 'gpm_adapted'
         assert 'class-il' in model.COMPATIBILITY
         assert hasattr(model, 'begin_task')
         assert hasattr(model, 'end_task')
@@ -181,7 +181,7 @@ class TestGPMModel:
 
         # Check GPM adapter initialization
         mock_adapter.assert_called_once()
-        assert hasattr(model, 'gmp_adapter')
+        assert hasattr(model, 'gpm_adapter')
         assert hasattr(model, 'current_task_data')
 
     def test_begin_task(self, mock_args, mock_components):
@@ -257,12 +257,12 @@ class TestGPMModel:
 
         # Check that GPM arguments were added
         args = parser.parse_args([
-            '--gmp_energy_threshold', '0.9',
-            '--gmp_max_collection_batches', '100'
+            '--gpm_energy_threshold', '0.9',
+            '--gpm_max_collection_batches', '100'
         ])
 
-        assert args.gmp_energy_threshold == 0.9
-        assert args.gmp_max_collection_batches == 100
+        assert args.gpm_energy_threshold == 0.9
+        assert args.gpm_max_collection_batches == 100
 
 
 class TestDGRModel:
@@ -386,8 +386,8 @@ class TestGPMDGRHybridModel:
             model = GPMDGRHybridModel(backbone, loss, mock_args, transform, dataset)
 
         # Check GPM configuration
-        assert model.gmp_energy_threshold == 0.95
-        assert model.gmp_max_collection_batches == 200
+        assert model.gpm_energy_threshold == 0.95
+        assert model.gpm_max_collection_batches == 200
 
         # Check DGR configuration
         assert model.dgr_z_dim == 100
@@ -398,7 +398,7 @@ class TestGPMDGRHybridModel:
         assert model.coordination_mode == 'sequential'
 
         # Check initialization
-        assert hasattr(model, 'gmp_adapter')
+        assert hasattr(model, 'gpm_adapter')
         assert hasattr(model, 'current_vae')
         assert hasattr(model, 'previous_vae')
         assert hasattr(model, 'current_task_buffer')
@@ -440,22 +440,22 @@ class TestGPMDGRHybridModel:
         model.coordination_mode = 'sequential'
 
         # Mock the update methods
-        with patch.object(model, '_update_gmp_memory') as mock_gmp, \
+        with patch.object(model, '_update_gpm_memory') as mock_gpm, \
              patch.object(model, '_train_dgr_vae') as mock_dgr:
             model.end_task(dataset)
 
             # Check that both methods were called
-            mock_gmp.assert_called_once()
+            mock_gpm.assert_called_once()
             mock_dgr.assert_called_once()
 
     def test_observe(self, mock_args, mock_components):
         """Test hybrid observe functionality."""
         backbone, loss, transform, dataset = mock_components
 
-        with patch('models.gpm_dgr_hybrid_model.GPMAdapter') as mock_gmp_adapter, \
+        with patch('models.gpm_dgr_hybrid_model.GPMAdapter') as mock_gpm_adapter, \
              patch('models.gpm_dgr_hybrid_model.DGRVAE'):
             model = GPMDGRHybridModel(backbone, loss, mock_args, transform, dataset)
-            mock_gmp_adapter_instance = mock_gmp_adapter.return_value
+            mock_gpm_adapter_instance = mock_gpm_adapter.return_value
 
         # Create mock input data
         inputs = torch.randn(4, 3, 224, 224)
@@ -470,7 +470,7 @@ class TestGPMDGRHybridModel:
             loss_value = model.observe(inputs, labels, not_aug_inputs)
 
         # Check that GPM projection was called
-        mock_gmp_adapter_instance.project_gradients.assert_called_once()
+        mock_gpm_adapter_instance.project_gradients.assert_called_once()
 
         # Check that optimizer was used
         model.opt.zero_grad.assert_called_once()
@@ -483,7 +483,7 @@ class TestGPMDGRHybridModel:
 class TestConfigurationParsing:
     """Test configuration parameter parsing."""
 
-    def test_gmp_default_parameters(self, mock_components):
+    def test_gpm_default_parameters(self, mock_components):
         """Test GPM default parameter handling."""
         backbone, loss, transform, dataset = mock_components
 

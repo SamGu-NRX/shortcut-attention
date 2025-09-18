@@ -40,11 +40,11 @@ class GPMDGRHybridModel(ContinualModel):
     def get_parser(parser: ArgumentParser) -> ArgumentParser:
         """Add hybrid method arguments to the parser."""
         # GPM arguments
-        parser.add_argument('--hybrid_gmp_energy_threshold', type=float, default=0.95,
+        parser.add_argument('--hybrid_gpm_energy_threshold', type=float, default=0.95,
                           help='Energy threshold for GPM basis selection (default: 0.95)')
-        parser.add_argument('--hybrid_gmp_max_collection_batches', type=int, default=200,
+        parser.add_argument('--hybrid_gpm_max_collection_batches', type=int, default=200,
                           help='Maximum batches for GPM activation collection (default: 200)')
-        parser.add_argument('--hybrid_gmp_layer_names', type=str, nargs='+',
+        parser.add_argument('--hybrid_gpm_layer_names', type=str, nargs='+',
                           default=['backbone.layer3', 'classifier'],
                           help='Layer names for GPM projection (default: backbone.layer3 classifier)')
 
@@ -76,9 +76,9 @@ class GPMDGRHybridModel(ContinualModel):
         super().__init__(backbone, loss, args, transform, dataset)
 
         # Extract GPM configuration from args
-        self.gmp_energy_threshold = getattr(args, 'hybrid_gmp_energy_threshold', 0.95)
-        self.gmp_max_collection_batches = getattr(args, 'hybrid_gmp_max_collection_batches', 200)
-        self.gmp_layer_names = getattr(args, 'hybrid_gmp_layer_names', ['backbone.layer3', 'classifier'])
+        self.gpm_energy_threshold = getattr(args, 'hybrid_gpm_energy_threshold', 0.95)
+        self.gpm_max_collection_batches = getattr(args, 'hybrid_gpm_max_collection_batches', 200)
+        self.gpm_layer_names = getattr(args, 'hybrid_gpm_layer_names', ['backbone.layer3', 'classifier'])
 
         # Extract DGR configuration from args
         self.dgr_z_dim = getattr(args, 'hybrid_dgr_z_dim', 100)
@@ -103,10 +103,10 @@ class GPMDGRHybridModel(ContinualModel):
             self.image_shape = (3, 224, 224)
 
         # Initialize GPM adapter
-        self.gmp_adapter = GPMAdapter(
+        self.gpm_adapter = GPMAdapter(
             model=self.net,
-            layer_names=self.gmp_layer_names,
-            energy_threshold=self.gmp_energy_threshold,
+            layer_names=self.gpm_layer_names,
+            energy_threshold=self.gpm_energy_threshold,
             device=self.device
         )
 
@@ -116,7 +116,7 @@ class GPMDGRHybridModel(ContinualModel):
         self.current_task_buffer = []
         self.current_task_data = []  # For GPM memory update
 
-        logging.info(f"Hybrid model initialized with GPM energy threshold: {self.gmp_energy_threshold}")
+        logging.info(f"Hybrid model initialized with GPM energy threshold: {self.gpm_energy_threshold}")
         logging.info(f"Hybrid model initialized with DGR z_dim: {self.dgr_z_dim}, image_shape: {self.image_shape}")
         logging.info(f"Coordination mode: {self.coordination_mode}")
 
@@ -155,11 +155,11 @@ class GPMDGRHybridModel(ContinualModel):
 
         if self.coordination_mode == 'sequential':
             # Update GPM memory first, then train DGR VAE
-            self._update_gmp_memory()
+            self._update_gpm_memory()
             self._train_dgr_vae()
         elif self.coordination_mode == 'parallel':
             # Update both simultaneously (simplified parallel approach)
-            self._update_gmp_memory()
+            self._update_gpm_memory()
             self._train_dgr_vae()
 
         logging.info(f"Hybrid: Completed task {self.current_task}")
@@ -213,7 +213,7 @@ class GPMDGRHybridModel(ContinualModel):
         total_loss.backward()
 
         # Step 5: Apply GPM gradient projection
-        self.gmp_adapter.project_gradients()
+        self.gpm_adapter.project_gradients()
 
         # Step 6: Optimizer step
         self.opt.step()
@@ -224,7 +224,7 @@ class GPMDGRHybridModel(ContinualModel):
         """Forward pass through the network."""
         return self.net(x)
 
-    def _update_gmp_memory(self):
+    def _update_gpm_memory(self):
         """Update GPM memory with current task data."""
         if self.current_task_data:
             # Create data loader from collected task data
@@ -240,7 +240,7 @@ class GPMDGRHybridModel(ContinualModel):
 
             # Update GPM memory
             logging.info(f"Hybrid: Updating GPM memory with {len(self.current_task_data)} samples")
-            self.gmp_adapter.update_memory(task_loader, self.gmp_max_collection_batches)
+            self.gpm_adapter.update_memory(task_loader, self.gpm_max_collection_batches)
 
     def _train_dgr_vae(self):
         """Train DGR VAE on current task data."""

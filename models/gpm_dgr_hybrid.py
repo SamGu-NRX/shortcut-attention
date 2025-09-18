@@ -444,11 +444,11 @@ class GPMDGRHybridMammoth(ContinualModel):
     def get_parser(parser) -> ArgumentParser:
         """Add hybrid method arguments."""
         # GPM arguments
-        parser.add_argument('--hybrid_gmp_energy_threshold', type=float, default=0.95,
+        parser.add_argument('--hybrid_gpm_energy_threshold', type=float, default=0.95,
                           help='Energy threshold for GPM basis selection (default: 0.95)')
-        parser.add_argument('--hybrid_gmp_max_collection_batches', type=int, default=200,
+        parser.add_argument('--hybrid_gpm_max_collection_batches', type=int, default=200,
                           help='Maximum batches for GPM activation collection (default: 200)')
-        parser.add_argument('--hybrid_gmp_update_frequency', type=int, default=1,
+        parser.add_argument('--hybrid_gpm_update_frequency', type=int, default=1,
                           help='Frequency of GPM memory updates (default: 1)')
 
         # DGR arguments
@@ -488,9 +488,9 @@ class GPMDGRHybridMammoth(ContinualModel):
 
         # Configure GPM component
         gpm_config = {
-            'energy_threshold': getattr(args, 'hybrid_gmp_energy_threshold', 0.95),
-            'max_collection_batches': getattr(args, 'hybrid_gmp_max_collection_batches', 200),
-            'update_frequency': getattr(args, 'hybrid_gmp_update_frequency', 1)
+            'energy_threshold': getattr(args, 'hybrid_gpm_energy_threshold', 0.95),
+            'max_collection_batches': getattr(args, 'hybrid_gpm_max_collection_batches', 200),
+            'update_frequency': getattr(args, 'hybrid_gpm_update_frequency', 1)
         }
 
         # Configure DGR component
@@ -624,9 +624,9 @@ def create_hybrid_config(args) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         Tuple of (gpm_config, dgr_config)
     """
     gpm_config = {
-        'energy_threshold': getattr(args, 'hybrid_gmp_energy_threshold', 0.95),
-        'max_collection_batches': getattr(args, 'hybrid_gmp_max_collection_batches', 200),
-        'update_frequency': getattr(args, 'hybrid_gmp_update_frequency', 1)
+        'energy_threshold': getattr(args, 'hybrid_gpm_energy_threshold', 0.95),
+        'max_collection_batches': getattr(args, 'hybrid_gpm_max_collection_batches', 200),
+        'update_frequency': getattr(args, 'hybrid_gpm_update_frequency', 1)
     }
 
     dgr_config = {

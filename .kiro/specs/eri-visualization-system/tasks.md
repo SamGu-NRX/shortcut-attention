@@ -274,7 +274,7 @@ Tasks are organized into logical phases with clear dependencies. Each task inclu
     - Performance test ensures computational overhead remains manageable for combined approach
   - _Requirements: 1.11.1, 1.11.2, 1.11.3, 1.11.4, 1.11.5, 1.11.6, 1.11.7_
 
-- [-] **14. Mammoth Model Wrappers — ContinualModel Integration**
+- [x] **14. Mammoth Model Wrappers — ContinualModel Integration**
 
   - Files: models/gpm_model.py, models/dgr_model.py, models/gpm_dgr_hybrid_model.py, tests/models/test_model_wrappers.py
   - Implement ContinualModel wrappers for each adapted method:
@@ -292,7 +292,7 @@ Tasks are organized into logical phases with clear dependencies. Each task inclu
     - ERI evaluation test ensures all models produce correct metrics on required splits
   - _Requirements: 1.7.1, 1.7.2, 1.7.4, 2.6.2_
 
-- [ ] **15. Method Registry and Configuration — Registration System**
+- [x] **15. Method Registry and Configuration — Registration System**
 
   - Files: models/integrated_methods_registry.py, models/config/gpm.yaml, models/config/dgr.yaml, models/config/gpm_dgr_hybrid.yaml, tests/models/test_integrated_methods_registry.py
   - Implement method registration system and configuration files for integrated methods:
@@ -415,7 +415,7 @@ Tasks are organized into logical phases with clear dependencies. Each task inclu
 
 - [ ] **21. Enhanced Baseline Integration — Extended Method Support**
 
-  - Files: experiments/configs/enhanced_baselines.yaml, models/config/enhanced_derpp.yaml, models/config/enhanced_gmp.yaml
+  - Files: experiments/configs/enhanced_baselines.yaml, models/config/enhanced_derpp.yaml, models/config/enhanced_gpm.yaml
   - Integrate enhanced versions of existing methods for comprehensive comparison:
     - Enhanced DER++ configuration with optimized hyperparameters
     - Enhanced GPM configuration with improved layer selection and energy thresholds

@@ -63,13 +63,13 @@ def create_synthetic_curves():
         n_seeds=5
     )
 
-    # GMP - struggles to reach high thresholds (some censored runs)
-    gmp_acc = 0.08 + 0.5 * (1 - np.exp(-epochs * 0.25))
-    gmp_curve = AccuracyCurve(
+    # gpm - struggles to reach high thresholds (some censored runs)
+    gpm_acc = 0.08 + 0.5 * (1 - np.exp(-epochs * 0.25))
+    gpm_curve = AccuracyCurve(
         epochs=epochs,
-        mean_accuracy=gmp_acc,
-        conf_interval=np.zeros_like(gmp_acc),
-        method="gmp",
+        mean_accuracy=gpm_acc,
+        conf_interval=np.zeros_like(gpm_acc),
+        method="gpm",
         split="T2_shortcut_normal",
         n_seeds=5
     )
@@ -79,7 +79,7 @@ def create_synthetic_curves():
         "sgd_T2_shortcut_normal": sgd_curve,
         "ewc_on_T2_shortcut_normal": ewc_curve,
         "derpp_T2_shortcut_normal": derpp_curve,
-        "gmp_T2_shortcut_normal": gmp_curve
+        "gpm_T2_shortcut_normal": gpm_curve
     }
 
 

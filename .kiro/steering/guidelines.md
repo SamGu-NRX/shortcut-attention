@@ -171,7 +171,7 @@ DEFAULT_METHOD_COLORS = {
     "sgd": "#1f77b4",             # Blue for naive CL
     "ewc_on": "#2ca02c",          # Green for EWC
     "derpp": "#d62728",           # Red for DER++
-    "gmp": "#8c564b",             # Brown for GPM
+    "gpm": "#8c564b",             # Brown for GPM
     "Interleaved": "#9467bd",     # Purple for oracle
 }
 ```

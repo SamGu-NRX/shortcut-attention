@@ -75,10 +75,10 @@ def create_args():
 class TestModelWrapperBasics:
     """Test basic model wrapper functionality."""
 
-    def test_gmp_model_inheritance(self):
+    def test_gpm_model_inheritance(self):
         """Test that GPMModel inherits from ContinualModel."""
         assert issubclass(GPMModel, ContinualModel)
-        assert GPMModel.NAME == 'gmp_adapted'
+        assert GPMModel.NAME == 'gpm_adapted'
         assert 'class-il' in GPMModel.COMPATIBILITY
 
     def test_dgr_model_inheritance(self):
@@ -90,10 +90,10 @@ class TestModelWrapperBasics:
     def test_hybrid_model_inheritance(self):
         """Test that GPMDGRHybridModel inherits from ContinualModel."""
         assert issubclass(GPMDGRHybridModel, ContinualModel)
-        assert GPMDGRHybridModel.NAME == 'gmp_dgr_hybrid_adapted'
+        assert GPMDGRHybridModel.NAME == 'gpm_dgr_hybrid_adapted'
         assert 'class-il' in GPMDGRHybridModel.COMPATIBILITY
 
-    def test_gmp_model_parser(self):
+    def test_gpm_model_parser(self):
         """Test GPM model parser."""
         from argparse import ArgumentParser
 
@@ -102,10 +102,10 @@ class TestModelWrapperBasics:
 
         # Test that arguments can be parsed
         args = parser.parse_args([])
-        assert hasattr(args, 'gmp_energy_threshold')
-        assert hasattr(args, 'gmp_max_collection_batches')
-        assert hasattr(args, 'gmp_layer_names')
-        assert hasattr(args, 'gmp_device')
+        assert hasattr(args, 'gpm_energy_threshold')
+        assert hasattr(args, 'gpm_max_collection_batches')
+        assert hasattr(args, 'gpm_layer_names')
+        assert hasattr(args, 'gpm_device')
 
     def test_dgr_model_parser(self):
         """Test DGR model parser."""
@@ -129,7 +129,7 @@ class TestModelWrapperBasics:
 
         # Test that arguments can be parsed
         args = parser.parse_args([])
-        assert hasattr(args, 'hybrid_gmp_energy_threshold')
+        assert hasattr(args, 'hybrid_gpm_energy_threshold')
         assert hasattr(args, 'hybrid_dgr_z_dim')
         assert hasattr(args, 'hybrid_coordination_mode')
 
@@ -137,7 +137,7 @@ class TestModelWrapperBasics:
 class TestModelWrapperIntegration:
     """Test model wrapper integration with Mammoth framework."""
 
-    def test_gmp_model_interface_compliance(self):
+    def test_gpm_model_interface_compliance(self):
         """Test that GPMModel implements required ContinualModel methods."""
         # Check that all required methods exist
         assert hasattr(GPMModel, 'begin_task')
@@ -189,7 +189,7 @@ class TestModelWrapperIntegration:
 class TestConfigurationHandling:
     """Test configuration parameter handling."""
 
-    def test_gmp_default_configuration(self):
+    def test_gpm_default_configuration(self):
         """Test GPM default configuration handling."""
         args = create_args()
 
@@ -203,9 +203,9 @@ class TestConfigurationHandling:
         try:
             # We can't actually create the model without mocking GPMAdapter
             # but we can test the argument extraction logic
-            energy_threshold = getattr(args, 'gmp_energy_threshold', 0.95)
-            max_collection_batches = getattr(args, 'gmp_max_collection_batches', 200)
-            layer_names = getattr(args, 'gmp_layer_names', ['backbone.layer3', 'classifier'])
+            energy_threshold = getattr(args, 'gpm_energy_threshold', 0.95)
+            max_collection_batches = getattr(args, 'gpm_max_collection_batches', 200)
+            layer_names = getattr(args, 'gpm_layer_names', ['backbone.layer3', 'classifier'])
 
             assert energy_threshold == 0.95
             assert max_collection_batches == 200
@@ -235,11 +235,11 @@ class TestConfigurationHandling:
 
         # Test that model can handle missing hybrid-specific args
         try:
-            gmp_energy_threshold = getattr(args, 'hybrid_gmp_energy_threshold', 0.95)
+            gpm_energy_threshold = getattr(args, 'hybrid_gpm_energy_threshold', 0.95)
             dgr_z_dim = getattr(args, 'hybrid_dgr_z_dim', 100)
             coordination_mode = getattr(args, 'hybrid_coordination_mode', 'sequential')
 
-            assert gmp_energy_threshold == 0.95
+            assert gpm_energy_threshold == 0.95
             assert dgr_z_dim == 100
             assert coordination_mode == 'sequential'
         except Exception as e:

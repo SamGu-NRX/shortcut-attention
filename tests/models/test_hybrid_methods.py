@@ -278,9 +278,9 @@ class TestGPMDGRHybridMammoth:
     def mock_args(self):
         """Create mock arguments for testing."""
         args = Mock()
-        args.hybrid_gmp_energy_threshold = 0.95
-        args.hybrid_gmp_max_collection_batches = 50
-        args.hybrid_gmp_update_frequency = 1
+        args.hybrid_gpm_energy_threshold = 0.95
+        args.hybrid_gpm_max_collection_batches = 50
+        args.hybrid_gpm_update_frequency = 1
         args.hybrid_dgr_z_dim = 32
         args.hybrid_dgr_vae_lr = 0.001
         args.hybrid_dgr_vae_fc_layers = 2
@@ -331,7 +331,7 @@ class TestGPMDGRHybridMammoth:
         assert hybrid_model.image_channels == 3
 
         # Check that configuration was passed correctly
-        assert hybrid_model.hybrid_method.gpm.energy_threshold == mock_args.hybrid_gmp_energy_threshold
+        assert hybrid_model.hybrid_method.gpm.energy_threshold == mock_args.hybrid_gpm_energy_threshold
         assert hybrid_model.hybrid_method.vae.z_dim == mock_args.hybrid_dgr_z_dim
         assert hybrid_model.hybrid_method.replay_weight == mock_args.hybrid_dgr_replay_weight
 
@@ -417,7 +417,7 @@ class TestHybridConfigValidation:
 
         assert validate_hybrid_config(gpm_config, dgr_config) is True
 
-    def test_validate_hybrid_config_invalid_gmp(self):
+    def test_validate_hybrid_config_invalid_gpm(self):
         """Test validation with invalid GPM configuration."""
         # Invalid energy threshold
         gpm_config = {
@@ -470,9 +470,9 @@ class TestHybridConfigValidation:
         """Test configuration creation from arguments."""
         # Create mock args
         args = Mock()
-        args.hybrid_gmp_energy_threshold = 0.90
-        args.hybrid_gmp_max_collection_batches = 150
-        args.hybrid_gmp_update_frequency = 2
+        args.hybrid_gpm_energy_threshold = 0.90
+        args.hybrid_gpm_max_collection_batches = 150
+        args.hybrid_gpm_update_frequency = 2
         args.hybrid_dgr_z_dim = 64
         args.hybrid_dgr_vae_lr = 0.002
         args.hybrid_dgr_vae_fc_layers = 4

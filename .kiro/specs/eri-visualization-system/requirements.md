@@ -78,7 +78,7 @@
 2. WHEN supporting methods THEN the system SHALL support all existing Mammoth methods plus adapted integrated methods:
 
    - Baselines: Scratch_T2, Interleaved
-   - CL methods: sgd, ewc_on, derpp, gmp (and other existing ones)
+   - CL methods: sgd, ewc_on, derpp, gpm (and other existing ones)
    - Adapted methods: gpm_adapted, dgr_adapted, gpm_dgr_hybrid
 
 3. WHEN processing splits THEN the system SHALL support: T1_all, T2_shortcut_normal, T2_shortcut_masked, T2_nonshortcut_normal
@@ -514,7 +514,7 @@
 
 **Columns:**
 
-- method: str (e.g., Scratch_T2, sgd, ewc_on, derpp, gmp, Interleaved)
+- method: str (e.g., Scratch_T2, sgd, ewc_on, derpp, gpm, Interleaved)
 - seed: int
 - epoch_eff: float (monotonic per method×seed)
 - split: str ∈ {T1_all, T2_shortcut_normal, T2_shortcut_masked, T2_nonshortcut_normal}
@@ -556,9 +556,9 @@ Must contain timeline_data with per-epoch subset accuracies for T2_shortcut_norm
 Ensure support for:
 
 - sgd (naive), ewc_on, replay variants already present
-- Add derpp and gmp configs; pass through to visualization unchanged
+- Add derpp and gpm configs; pass through to visualization unchanged
 - **New methods**: gpm, class_gaussian_replay, vae_replay (optional)
-- **Hybrid methods**: gmp_gaussian_hybrid, gpm_vae_hybrid (optional)
+- **Hybrid methods**: gpm_gaussian_hybrid, gpm_vae_hybrid (optional)
 - All methods must integrate seamlessly with existing ERI evaluation pipeline
 
 ### 4.3 Metrics (additional informative probes)
@@ -628,7 +628,7 @@ These must not block core visualization; integrate as extras.
 
 ```bash
 python tools/plot_eri.py --csv logs/eri_sc_metrics.csv \
-  --outdir logs/figs --methods Scratch_T2 sgd ewc_on derpp gmp \
+  --outdir logs/figs --methods Scratch_T2 sgd ewc_on derpp gpm \
   --tau 0.6 --smooth 3
 ```
 

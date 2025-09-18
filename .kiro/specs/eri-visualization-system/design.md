@@ -67,7 +67,7 @@ models/
     gpm.yaml                   # GPM configuration
     class_gaussian_replay.yaml # Gaussian replay configuration
     vae_replay.yaml            # VAE replay configuration
-    gmp_gaussian_hybrid.yaml   # Hybrid method configuration
+    gpm_gaussian_hybrid.yaml   # Hybrid method configuration
 experiments/
   configs/
     cifar100_einstellung224.yaml
@@ -217,7 +217,7 @@ class PlotStyleConfig:
             "sgd": "#1f77b4",
             "ewc_on": "#2ca02c",
             "derpp": "#d62728",
-            "gmp": "#8c564b",
+            "gpm": "#8c564b",
             "Interleaved": "#9467bd",
         }
     )
@@ -443,8 +443,8 @@ class GPMGaussianHybrid:
         # Initialize GPM
         self.gpm = GPM(
             model=model,
-            layer_names=gmp_config['layer_names'],
-            energy_threshold=gmp_config.get('energy_threshold', 0.95)
+            layer_names=gpm_config['layer_names'],
+            energy_threshold=gpm_config.get('energy_threshold', 0.95)
         )
 
         # Initialize Gaussian replay
@@ -497,7 +497,7 @@ class GPMGaussianHybrid:
         """Update both GPM bases and replay memory after task completion."""
 
         # Update GPM memory
-        self.gmp.update_memory(train_loader)
+        self.gpm.update_memory(train_loader)
 
         # Update replay memory
         all_features = []
@@ -662,7 +662,7 @@ The ERI visualization system automatically supports any method that:
 
 - experiments/configs/cifar100_einstellung224.yaml:
   - seeds: [1, 2, 3, 4, 5]
-  - methods: [Scratch_T2, sgd, ewc_on, derpp, gmp]
+  - methods: [Scratch_T2, sgd, ewc_on, derpp, gpm]
   - shortcut: {size: [4, 8], location: [fixed, corners], ratio: [0.5, 1.0]}
   - eval_splits: [T1_all, T2_shortcut_normal, T2_shortcut_masked, T2_nonshortcut_normal]
   - visualize: {tau: 0.6, smooth: 3, tau_grid: [0.5..0.8]}
@@ -709,13 +709,13 @@ for task_id, train_loader in enumerate(tasks):
     elif method_name == 'class_gaussian_replay':
         replay_memory = ClassGaussianMemory(feat_dim)
     elif method_name == 'gpm_gaussian_hybrid':
-        hybrid_method = GPMGaussianHybrid(model, backbone, classifier, gmp_config, replay_config)
+        hybrid_method = GPMGaussianHybrid(model, backbone, classifier, gpm_config, replay_config)
 
     # Training epochs
     for epoch in range(epochs_per_task):
         for batch_x, batch_y in train_loader:
 
-            if method_name == 'gmp_gaussian_hybrid':
+            if method_name == 'gpm_gaussian_hybrid':
                 # Use hybrid training step
                 loss = hybrid_method.training_step(batch_x, batch_y, optimizer, criterion)
             else:
@@ -750,7 +750,7 @@ for task_id, train_loader in enumerate(tasks):
         # Collect features and update memory
         features, labels = collect_features(model.backbone, train_loader)
         replay_memory.fit(features, labels)
-    elif method_name == 'gmp_gaussian_hybrid':
+    elif method_name == 'gpm_gaussian_hybrid':
         hybrid_method.end_task(train_loader)
 
     # Standard ERI end-of-task evaluation (method-agnostic)

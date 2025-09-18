@@ -54,22 +54,22 @@ class GPMModel(ContinualModel):
 
         # Extract GPM configuration from args
         self.energy_threshold = getattr(args, 'gpm_energy_threshold', 0.95)
-        self.max_collection_batches = getattr(args, 'gmp_max_collection_batches', 200)
-        self.layer_names = getattr(args, 'gmp_layer_names', ['backbone.layer3', 'classifier'])
+        self.max_collection_batches = getattr(args, 'gpm_max_collection_batches', 200)
+        self.layer_names = getattr(args, 'gpm_layer_names', ['backbone.layer3', 'classifier'])
 
         # Determine device
-        gmp_device = getattr(args, 'gmp_device', 'auto')
+        gpm_device = getattr(args, 'gpm_device', 'auto')
         if gpm_device == 'auto':
             self.gpm_device = self.device
         else:
-            self.gmp_device = torch.device(gmp_device)
+            self.gpm_device = torch.device(gpm_device)
 
         # Initialize GPM adapter
-        self.gmp_adapter = GPMAdapter(
+        self.gpm_adapter = GPMAdapter(
             model=self.net,
             layer_names=self.layer_names,
             energy_threshold=self.energy_threshold,
-            device=self.gmp_device
+            device=self.gpm_device
         )
 
         # Task data collection
@@ -102,7 +102,7 @@ class GPMModel(ContinualModel):
 
             # Update GPM memory
             logging.info(f"GPM: Updating memory with {len(self.current_task_data)} samples")
-            self.gmp_adapter.update_memory(task_loader, self.max_collection_batches)
+            self.gpm_adapter.update_memory(task_loader, self.max_collection_batches)
 
         logging.info(f"GPM: Completed task {self.current_task}")
 
@@ -133,7 +133,7 @@ class GPMModel(ContinualModel):
         loss.backward()
 
         # Apply GPM gradient projection
-        self.gmp_adapter.project_gradients()
+        self.gpm_adapter.project_gradients()
 
         # Optimizer step
         self.opt.step()

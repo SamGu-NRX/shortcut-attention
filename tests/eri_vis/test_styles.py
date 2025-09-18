@@ -28,7 +28,7 @@ class TestPlotStyleConfig:
         assert config.dpi == 300
 
         # Test color palette contains expected methods
-        expected_methods = ["Scratch_T2", "sgd", "ewc_on", "derpp", "gmp", "Interleaved"]
+        expected_methods = ["Scratch_T2", "sgd", "ewc_on", "derpp", "gpm", "Interleaved"]
         for method in expected_methods:
             assert method in config.color_palette
             assert config.color_palette[method].startswith("#")

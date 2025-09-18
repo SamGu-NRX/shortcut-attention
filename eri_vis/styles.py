@@ -45,7 +45,7 @@ class PlotStyleConfig:
         "sgd": "#1f77b4",             # Blue for SGD
         "ewc_on": "#2ca02c",          # Green for EWC
         "derpp": "#d62728",           # Red for DER++
-        "gmp": "#8c564b",             # Brown for GMP
+        "gpm": "#8c564b",             # Brown for gpm
         "Interleaved": "#9467bd",     # Purple for interleaved
         "er": "#ff7f0e",              # Orange for Experience Replay
         "lwf": "#e377c2",             # Pink for Learning without Forgetting

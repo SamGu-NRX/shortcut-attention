@@ -86,7 +86,7 @@ def mock_components():
 class TestBasicFunctionality:
     """Test basic functionality of model wrappers."""
 
-    def test_gmp_model_creation(self, mock_args, mock_components):
+    def test_gpm_model_creation(self, mock_args, mock_components):
         """Test that GPMModel can be created."""
         backbone, loss, transform, dataset = mock_components
 
@@ -94,7 +94,7 @@ class TestBasicFunctionality:
             model = GPMModel(backbone, loss, mock_args, transform, dataset)
 
         assert isinstance(model, ContinualModel)
-        assert model.NAME == 'gmp_adapted'
+        assert model.NAME == 'gpm_adapted'
         assert hasattr(model, 'energy_threshold')
         assert hasattr(model, 'max_collection_batches')
 
@@ -119,15 +119,15 @@ class TestBasicFunctionality:
             model = GPMDGRHybridModel(backbone, loss, mock_args, transform, dataset)
 
         assert isinstance(model, ContinualModel)
-        assert model.NAME == 'gmp_dgr_hybrid_adapted'
-        assert hasattr(model, 'gmp_energy_threshold')
+        assert model.NAME == 'gpm_dgr_hybrid_adapted'
+        assert hasattr(model, 'gpm_energy_threshold')
         assert hasattr(model, 'dgr_z_dim')
 
-    def test_gmp_model_observe(self, mock_args, mock_components):
+    def test_gpm_model_observe(self, mock_args, mock_components):
         """Test GPM model observe method."""
         backbone, loss, transform, dataset = mock_components
 
-        with patch('models.gmp_model.GPMAdapter') as mock_adapter:
+        with patch('models.gpm_model.GPMAdapter') as mock_adapter:
             model = GPMModel(backbone, loss, mock_args, transform, dataset)
             mock_adapter_instance = mock_adapter.return_value
 
@@ -174,10 +174,10 @@ class TestBasicFunctionality:
         """Test hybrid model observe method."""
         backbone, loss, transform, dataset = mock_components
 
-        with patch('models.gmp_dgr_hybrid_model.GPMAdapter') as mock_gmp_adapter, \
-             patch('models.gmp_dgr_hybrid_model.DGRVAE'):
+        with patch('models.gpm_dgr_hybrid_model.GPMAdapter') as mock_gpm_adapter, \
+             patch('models.gpm_dgr_hybrid_model.DGRVAE'):
             model = GPMDGRHybridModel(backbone, loss, mock_args, transform, dataset)
-            mock_gmp_adapter_instance = mock_gmp_adapter.return_value
+            mock_gpm_adapter_instance = mock_gpm_adapter.return_value
 
         # Create mock input data
         inputs = torch.randn(2, 3, 32, 32)
@@ -192,7 +192,7 @@ class TestBasicFunctionality:
             loss_value = model.observe(inputs, labels, not_aug_inputs)
 
         # Check that GPM projection was called
-        mock_gmp_adapter_instance.project_gradients.assert_called_once()
+        mock_gpm_adapter_instance.project_gradients.assert_called_once()
 
         # Check return value
         assert isinstance(loss_value, float)
@@ -201,11 +201,11 @@ class TestBasicFunctionality:
 class TestTaskLifecycle:
     """Test task lifecycle methods."""
 
-    def test_gmp_model_task_lifecycle(self, mock_args, mock_components):
+    def test_gpm_model_task_lifecycle(self, mock_args, mock_components):
         """Test GPM model task lifecycle."""
         backbone, loss, transform, dataset = mock_components
 
-        with patch('models.gmp_model.GPMAdapter') as mock_adapter:
+        with patch('models.gpm_model.GPMAdapter') as mock_adapter:
             model = GPMModel(backbone, loss, mock_args, transform, dataset)
             mock_adapter_instance = mock_adapter.return_value
 
