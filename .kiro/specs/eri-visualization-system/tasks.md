@@ -16,7 +16,7 @@
 
 - **Data Loading**: Convert `EinstellungEvaluator.export_results()` format to visualization format
 - **Evaluation**: Hook into existing `after_training_epoch()` and `meta_end_task()` callbacks
-- **Methods**: Support all Mammoth strategies (SGD, EWC, DER++, etc.) without modification
+- **Methods**: ESSENTIAL(!!) Support all Mammoth strategies (SGD, EWC, DER++, etc.) without modification
 - **Datasets**: Use existing `get_evaluation_subsets()` for T1_all, T2_shortcut_normal, etc.
 - **Attention**: Integrate with existing `EinstellungAttentionAnalyzer` for ViT models
 
@@ -215,142 +215,255 @@ Tasks are organized into logical phases with clear dependencies. Each task inclu
 
 ---
 
-## Phase 4: Custom Method Implementation
+## Phase 4: Existing Methods Integration
 
-- [ ] **11. Enhanced DER++ Method — Advanced Replay Strategy**
+- [ ] **11. GPM Integration — Adapt Existing GPM Implementation**
 
-  - Files: models/enhanced_derpp.py, configs/enhanced_derpp.yaml, tests/models/test_enhanced_derpp.py
-  - Implement enhanced DER++ with improved replay mechanisms:
-    - Adaptive buffer management with importance-based sampling
-    - Dynamic replay ratio based on forgetting detection
-    - Enhanced distillation loss with temperature scheduling
-    - Memory-efficient buffer updates with gradient-based selection
+  - Files: models/gpm_mammoth_adapter.py, tests/models/test_gpm_integration.py
+  - Integrate existing GPM implementation from `/GPM` directory with Mammoth framework:
+    - Extract core GPM functionality from existing `GPM/main_cifar100.py` and related files
+    - Create Mammoth-compatible wrapper that adapts GPM's gradient projection mechanism
+    - Implement ContinualModel interface with GPM's SVD-based subspace extraction
+    - Adapt existing activation collection and basis computation for Mammoth's model structure
+    - Ensure compatibility with existing EinstellungEvaluator and ERI metrics computation
+    - Maintain GPM's original hyperparameters and energy threshold configurations
   - DoD:
-    - Method integrates seamlessly with existing Mammoth ContinualModel framework
-    - Configuration file supports all enhanced parameters
-    - Method appears automatically in ERI visualization outputs
-    - Performance improvements demonstrated on CIFAR-100 Einstellung dataset
-    - Unit tests verify correct buffer management and replay mechanisms
-    - Integration test confirms ERI metrics (AD, PD_t, SFR_rel) are computed correctly
-  - _Requirements: 1.7.1, 1.7.2, 1.7.4, 1.8.1_
+    - GPM adapter successfully integrates existing GPM code with Mammoth ContinualModel framework
+    - Gradient projection mechanism works correctly with Mammoth's training pipeline
+    - Unit tests verify SVD computation and gradient projection match original GPM behavior
+    - Integration test confirms GPM works with EinstellungEvaluator on CIFAR-100 Einstellung dataset
+    - Performance test ensures GPM integration doesn't significantly impact training time
+    - Configuration test verifies GPM parameters can be set through YAML files
+  - _Requirements: 1.9.1, 1.9.2, 1.9.3, 1.9.4, 1.9.5, 2.4.1, 2.4.2, 2.4.3, 2.4.4, 2.4.5_
 
-- [ ] **12. Adaptive EWC Method — Dynamic Regularization**
+- [ ] **12. DGR Integration — Adapt Existing Deep Generative Replay**
 
-  - Files: models/adaptive_ewc.py, configs/adaptive_ewc.yaml, tests/models/test_adaptive_ewc.py
-  - Implement adaptive EWC with dynamic importance weighting:
-    - Adaptive lambda scheduling based on task similarity
-    - Importance decay for older tasks to prevent over-regularization
-    - Fisher information matrix updates with momentum
-    - Task-specific regularization strength adjustment
+  - Files: models/dgr_mammoth_adapter.py, tests/models/test_dgr_integration.py
+  - Integrate existing DGR implementation from `/DGR_wrapper` directory with Mammoth framework:
+    - Extract VAE and generative replay functionality from existing `DGR_wrapper/models/vae.py`
+    - Create Mammoth-compatible wrapper that adapts DGR's generative replay mechanism
+    - Implement ContinualModel interface with DGR's VAE-based replay generation
+    - Adapt existing VAE training and sample generation for Mammoth's data pipeline
+    - Ensure compatibility with existing EinstellungEvaluator and ERI metrics computation
+    - Maintain DGR's original VAE architecture and training configurations
   - DoD:
-    - Method extends existing EWC implementation with adaptive features
-    - Configuration supports adaptive parameters and scheduling options
-    - Method automatically included in visualization pipeline without code changes
-    - Demonstrates improved performance on shortcut learning scenarios
-    - Unit tests verify Fisher information computation and lambda adaptation
-    - Integration test confirms proper ERI evaluation across all required splits
-  - _Requirements: 1.7.1, 1.7.3, 1.7.4, 1.8.2_
+    - DGR adapter successfully integrates existing DGR code with Mammoth ContinualModel framework
+    - VAE training and replay generation work correctly with Mammoth's training pipeline
+    - Unit tests verify VAE functionality and replay sample quality match original DGR behavior
+    - Integration test confirms DGR works with EinstellungEvaluator on CIFAR-100 Einstellung dataset
+    - Performance test ensures DGR integration maintains reasonable training and generation times
+    - Configuration test verifies DGR parameters can be set through YAML files
+  - _Requirements: 1.10.1, 1.10.2, 1.10.3, 1.10.4, 1.10.5, 1.10.6, 2.5.1, 2.5.2, 2.5.3, 2.5.4, 2.5.5_
 
-- [ ] **13. Custom Method Registry — Method Management System**
+- [ ] **13. Hybrid Methods Implementation — Combined GPM and DGR**
 
-  - Files: models/custom_methods/**init**.py, models/custom_methods/registry.py, tests/models/test_registry.py
-  - Implement method registration and discovery system:
-    - Automatic method discovery and registration
-    - Configuration-based method instantiation
-    - Method metadata and documentation system
-    - Integration with existing Mammoth model loading
+  - Files: models/gpm_dgr_hybrid.py, tests/models/test_hybrid_methods.py
+  - Create hybrid approach combining adapted GPM and DGR implementations:
+    - Coordinate GPM gradient projection with DGR generative replay in single training loop
+    - Training step integration: DGR replay generation → loss computation → GPM projection → optimizer step
+    - Memory coordination: simultaneous GPM basis updates and DGR VAE training after each task
+    - Configuration management for both GPM and DGR parameters from existing implementations
+    - Feature space consistency handling for hybrid approaches using both methods
+    - Computational overhead optimization with configurable update frequencies
   - DoD:
-    - Registry automatically discovers and registers custom methods
-    - Methods can be configured through YAML files
-    - Integration with existing `get_model()` function in Mammoth
-    - Method metadata includes description, parameters, and requirements
-    - Unit tests verify registration and instantiation processes
-    - Documentation explains how to add new custom methods
-  - _Requirements: 1.7.1, 1.7.2, 1.7.3_
+    - Hybrid method successfully combines adapted GPM and DGR approaches in single training loop
+    - Training step correctly sequences DGR replay generation, loss computation, and GPM gradient projection
+    - End-of-task updates coordinate both GPM basis computation and DGR VAE training
+    - Unit tests verify correct execution order and memory coordination between methods
+    - Integration test confirms hybrid method works with existing Mammoth training pipeline
+    - Performance test ensures computational overhead remains manageable for combined approach
+  - _Requirements: 1.11.1, 1.11.2, 1.11.3, 1.11.4, 1.11.5, 1.11.6, 1.11.7_
+
+- [ ] **14. Mammoth Model Wrappers — ContinualModel Integration**
+
+  - Files: models/gpm_model.py, models/dgr_model.py, models/gpm_dgr_hybrid_model.py, tests/models/test_model_wrappers.py
+  - Implement ContinualModel wrappers for each adapted method:
+    - GPMModel: wraps adapted GPM implementation with Mammoth ContinualModel interface
+    - DGRModel: wraps adapted DGR implementation with Mammoth ContinualModel interface
+    - GPMDGRHybridModel: coordinates hybrid approach with ContinualModel interface
+    - Standard Mammoth hooks: begin_task, end_task, observe, forward methods
+    - Configuration parameter handling through args namespace using existing method parameters
+  - DoD:
+    - Each model wrapper properly inherits from ContinualModel and implements required methods
+    - Models integrate seamlessly with existing Mammoth training pipeline and hooks
+    - Configuration parameters are correctly parsed and applied from args using original method defaults
+    - Unit tests verify ContinualModel interface compliance and method-specific functionality
+    - Integration test confirms models work with existing experiment runners
+    - ERI evaluation test ensures all models produce correct metrics on required splits
+  - _Requirements: 1.7.1, 1.7.2, 1.7.4, 2.6.2_
+
+- [ ] **15. Method Registry and Configuration — Registration System**
+
+  - Files: models/integrated_methods_registry.py, models/config/gpm.yaml, models/config/dgr.yaml, models/config/gpm_dgr_hybrid.yaml, tests/models/test_integrated_methods_registry.py
+  - Implement method registration system and configuration files for integrated methods:
+    - IntegratedMethodRegistry: automatic discovery and registration of adapted methods
+    - Integration with existing Mammoth `get_model()` function
+    - YAML configuration files with hyperparameters from original GPM and DGR implementations
+    - Method metadata including descriptions, parameters, and computational requirements
+    - Configuration validation and error handling for invalid parameters
+    - Documentation generation for method usage and parameter tuning
+  - DoD:
+    - Registry automatically discovers and registers all adapted methods
+    - Configuration files provide defaults based on original GPM and DGR implementations
+    - Integration with existing model loading preserves backward compatibility
+    - Unit tests verify registration, configuration parsing, and model instantiation
+    - Integration test confirms adapted methods appear in experiment configurations
+    - Documentation test ensures all methods have complete usage instructions
+  - _Requirements: 1.7.1, 1.7.2, 1.7.3, 2.6.1, 2.6.3, 2.6.4_
 
 ---
 
-## Phase 5: System Robustness and Performance
+## Phase 5: Integration Testing and Validation
 
-- [ ] **14. Error Handling — Comprehensive Exception Management**
+- [ ] **16. Integrated Methods Testing — End-to-End Validation**
 
-  - Files: eri_vis/errors.py, tests/eri_vis/test_errors.py
-  - Implement ERIErrorHandler with categorized exceptions and recovery tips
+  - Files: tests/integration/test_integrated_methods.py, experiments/configs/cifar100_integrated_methods.yaml
+  - Implement comprehensive integration tests for adapted methods:
+    - End-to-end pipeline test: adapted method training → ERI evaluation → visualization generation
+    - EinstellungEvaluator integration test: verify all required splits evaluated correctly with adapted methods
+    - Visualization compatibility test: ensure adapted methods appear in generated figures and heatmaps
+    - Performance comparison test: validate ERI metrics (AD, PD_t, SFR_rel) computed consistently
+    - Configuration validation test: verify YAML configs load and apply correctly for adapted methods
+    - Memory management test: confirm GPU/CPU memory usage stays within reasonable bounds
   - DoD:
-    - Errors provide actionable messages; tests cover key failure modes
-    - ERIErrorHandler with categorized exception types
-    - Actionable error messages with recovery suggestions
-    - Cover key failure modes: data validation, processing errors, visualization failures
-    - Include structured logging with method, seed, and epoch context
+    - Integration tests pass for all adapted methods (GPM, DGR, hybrid)
+    - ERI visualization pipeline generates correct figures including adapted methods
+    - Performance metrics demonstrate adapted methods work within computational constraints
+    - Configuration files successfully load and configure all method parameters from original implementations
+    - Memory usage tests confirm efficient resource utilization
+    - Regression test ensures existing methods continue to work unchanged
+  - _Requirements: 1.9.6, 1.10.7, 1.11.6, 1.7.4_
+
+- [ ] **17. Error Handling and Robustness — Comprehensive Exception Management**
+
+  - Files: eri_vis/errors.py, models/integration_errors.py, tests/eri_vis/test_errors.py, tests/models/test_integration_errors.py
+  - Implement comprehensive error handling for adapted methods:
+    - ERIErrorHandler extensions for integration-specific errors
+    - GPM integration errors: layer compatibility issues, SVD computation failures, memory overflow
+    - DGR integration errors: VAE training failures, replay generation issues, feature dimension mismatches
+    - Hybrid method errors: coordination failures between GPM and DGR, memory conflicts, configuration inconsistencies
+    - Actionable error messages with recovery suggestions and troubleshooting guidance
+    - Structured logging with method context, parameters, and failure points
+  - DoD:
+    - Error handling covers all failure modes for adapted methods
+    - Error messages provide clear guidance for resolution based on original method documentation
+    - Unit tests verify error detection and message quality
+    - Integration tests confirm graceful failure handling in full pipeline
+    - Logging provides sufficient context for debugging integration-specific issues
+    - Documentation includes troubleshooting guide for common integration error scenarios
   - _Requirements: 2.1.1, 2.1.2, 2.1.6_
 
-- [ ] **15. Performance Optimizations — Scalability and Speed**
+- [ ] **18. Performance Optimization and Scalability — Enhanced System Performance**
 
-  - Files: eri_vis/utils.py (caching), plot modules (parallel)
-  - Implement:
+  - Files: eri_vis/utils.py (caching), models/integration_performance_utils.py, plot modules (parallel)
+  - Implement performance optimizations for adapted methods:
     - Optional caching of computed curves (pickle) with checksum of CSV
-    - Parallel heatmap computation across methods (if many)
+    - Parallel heatmap computation across methods including adapted methods
+    - GPM integration optimization: efficient activation collection and SVD computation from original implementation
+    - DGR integration optimization: efficient VAE training and replay generation from original implementation
+    - Hybrid method optimization: coordinated memory updates and computational scheduling
+    - Memory profiling utilities for method comparison and optimization
   - DoD:
-    - Batch processing of 5 runs < 30s on typical workstation
-    - Optional curve computation caching with CSV checksum validation
-    - Parallel processing support for batch heatmap generation
-    - Optimize memory usage for large datasets with chunked processing
-    - Ensure batch processing of 5 runs completes under 30 seconds
+    - Batch processing of 5 runs including adapted methods completes under 45 seconds
+    - Optional curve computation caching works with adapted method data
+    - Parallel processing supports increased method counts efficiently
+    - Memory usage optimizations maintain efficiency of original implementations
+    - Performance profiling utilities help identify bottlenecks in adapted methods
+    - Scalability tests confirm system handles 10+ methods and 10+ seeds efficiently
   - _Requirements: 2.2.1, 2.2.2, 2.2.5_
 
-- [ ] **16. Documentation — Comprehensive User Guide**
-  - Files: docs/README_eri_vis.md
-  - Include:
-    - Reviewer point notes (1–3) with future work (ImageNet-100, text CL)
-    - Sensitivity protocol and AD(τ) reference
-    - Method-agnostic claims and instructions
-    - Example commands and troubleshooting
+- [ ] **19. Comprehensive Documentation — User Guide and Integration Documentation**
+  - Files: docs/README_eri_vis.md, docs/README_integrated_methods.md, docs/integration_guide.md
+  - Create comprehensive documentation for adapted methods:
+    - Updated ERI visualization guide including adapted methods
+    - Detailed integration documentation: GPM adaptation, DGR adaptation, hybrid approaches
+    - Integration guide with performance characteristics and use case recommendations
+    - Configuration guide with hyperparameter recommendations from original implementations
+    - Troubleshooting guide with common issues and solutions for adapted methods
+    - Example experiments and expected results for validation
   - DoD:
-    - Doc reviewed; examples reproducible
-    - Complete user guide addressing reviewer feedback points
-    - Future work sections for generalizability improvements
-    - Sensitivity analysis protocol and AD(τ) methodology documentation
-    - Method-agnostic usage instructions and examples
-    - Troubleshooting guide with common issues and solutions
-    - All example commands are reproducible with sample data
-  - _Requirements: 1.5.1, 1.5.2, 1.5.3_
+    - Documentation covers all adapted methods with complete usage instructions
+    - Integration guide helps users understand how original methods were adapted
+    - Configuration examples are tested and reproducible using original method parameters
+    - Troubleshooting guide addresses common integration failure modes
+    - Example experiments demonstrate expected performance characteristics
+    - All documentation examples are validated with actual code execution
+  - _Requirements: 1.5.1, 1.5.2, 1.5.3, 2.6.4_
 
 ---
 
-## Phase 6: Enhanced Experimental Coverage (Optional)
+## Phase 6: Experimental Validation and Enhanced Coverage
 
-- [ ] **17. Additional Baseline Methods — Extended Method Support**
+- [ ] **20. Integrated Methods Experimental Validation — Comprehensive Method Evaluation**
 
-  - Add derpp and gmp configs to experiments/configs/
-  - Ensure evaluator exports compatible CSV
+  - Files: experiments/configs/integrated_methods_comparison.yaml, experiments/runners/run_integrated_methods_comparison.py
+  - Implement comprehensive experimental validation of adapted methods:
+    - Comparative study configuration including all adapted methods vs existing baselines
+    - Multi-seed experiments (5-10 seeds) for statistical significance
+    - Performance evaluation on CIFAR-100 Einstellung dataset with multiple shortcut variants
+    - ERI metrics comparison: AD, PD_t, SFR_rel across all methods
+    - Computational efficiency analysis: training time, memory usage, convergence speed
+    - Ablation studies for key hyperparameters from original implementations: energy thresholds, VAE parameters, hybrid configurations
   - DoD:
-    - Runs appear in figs and heatmap by method key
-    - Configuration files for DER++ and GPM methods in `experiments/configs/`
-    - Evaluator exports maintain CSV compatibility across all methods
-    - Verify new methods appear correctly in generated figures and heatmaps
-  - _Requirements: 1.3.2, 4.2_
+    - Experimental configuration supports comprehensive method comparison
+    - Multi-seed results demonstrate statistical significance of performance differences
+    - ERI visualizations clearly show performance characteristics of adapted methods
+    - Computational analysis provides guidance for method selection based on resource constraints
+    - Ablation studies identify optimal hyperparameter ranges for each adapted method
+    - Results validate that adaptations maintain effectiveness of original implementations
+  - _Requirements: 1.8.1, 1.8.2, 1.8.3, 1.8.4, 1.8.5_
 
-- [ ] **18. Dataset Variant Support — Enhanced Experimental Scope**
+- [ ] **21. Enhanced Baseline Integration — Extended Method Support**
 
-  - Add shortcut salience and location sweeps in config
-  - Optional: imagenet100_einstellung.yaml, text_sst2_imdb.yaml
+  - Files: experiments/configs/enhanced_baselines.yaml, models/config/enhanced_derpp.yaml, models/config/enhanced_gmp.yaml
+  - Integrate enhanced versions of existing methods for comprehensive comparison:
+    - Enhanced DER++ configuration with optimized hyperparameters
+    - Enhanced GPM configuration with improved layer selection and energy thresholds
+    - Additional replay variants and regularization approaches
+    - Ensure all methods use consistent evaluation protocols and computational budgets
+    - Maintain compatibility with existing ERI visualization pipeline
   - DoD:
-    - Runs generate stronger, more persuasive visuals
+    - Enhanced baseline configurations provide stronger comparison points
+    - All methods appear correctly in generated figures and heatmaps
+    - Evaluator exports maintain CSV compatibility across all enhanced methods
+    - Performance improvements are measurable and statistically significant
+    - Enhanced methods integrate seamlessly with existing experimental infrastructure
+  - _Requirements: 1.3.2, 4.2, 1.8.1, 1.8.2_
+
+- [ ] **22. Dataset Variant Support and Generalizability — Enhanced Experimental Scope**
+
+  - Files: experiments/configs/dataset_variants.yaml, datasets/seq_cifar100_einstellung_variants.py (optional)
+  - Implement support for additional dataset variants and generalizability studies:
     - Shortcut salience and location sweep configurations
-    - Optional configurations for ImageNet-100 and text continual learning
-    - Variant experiments generate more compelling visual evidence
-    - Support different patch sizes, locations, and injection ratios
-  - _Requirements: 4.1, 4.4_
-
-- [ ] **19. Supplementary Analysis Tools — Advanced Metrics**
-  - ECE under masking (SC) and simple CKA drift computation utilities
+    - Multiple patch sizes, colors, and injection ratios for robustness analysis
+    - Optional ImageNet-100 Einstellung configuration for scalability validation
+    - Optional text continual learning configuration (SST-2 → IMDB) for domain generalization
+    - Cross-dataset evaluation protocols for method generalizability assessment
   - DoD:
-    - Optional plots generated if data available; do not block core figs
-    - Expected Calibration Error (ECE) computation under masking
-    - Centered Kernel Alignment (CKA) drift analysis utilities
-    - Generate optional supplementary plots when data is available
-    - Ensure supplementary analyses do not block core visualization generation
-  - _Requirements: 4.3_
+    - Dataset variant experiments generate more compelling visual evidence
+    - Robustness analysis demonstrates method stability across different shortcut configurations
+    - Optional larger-scale experiments validate method scalability
+    - Cross-domain experiments (if implemented) show method generalizability
+    - Variant experiments maintain compatibility with existing ERI evaluation framework
+  - _Requirements: 4.1, 4.4, 1.5.1_
+
+- [ ] **23. Advanced Analysis and Supplementary Metrics — Enhanced Evaluation**
+  - Files: eri_vis/advanced_analysis.py, tests/eri_vis/test_advanced_analysis.py
+  - Implement advanced analysis tools for deeper method understanding:
+    - Expected Calibration Error (ECE) computation under shortcut masking
+    - Centered Kernel Alignment (CKA) drift analysis for representation stability
+    - Gradient similarity analysis for GPM effectiveness validation
+    - Replay quality metrics for generative method evaluation
+    - Method-specific diagnostic plots and analysis tools
+    - Statistical significance testing for method comparisons
+  - DoD:
+    - Advanced metrics provide deeper insights into method behavior
+    - Supplementary plots enhance understanding without blocking core visualizations
+    - Statistical analysis validates significance of observed performance differences
+    - Method-specific diagnostics help identify failure modes and optimization opportunities
+    - Analysis tools integrate seamlessly with existing visualization pipeline
+    - All advanced analyses are optional and do not interfere with core ERI evaluation
+  - _Requirements: 4.3, 1.8.4_
 
 ---
 
@@ -358,12 +471,40 @@ Tasks are organized into logical phases with clear dependencies. Each task inclu
 
 The implementation is complete when:
 
+**Core Visualization System:**
+
 - Publication-ready figures are generated: `fig_eri_dynamics.pdf` and `fig_ad_tau_heatmap.pdf`
 - CSV validation and evaluator export work seamlessly with deterministic outputs
 - Missing and censored data are handled robustly with clear user warnings
-- Performance constraints are met: visualization generation under 30 seconds
+- Performance constraints are met: visualization generation under 45 seconds (extended for new methods)
+
+**New Methods Integration:**
+
+- GPM, Generative Replay, and Hybrid methods integrate seamlessly with existing Mammoth framework
+- All new methods appear automatically in ERI visualizations without code changes
+- Method registry system enables easy addition of future methods
+- Configuration files provide sensible defaults and comprehensive parameter documentation
+
+**Testing and Validation:**
+
+- All unit and integration tests pass including new method-specific tests
+- End-to-end pipeline tests validate complete workflow from training to visualization
+- Performance tests confirm computational efficiency within acceptable bounds
+- Visual regression validation ensures consistent figure generation
+
+**Documentation and Usability:**
+
 - Documentation addresses all reviewer feedback points comprehensively
-- All unit and integration tests pass with visual regression validation
+- New methods documentation provides clear usage instructions and hyperparameter guidance
+- Method comparison guide helps users select appropriate approaches
+- Troubleshooting guide covers common issues and solutions
+
+**Experimental Validation:**
+
+- Comparative studies demonstrate effectiveness of new methods on ERI metrics
+- Statistical significance testing validates performance differences
+- Robustness analysis confirms method stability across different configurations
+- Advanced analysis tools provide deeper insights into method behavior
 
 ## Task Dependencies and Execution Order
 
@@ -384,18 +525,25 @@ graph TD
     H --> I[9. ERIExperimentHooks ✅]
     I --> J[10. Runner and Config ✅]
 
-    J --> K[11. Enhanced DER++]
-    J --> L[12. Adaptive EWC]
-    K --> M[13. Custom Method Registry]
-    L --> M
+    J --> K[11. GPM Integration]
+    J --> L[12. DGR Integration]
+    J --> M[13. Hybrid Methods]
 
-    M --> N[14. Error Handling]
-    N --> O[15. Performance Optimizations]
-    O --> P[16. Documentation]
+    K --> N[14. Mammoth Model Wrappers]
+    L --> N
+    M --> N
 
-    P --> Q[17. Additional Baselines]
-    P --> R[18. Dataset Variants]
-    P --> S[19. Supplementary Analysis]
+    N --> O[15. Method Registry]
+
+    O --> P[16. Integration Testing]
+    P --> Q[17. Error Handling]
+    Q --> R[18. Performance Optimization]
+    R --> S[19. Documentation]
+
+    S --> T[20. Experimental Validation]
+    S --> U[21. Enhanced Baselines]
+    S --> V[22. Dataset Variants]
+    S --> W[23. Advanced Analysis]
 ```
 
 ## Implementation Strategy
@@ -406,15 +554,27 @@ graph TD
 
 **Phase 3 (Tasks 8-10)** ✅ COMPLETED: Successfully integrated with the existing Mammoth framework by extending `run_einstellung_experiment.py`. The end-to-end pipeline is working correctly.
 
-**Phase 4 (Tasks 11-13)**: Implement custom continual learning methods. These tasks focus on:
+**Phase 4 (Tasks 11-15)**: Integrate existing continual learning methods. These tasks focus on:
 
-- Enhanced DER++ with advanced replay strategies
-- Adaptive EWC with dynamic regularization
-- Method registry system for easy integration
+- GPM integration: Adapting existing GPM implementation from `/GPM` directory
+- DGR integration: Adapting existing Deep Generative Replay from `/DGR_wrapper` directory
+- Hybrid methods combining adapted GPM and DGR approaches
+- Mammoth ContinualModel wrappers for seamless integration
+- Method registry system for automatic discovery and configuration
 
-**Phase 5 (Tasks 14-16)**: Polish and optimize the system. These can be done incrementally alongside Phase 4.
+**Phase 5 (Tasks 16-19)**: Integration testing, error handling, and system optimization. These tasks ensure:
 
-**Phase 6 (Tasks 17-19)**: Optional enhancements that strengthen the empirical story and address reviewer concerns.
+- Comprehensive end-to-end validation of adapted methods
+- Robust error handling and recovery mechanisms for integration issues
+- Performance optimization maintaining efficiency of original implementations
+- Complete documentation and integration guidance
+
+**Phase 6 (Tasks 20-23)**: Experimental validation and enhanced coverage. These tasks provide:
+
+- Comprehensive experimental validation of adapted methods
+- Enhanced baseline integration for stronger comparisons
+- Dataset variant support for robustness analysis
+- Advanced analysis tools for deeper method understanding
 
 ## Key Implementation Notes
 

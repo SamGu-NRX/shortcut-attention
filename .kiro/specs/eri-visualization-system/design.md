@@ -54,15 +54,37 @@ eri_vis/
     hooks.py                   # ERIExperimentHooks
   errors.py                    # ERIErrorHandler and exceptions
   utils.py                     # alignment, smoothing, CI utils
+models/
+  gpm_adapter.py               # GPM implementation
+  gen_replay.py                # Generative replay implementations
+  hybrid_methods.py            # Combined GPM + replay methods
+  new_methods_registry.py      # Method registration system
+  gpm_model.py                 # GPM ContinualModel wrapper
+  class_gaussian_replay_model.py  # Gaussian replay ContinualModel wrapper
+  vae_replay_model.py          # VAE replay ContinualModel wrapper
+  gpm_gaussian_hybrid_model.py    # Hybrid ContinualModel wrapper
+  config/
+    gpm.yaml                   # GPM configuration
+    class_gaussian_replay.yaml # Gaussian replay configuration
+    vae_replay.yaml            # VAE replay configuration
+    gmp_gaussian_hybrid.yaml   # Hybrid method configuration
 experiments/
   configs/
     cifar100_einstellung224.yaml
+    cifar100_new_methods.yaml  # Configuration for new methods
     imagenet100_einstellung.yaml (optional)
     text_sst2_imdb.yaml        (optional)
   runners/
     run_einstellung.py         # calls Mammoth, evaluator hooks
 docs/
   README_eri_vis.md            # user guide & reviewer notes
+  README_new_methods.md        # documentation for GPM and replay methods
+tests/
+  models/
+    test_gpm_adapter.py        # GPM unit tests
+    test_gen_replay.py         # Generative replay unit tests
+    test_hybrid_methods.py     # Hybrid method unit tests
+    test_new_methods_registry.py  # Registry unit tests
 ```
 
 ## Core Data Models (Python-like)
@@ -266,53 +288,344 @@ class MammothERIIntegration:
 - ✅ AttentionAnalyzer initialized for ViT models
 - ✅ Training pipeline with ERI integration running successfully
 
-## Custom Method Integration Design
+## Existing Method Integration Design
+
+### GPM (Gradient Projection Memory) Integration Architecture
+
+```python
+# models/gpm_adapter.py
+import torch
+from typing import Dict, List, Optional
+
+class GPM:
+    """Gradient Projection Memory for continual learning.
+
+    Implements SVD-based subspace extraction and orthogonal gradient projection
+    as described in the GPM paper (ICLR 2021).
+    """
+
+    def __init__(self,
+                 model: torch.nn.Module,
+                 layer_names: List[str],
+                 energy_threshold: float = 0.90,
+                 device: Optional[torch.device] = None):
+        self.model = model
+        self.device = device or next(model.parameters()).device
+        self.energy_threshold = energy_threshold
+
+        # Validate and store layer modules
+        modules = dict(model.named_modules())
+        self.layer_modules = {}
+        for name in layer_names:
+            if name not in modules:
+                raise KeyError(f"Layer {name} not found in model")
+            self.layer_modules[name] = modules[name]
+
+        self.bases: Dict[str, torch.Tensor] = {}  # name -> (d, r) basis matrix
+        self._hooks = []
+        self._activations = {}
+
+    def collect_activations(self, loader: torch.utils.data.DataLoader,
+                          max_batches: Optional[int] = 200) -> Dict[str, torch.Tensor]:
+        """Collect activations from specified layers."""
+        # Implementation details in actual code
+        pass
+
+    def update_memory(self, loader: torch.utils.data.DataLoader,
+                     max_batches: int = 200) -> None:
+        """Update GPM bases after task completion."""
+        # Implementation details in actual code
+        pass
+
+    def project_gradients(self) -> None:
+        """Apply orthogonal gradient projection: g ← g - U(U^T g)"""
+        # Implementation details in actual code
+        pass
+
+    def _svd_basis(self, activations: torch.Tensor) -> torch.Tensor:
+        """Compute SVD basis with energy threshold."""
+        # Implementation details in actual code
+        pass
+```
+
+### Generative Replay Architecture
+
+```python
+# models/gen_replay.py
+import torch
+from typing import Dict, List, Tuple, Optional
+
+class ClassGaussianMemory:
+    """Simple class-conditional Gaussian replay in feature space."""
+
+    def __init__(self, feat_dim: int, device: Optional[torch.device] = None,
+                 min_std: float = 1e-4):
+        self.feat_dim = feat_dim
+        self.device = device
+        self.min_std = min_std
+        self.means: Dict[int, torch.Tensor] = {}  # class -> mean vector
+        self.stds: Dict[int, torch.Tensor] = {}   # class -> std vector
+
+    def fit(self, features: torch.Tensor, labels: torch.Tensor) -> None:
+        """Fit per-class Gaussian distributions."""
+        # Implementation details in actual code
+        pass
+
+    def sample(self, n: int, classes: Optional[List[int]] = None) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Sample synthetic features and labels."""
+        # Implementation details in actual code
+        pass
+
+class ConditionalVAE(torch.nn.Module):
+    """Optional: Conditional VAE for more sophisticated replay."""
+
+    def __init__(self, feat_dim: int, latent_dim: int = 64, num_classes: int = 100):
+        super().__init__()
+        self.feat_dim = feat_dim
+        self.latent_dim = latent_dim
+        self.num_classes = num_classes
+
+        # Encoder
+        self.encoder = torch.nn.Sequential(
+            torch.nn.Linear(feat_dim + num_classes, 512),
+            torch.nn.ReLU(),
+            torch.nn.Linear(512, 256),
+            torch.nn.ReLU(),
+            torch.nn.Linear(256, 2 * latent_dim)  # mu and logvar
+        )
+
+        # Decoder
+        self.decoder = torch.nn.Sequential(
+            torch.nn.Linear(latent_dim + num_classes, 256),
+            torch.nn.ReLU(),
+            torch.nn.Linear(256, 512),
+            torch.nn.ReLU(),
+            torch.nn.Linear(512, feat_dim)
+        )
+
+    def encode(self, x: torch.Tensor, y: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Encode features to latent space."""
+        # Implementation details in actual code
+        pass
+
+    def decode(self, z: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """Decode from latent space to feature space."""
+        # Implementation details in actual code
+        pass
+
+    def sample(self, n: int, classes: List[int], device: torch.device) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Sample synthetic features."""
+        # Implementation details in actual code
+        pass
+```
+
+### Hybrid Method Architecture
+
+```python
+# models/hybrid_methods.py
+from typing import Optional, List, Dict, Any
+import torch
+
+class GPMGaussianHybrid:
+    """Combines GPM gradient projection with Gaussian generative replay."""
+
+    def __init__(self,
+                 model: torch.nn.Module,
+                 backbone: torch.nn.Module,
+                 classifier: torch.nn.Module,
+                 gpm_config: Dict[str, Any],
+                 replay_config: Dict[str, Any]):
+
+        self.model = model
+        self.backbone = backbone
+        self.classifier = classifier
+
+        # Initialize GPM
+        self.gpm = GPM(
+            model=model,
+            layer_names=gmp_config['layer_names'],
+            energy_threshold=gmp_config.get('energy_threshold', 0.95)
+        )
+
+        # Initialize Gaussian replay
+        feat_dim = backbone.output_dim if hasattr(backbone, 'output_dim') else 512
+        self.replay_memory = ClassGaussianMemory(
+            feat_dim=feat_dim,
+            min_std=replay_config.get('min_std', 1e-4)
+        )
+
+        self.replay_ratio = replay_config.get('replay_ratio', 1.0)
+
+    def training_step(self, real_x: torch.Tensor, real_y: torch.Tensor,
+                     optimizer: torch.optim.Optimizer, criterion: torch.nn.Module) -> torch.Tensor:
+        """Combined training step with replay and GPM projection."""
+
+        # Get real features
+        real_features = self.backbone(real_x)
+
+        # Sample replay data if memory available
+        if self.replay_memory.means:
+            replay_size = int(len(real_x) * self.replay_ratio)
+            replay_features, replay_labels = self.replay_memory.sample(replay_size)
+            replay_features = replay_features.to(real_x.device)
+            replay_labels = replay_labels.to(real_y.device)
+
+            # Combine real and replay data
+            combined_features = torch.cat([real_features, replay_features], dim=0)
+            combined_labels = torch.cat([real_y, replay_labels], dim=0)
+        else:
+            combined_features = real_features
+            combined_labels = real_y
+
+        # Forward pass through classifier
+        outputs = self.classifier(combined_features)
+        loss = criterion(outputs, combined_labels)
+
+        # Backward pass
+        optimizer.zero_grad()
+        loss.backward()
+
+        # Apply GPM gradient projection
+        self.gpm.project_gradients()
+
+        # Optimizer step
+        optimizer.step()
+
+        return loss
+
+    def end_task(self, train_loader: torch.utils.data.DataLoader) -> None:
+        """Update both GPM bases and replay memory after task completion."""
+
+        # Update GPM memory
+        self.gmp.update_memory(train_loader)
+
+        # Update replay memory
+        all_features = []
+        all_labels = []
+
+        self.model.eval()
+        with torch.no_grad():
+            for x, y in train_loader:
+                x = x.to(next(self.model.parameters()).device)
+                features = self.backbone(x)
+                all_features.append(features.cpu())
+                all_labels.append(y.cpu())
+
+        if all_features:
+            combined_features = torch.cat(all_features, dim=0)
+            combined_labels = torch.cat(all_labels, dim=0)
+            self.replay_memory.fit(combined_features, combined_labels)
+```
 
 ### Method Registration System
 
 ```python
-# models/custom_methods/
-class CustomMethodRegistry:
-    """Registry for custom continual learning methods."""
+# models/new_methods_registry.py
+from typing import Dict, Any, Type
+import torch
+from utils.conf import ContinualModel
 
-    @staticmethod
-    def register_method(name: str, model_class: type, config: dict): ...
+class NewMethodRegistry:
+    """Registry for new continual learning methods."""
 
-    @staticmethod
-    def get_available_methods() -> List[str]: ...
+    METHODS = {
+        'gpm': {
+            'class': 'GPMModel',
+            'config_file': 'models/config/gpm.yaml',
+            'description': 'Gradient Projection Memory with SVD-based subspace extraction'
+        },
+        'class_gaussian_replay': {
+            'class': 'ClassGaussianReplayModel',
+            'config_file': 'models/config/class_gaussian_replay.yaml',
+            'description': 'Class-conditional Gaussian replay in feature space'
+        },
+        'vae_replay': {
+            'class': 'VAEReplayModel',
+            'config_file': 'models/config/vae_replay.yaml',
+            'description': 'Conditional VAE-based generative replay'
+        },
+        'gpm_gaussian_hybrid': {
+            'class': 'GPMGaussianHybridModel',
+            'config_file': 'models/config/gpm_gaussian_hybrid.yaml',
+            'description': 'Hybrid method combining GPM and Gaussian replay'
+        }
+    }
 
-    @staticmethod
-    def create_method(name: str, args) -> ContinualModel: ...
+    @classmethod
+    def get_available_methods(cls) -> List[str]:
+        return list(cls.METHODS.keys())
+
+    @classmethod
+    def create_method(cls, method_name: str, backbone: torch.nn.Module,
+                     loss: torch.nn.Module, args) -> ContinualModel:
+        if method_name not in cls.METHODS:
+            raise ValueError(f"Unknown method: {method_name}")
+
+        method_info = cls.METHODS[method_name]
+
+        # Import and instantiate the appropriate model class
+        if method_name == 'gpm':
+            from models.gpm_model import GPMModel
+            return GPMModel(backbone, loss, args)
+        elif method_name == 'class_gaussian_replay':
+            from models.class_gaussian_replay_model import ClassGaussianReplayModel
+            return ClassGaussianReplayModel(backbone, loss, args)
+        elif method_name == 'vae_replay':
+            from models.vae_replay_model import VAEReplayModel
+            return VAEReplayModel(backbone, loss, args)
+        elif method_name == 'gpm_gaussian_hybrid':
+            from models.gpm_gaussian_hybrid_model import GPMGaussianHybridModel
+            return GPMGaussianHybridModel(backbone, loss, args)
 
 # Integration with existing Mammoth model loading
-def get_model(args):
-    # Existing Mammoth model loading logic
-    if args.model in CUSTOM_METHODS:
-        return CustomMethodRegistry.create_method(args.model, args)
-    # ... existing logic
+def get_model(backbone: torch.nn.Module, loss: torch.nn.Module, args) -> ContinualModel:
+    """Extended model factory supporting new methods."""
+
+    # Check if it's one of our new methods
+    if args.model in NewMethodRegistry.get_available_methods():
+        return NewMethodRegistry.create_method(args.model, backbone, loss, args)
+
+    # Fall back to existing Mammoth model loading
+    # ... existing Mammoth logic ...
 ```
 
-### Custom Method Configuration
+### Configuration Files
 
 ```yaml
-# experiments/configs/custom_methods.yaml
-custom_methods:
-  enhanced_derpp:
-    base_class: "DerppModel"
-    parameters:
-      buffer_size: 1000
-      alpha: 0.2
-      beta: 0.7
-      enhanced_replay: true
-    description: "Enhanced DER++ with improved replay strategy"
+# models/config/gpm.yaml
+model: gpm
+layer_names:
+  - "backbone.layer3"  # For ResNet
+  - "head"
+energy_threshold: 0.95
+max_collection_batches: 200
+device: "auto"  # auto-detect GPU/CPU
 
-  adaptive_ewc:
-    base_class: "EwcModel"
-    parameters:
-      e_lambda: 2000
-      adaptive_lambda: true
-      importance_decay: 0.95
-    description: "Adaptive EWC with dynamic importance weighting"
+# models/config/class_gaussian_replay.yaml
+model: class_gaussian_replay
+feat_dim: 512  # Will be auto-detected from backbone
+min_std: 1e-4
+replay_ratio: 1.0  # 1:1 ratio with real samples
+memory_device: "cpu"  # Store memory on CPU to save GPU memory
+
+# models/config/vae_replay.yaml
+model: vae_replay
+latent_dim: 64
+vae_lr: 1e-3
+vae_epochs: 3
+vae_batch_size: 128
+replay_ratio: 0.5
+
+# models/config/gpm_gaussian_hybrid.yaml
+model: gpm_gaussian_hybrid
+gpm:
+  layer_names: ["backbone.layer3", "head"]
+  energy_threshold: 0.95
+  max_collection_batches: 200
+replay:
+  min_std: 1e-4
+  replay_ratio: 1.0
+  memory_device: "cpu"
 ```
 
 ### Method-Agnostic Evaluation
@@ -371,13 +684,81 @@ The ERI visualization system automatically supports any method that:
 ## Core Data Flow
 
 ```
-ERI Experiment → EinstellungEvaluator → Timeline Data → ERITimelineDataset
-                                                            ↓
-CSV Export ←─────────────────────────────────────── ERIDataLoader
-    ↓
-ERITimelineProcessor → AccuracyCurves + Statistics
-    ↓
-ERIDynamicsPlotter + ERIHeatmapPlotter → Publication Figures
+ERI Experiment (with new methods) → EinstellungEvaluator → Timeline Data → ERITimelineDataset
+         ↓                                                                        ↓
+New Methods Integration:                                              CSV Export ←─── ERIDataLoader
+- GPM: gradient projection                                                ↓
+- Generative Replay: feature synthesis                    ERITimelineProcessor → AccuracyCurves + Statistics
+- Hybrid: combined approach                                               ↓
+         ↓                                                ERIDynamicsPlotter + ERIHeatmapPlotter → Publication Figures
+Method-agnostic evaluation                                               ↓
+through existing ERI pipeline                            Enhanced visualizations with new method comparisons
+```
+
+## New Method Integration Points
+
+### Training Loop Integration
+
+```python
+# Pseudocode for method integration in training loop
+for task_id, train_loader in enumerate(tasks):
+
+    # Initialize method-specific components
+    if method_name == 'gpm':
+        gpm = GPM(model, layer_names, energy_threshold)
+    elif method_name == 'class_gaussian_replay':
+        replay_memory = ClassGaussianMemory(feat_dim)
+    elif method_name == 'gpm_gaussian_hybrid':
+        hybrid_method = GPMGaussianHybrid(model, backbone, classifier, gmp_config, replay_config)
+
+    # Training epochs
+    for epoch in range(epochs_per_task):
+        for batch_x, batch_y in train_loader:
+
+            if method_name == 'gmp_gaussian_hybrid':
+                # Use hybrid training step
+                loss = hybrid_method.training_step(batch_x, batch_y, optimizer, criterion)
+            else:
+                # Standard training with method-specific modifications
+                if method_name == 'class_gaussian_replay' and replay_memory.means:
+                    # Augment batch with replay samples
+                    replay_features, replay_labels = replay_memory.sample(len(batch_x))
+                    # ... combine real and replay data
+
+                # Forward pass
+                outputs = model(batch_x)  # or combined data
+                loss = criterion(outputs, batch_y)  # or combined labels
+
+                # Backward pass
+                optimizer.zero_grad()
+                loss.backward()
+
+                if method_name == 'gpm':
+                    # Apply gradient projection
+                    gpm.project_gradients()
+
+                optimizer.step()
+
+            # Standard ERI evaluation hooks (method-agnostic)
+            if epoch % eval_frequency == 0:
+                einstellung_evaluator.evaluate_all_subsets(model, epoch)
+
+    # End-of-task updates
+    if method_name == 'gpm':
+        gpm.update_memory(train_loader)
+    elif method_name == 'class_gaussian_replay':
+        # Collect features and update memory
+        features, labels = collect_features(model.backbone, train_loader)
+        replay_memory.fit(features, labels)
+    elif method_name == 'gmp_gaussian_hybrid':
+        hybrid_method.end_task(train_loader)
+
+    # Standard ERI end-of-task evaluation (method-agnostic)
+    einstellung_evaluator.end_task_evaluation(task_id)
+
+# Final visualization generation (method-agnostic)
+einstellung_evaluator.export_results('eri_results.csv')
+generate_eri_visualizations('eri_results.csv', output_dir)
 ```
 
 ## Data Format Specifications
@@ -444,3 +825,62 @@ sgd,42,0,T2_shortcut_normal,0.2
 - **Matplotlib Backends**: Support both GUI and headless environments
 - **File Formats**: Generate publication-ready PDF and optional PNG/SVG
 - **Platform Support**: Cross-platform compatibility (Linux, macOS, Windows)
+
+## Computational Considerations for New Methods
+
+### Memory Management
+
+**GPM Memory Requirements:**
+
+- Basis storage: O(sum(d_i \* r_i)) where d_i is layer dimension, r_i is basis rank
+- Activation collection: Temporary storage during SVD computation
+- Gradient projection: In-place operations to minimize memory overhead
+
+**Generative Replay Memory Requirements:**
+
+- Class-Conditional Gaussian: O(num*classes * feat*dim * 2) for means and stds
+- VAE Replay: O(model_parameters + latent_samples) during training
+- Feature collection: Temporary storage during memory updates
+
+**Hybrid Method Considerations:**
+
+- Combined memory from both GPM and replay components
+- Coordinate memory updates to prevent excessive GPU memory usage
+- Option to store replay memory on CPU while keeping GPM bases on GPU
+
+### Computational Complexity
+
+**GPM Computational Cost:**
+
+- SVD computation: O(d^2 \* n) where d is feature dimension, n is number of samples
+- Gradient projection: O(d \* r) per layer per backward pass
+- Memory update frequency: Once per task (amortized cost)
+
+**Generative Replay Computational Cost:**
+
+- Gaussian fitting: O(n \* d) per class per task
+- VAE training: O(epochs _ batches _ model_forward_cost) per task
+- Sample generation: O(replay_samples \* generation_cost) per training batch
+
+**Optimization Strategies:**
+
+- Use global average pooling for convolutional layers to reduce dimensionality
+- Implement efficient QR decomposition for basis compression
+- Support configurable memory update frequencies
+- Provide CPU/GPU memory management options
+
+### Scalability Guidelines
+
+**Recommended Configurations:**
+
+- Small models (ResNet18): Full GPM + Gaussian replay feasible
+- Large models (ViT-Large): Use selective layer GPM + reduced replay ratios
+- Limited GPU memory: Store replay memory on CPU, use basis compression
+- High-throughput scenarios: Reduce SVD sample counts, increase update intervals
+
+**Performance Monitoring:**
+
+- Track basis growth over tasks and provide compression warnings
+- Monitor memory usage during activation collection
+- Log computational overhead for each method component
+- Provide profiling utilities for method comparison
