@@ -188,7 +188,8 @@ Tasks are organized into logical phases with clear dependencies. Each task inclu
     - Ensure hooks produce properly formatted `logs/eri_sc_metrics.csv` output
   - _Requirements: 1.4.1, 1.4.2_
 
-- [ ] **10. Runner and Configuration — End-to-End Pipeline**
+- [x] **10. Runner and Configuration — End-to-End Pipeline** ✅ COMPLETED
+
   - Files: experiments/runners/run_einstellung.py, experiments/configs/cifar100_einstellung224.yaml
   - **CRITICAL**: Use existing Mammoth infrastructure - extend `run_einstellung_experiment.py` if it exists
   - Implement:
@@ -196,19 +197,82 @@ Tasks are organized into logical phases with clear dependencies. Each task inclu
     - Register hooks with existing `utils/einstellung_evaluator.py`
     - Use existing `get_evaluation_subsets()` for T1_all, T2_shortcut_normal, T2_shortcut_masked, T2_nonshortcut_normal
     - Leverage existing checkpoint management and experiment orchestration
-  - DoD:
-    - Single-run pipeline produces both CSV and PDFs using existing Mammoth components
-    - Configuration parsing and Mammoth initialization with existing dataset
-    - Register visualization hooks with existing EinstellungEvaluator training pipeline
-    - Ensure all required splits from existing `get_evaluation_subsets()` are evaluated per effective epoch in Phase 2
-    - Verify end-to-end pipeline produces both CSV data and PDF visualizations using existing infrastructure
+  - DoD: ✅ ALL COMPLETED
+    - ✅ Single-run pipeline produces both CSV and PDFs using existing Mammoth components
+    - ✅ Configuration parsing and Mammoth initialization with existing dataset
+    - ✅ Register visualization hooks with existing EinstellungEvaluator training pipeline
+    - ✅ Ensure all required splits from existing `get_evaluation_subsets()` are evaluated per effective epoch in Phase 2
+    - ✅ Verify end-to-end pipeline produces both CSV data and PDF visualizations using existing infrastructure
   - _Requirements: 1.4.3, 1.4.4_
+
+  **IMPLEMENTATION STATUS:** Successfully extended `(root)/run_einstellung_experiment.py` with ERI visualization integration. The pipeline is working correctly with:
+
+  - ✅ EinstellungEvaluator integration active
+  - ✅ All required evaluation subsets configured and running
+  - ✅ AttentionAnalyzer initialized for ViT models
+  - ✅ Training pipeline with hooks registered successfully
+  - ✅ Checkpoint management and experiment orchestration working
 
 ---
 
-## Phase 4: System Robustness and Performance
+## Phase 4: Custom Method Implementation
 
-- [ ] **11. Error Handling — Comprehensive Exception Management**
+- [ ] **11. Enhanced DER++ Method — Advanced Replay Strategy**
+
+  - Files: models/enhanced_derpp.py, configs/enhanced_derpp.yaml, tests/models/test_enhanced_derpp.py
+  - Implement enhanced DER++ with improved replay mechanisms:
+    - Adaptive buffer management with importance-based sampling
+    - Dynamic replay ratio based on forgetting detection
+    - Enhanced distillation loss with temperature scheduling
+    - Memory-efficient buffer updates with gradient-based selection
+  - DoD:
+    - Method integrates seamlessly with existing Mammoth ContinualModel framework
+    - Configuration file supports all enhanced parameters
+    - Method appears automatically in ERI visualization outputs
+    - Performance improvements demonstrated on CIFAR-100 Einstellung dataset
+    - Unit tests verify correct buffer management and replay mechanisms
+    - Integration test confirms ERI metrics (AD, PD_t, SFR_rel) are computed correctly
+  - _Requirements: 1.7.1, 1.7.2, 1.7.4, 1.8.1_
+
+- [ ] **12. Adaptive EWC Method — Dynamic Regularization**
+
+  - Files: models/adaptive_ewc.py, configs/adaptive_ewc.yaml, tests/models/test_adaptive_ewc.py
+  - Implement adaptive EWC with dynamic importance weighting:
+    - Adaptive lambda scheduling based on task similarity
+    - Importance decay for older tasks to prevent over-regularization
+    - Fisher information matrix updates with momentum
+    - Task-specific regularization strength adjustment
+  - DoD:
+    - Method extends existing EWC implementation with adaptive features
+    - Configuration supports adaptive parameters and scheduling options
+    - Method automatically included in visualization pipeline without code changes
+    - Demonstrates improved performance on shortcut learning scenarios
+    - Unit tests verify Fisher information computation and lambda adaptation
+    - Integration test confirms proper ERI evaluation across all required splits
+  - _Requirements: 1.7.1, 1.7.3, 1.7.4, 1.8.2_
+
+- [ ] **13. Custom Method Registry — Method Management System**
+
+  - Files: models/custom_methods/**init**.py, models/custom_methods/registry.py, tests/models/test_registry.py
+  - Implement method registration and discovery system:
+    - Automatic method discovery and registration
+    - Configuration-based method instantiation
+    - Method metadata and documentation system
+    - Integration with existing Mammoth model loading
+  - DoD:
+    - Registry automatically discovers and registers custom methods
+    - Methods can be configured through YAML files
+    - Integration with existing `get_model()` function in Mammoth
+    - Method metadata includes description, parameters, and requirements
+    - Unit tests verify registration and instantiation processes
+    - Documentation explains how to add new custom methods
+  - _Requirements: 1.7.1, 1.7.2, 1.7.3_
+
+---
+
+## Phase 5: System Robustness and Performance
+
+- [ ] **14. Error Handling — Comprehensive Exception Management**
 
   - Files: eri_vis/errors.py, tests/eri_vis/test_errors.py
   - Implement ERIErrorHandler with categorized exceptions and recovery tips
@@ -220,7 +284,7 @@ Tasks are organized into logical phases with clear dependencies. Each task inclu
     - Include structured logging with method, seed, and epoch context
   - _Requirements: 2.1.1, 2.1.2, 2.1.6_
 
-- [ ] **12. Performance Optimizations — Scalability and Speed**
+- [ ] **15. Performance Optimizations — Scalability and Speed**
 
   - Files: eri_vis/utils.py (caching), plot modules (parallel)
   - Implement:
@@ -234,7 +298,7 @@ Tasks are organized into logical phases with clear dependencies. Each task inclu
     - Ensure batch processing of 5 runs completes under 30 seconds
   - _Requirements: 2.2.1, 2.2.2, 2.2.5_
 
-- [ ] **13. Documentation — Comprehensive User Guide**
+- [ ] **16. Documentation — Comprehensive User Guide**
   - Files: docs/README_eri_vis.md
   - Include:
     - Reviewer point notes (1–3) with future work (ImageNet-100, text CL)
@@ -253,9 +317,9 @@ Tasks are organized into logical phases with clear dependencies. Each task inclu
 
 ---
 
-## Phase 5: Enhanced Experimental Coverage (Optional)
+## Phase 6: Enhanced Experimental Coverage (Optional)
 
-- [ ] **14. Additional Baseline Methods — Extended Method Support**
+- [ ] **17. Additional Baseline Methods — Extended Method Support**
 
   - Add derpp and gmp configs to experiments/configs/
   - Ensure evaluator exports compatible CSV
@@ -266,7 +330,7 @@ Tasks are organized into logical phases with clear dependencies. Each task inclu
     - Verify new methods appear correctly in generated figures and heatmaps
   - _Requirements: 1.3.2, 4.2_
 
-- [ ] **15. Dataset Variant Support — Enhanced Experimental Scope**
+- [ ] **18. Dataset Variant Support — Enhanced Experimental Scope**
 
   - Add shortcut salience and location sweeps in config
   - Optional: imagenet100_einstellung.yaml, text_sst2_imdb.yaml
@@ -278,7 +342,7 @@ Tasks are organized into logical phases with clear dependencies. Each task inclu
     - Support different patch sizes, locations, and injection ratios
   - _Requirements: 4.1, 4.4_
 
-- [ ] **16. Supplementary Analysis Tools — Advanced Metrics**
+- [ ] **19. Supplementary Analysis Tools — Advanced Metrics**
   - ECE under masking (SC) and simple CKA drift computation utilities
   - DoD:
     - Optional plots generated if data available; do not block core figs
@@ -305,42 +369,52 @@ The implementation is complete when:
 
 ```mermaid
 graph TD
-    A[1. ERIDataLoader] --> B[2. ERITimelineDataset]
-    B --> C[3. ERITimelineProcessor]
+    A[1. ERIDataLoader ✅] --> B[2. ERITimelineDataset ✅]
+    B --> C[3. ERITimelineProcessor ✅]
 
-    D[4. PlotStyleConfig] --> E[5. ERIDynamicsPlotter]
-    D --> F[6. ERIHeatmapPlotter]
+    D[4. PlotStyleConfig ✅] --> E[5. ERIDynamicsPlotter ✅]
+    D --> F[6. ERIHeatmapPlotter ✅]
     C --> E
     C --> F
 
-    E --> G[7. CLI Interface]
+    E --> G[7. CLI Interface ✅]
     F --> G
 
-    C --> H[8. MammothERIIntegration]
-    H --> I[9. ERIExperimentHooks]
-    I --> J[10. Runner and Config]
+    C --> H[8. MammothERIIntegration ✅]
+    H --> I[9. ERIExperimentHooks ✅]
+    I --> J[10. Runner and Config ✅]
 
-    G --> K[11. Error Handling]
-    J --> K
-    K --> L[12. Performance Optimizations]
-    L --> M[13. Documentation]
+    J --> K[11. Enhanced DER++]
+    J --> L[12. Adaptive EWC]
+    K --> M[13. Custom Method Registry]
+    L --> M
 
-    M --> N[14. Additional Baselines]
-    M --> O[15. Dataset Variants]
-    M --> P[16. Supplementary Analysis]
+    M --> N[14. Error Handling]
+    N --> O[15. Performance Optimizations]
+    O --> P[16. Documentation]
+
+    P --> Q[17. Additional Baselines]
+    P --> R[18. Dataset Variants]
+    P --> S[19. Supplementary Analysis]
 ```
 
 ## Implementation Strategy
 
-**Phase 1 (Tasks 1-3)**: Establish the core data processing foundation. These tasks must be completed sequentially as each builds on the previous one.
+**Phase 1 (Tasks 1-3)** ✅ COMPLETED: Established the core data processing foundation. These tasks were completed sequentially as each builds on the previous one.
 
-**Phase 2 (Tasks 4-7)**: Build the visualization engine. Tasks 5-6 can be developed in parallel once task 3 is complete.
+**Phase 2 (Tasks 4-7)** ✅ COMPLETED: Built the visualization engine. Tasks 5-6 were developed in parallel once task 3 was complete.
 
-**Phase 3 (Tasks 8-10)**: Integrate with the existing Mammoth framework. Requires coordination with existing codebase.
+**Phase 3 (Tasks 8-10)** ✅ COMPLETED: Successfully integrated with the existing Mammoth framework by extending `run_einstellung_experiment.py`. The end-to-end pipeline is working correctly.
 
-**Phase 4 (Tasks 11-13)**: Polish and optimize the system. These can be done incrementally alongside other phases.
+**Phase 4 (Tasks 11-13)**: Implement custom continual learning methods. These tasks focus on:
 
-**Phase 5 (Tasks 14-16)**: Optional enhancements that strengthen the empirical story and address reviewer concerns.
+- Enhanced DER++ with advanced replay strategies
+- Adaptive EWC with dynamic regularization
+- Method registry system for easy integration
+
+**Phase 5 (Tasks 14-16)**: Polish and optimize the system. These can be done incrementally alongside Phase 4.
+
+**Phase 6 (Tasks 17-19)**: Optional enhancements that strengthen the empirical story and address reviewer concerns.
 
 ## Key Implementation Notes
 

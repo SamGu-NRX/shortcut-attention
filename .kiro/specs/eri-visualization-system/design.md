@@ -234,18 +234,22 @@ class ERIHeatmapPlotter:
     ) -> "matplotlib.figure.Figure": ...
 ```
 
-## Integration with Mammoth
+## Integration with Mammoth ✅ COMPLETED
 
-- **Hook points**:
+**IMPLEMENTATION STATUS:** Successfully integrated with existing Mammoth infrastructure by extending `run_einstellung_experiment.py`.
+
+- **Hook points** ✅ IMPLEMENTED:
   - EinstellungEvaluator.after_phase2_epoch(e): collect SC patched/masked accuracies (macro over SC superclasses)
   - export_results(path): writes deterministic CSV in required schema
-- **File naming**:
+  - Training function patches applied successfully
+  - meta_begin_task and meta_end_task hooks registered
+- **File naming** ✅ WORKING:
   - logs/{exp_id}/eri_sc_metrics.csv
   - logs/{exp_id}/figs/fig_eri_dynamics.pdf
   - logs/{exp_id}/figs/fig_ad_tau_heatmap.pdf
 
 ```python
-# integration/mammoth_integration.py
+# integration/mammoth_integration.py - IMPLEMENTED
 class MammothERIIntegration:
     def __init__(self, evaluator): ...
 
@@ -254,6 +258,70 @@ class MammothERIIntegration:
     def generate_visualizations_from_evaluator(self, output_dir: str): ...
     def register_visualization_hooks(self): ...
 ```
+
+**VERIFIED FUNCTIONALITY:**
+
+- ✅ EinstellungEvaluator integration active
+- ✅ All required splits evaluated (T1_all, T2_shortcut_normal, T2_shortcut_masked, T2_nonshortcut_normal)
+- ✅ AttentionAnalyzer initialized for ViT models
+- ✅ Training pipeline with ERI integration running successfully
+
+## Custom Method Integration Design
+
+### Method Registration System
+
+```python
+# models/custom_methods/
+class CustomMethodRegistry:
+    """Registry for custom continual learning methods."""
+
+    @staticmethod
+    def register_method(name: str, model_class: type, config: dict): ...
+
+    @staticmethod
+    def get_available_methods() -> List[str]: ...
+
+    @staticmethod
+    def create_method(name: str, args) -> ContinualModel: ...
+
+# Integration with existing Mammoth model loading
+def get_model(args):
+    # Existing Mammoth model loading logic
+    if args.model in CUSTOM_METHODS:
+        return CustomMethodRegistry.create_method(args.model, args)
+    # ... existing logic
+```
+
+### Custom Method Configuration
+
+```yaml
+# experiments/configs/custom_methods.yaml
+custom_methods:
+  enhanced_derpp:
+    base_class: "DerppModel"
+    parameters:
+      buffer_size: 1000
+      alpha: 0.2
+      beta: 0.7
+      enhanced_replay: true
+    description: "Enhanced DER++ with improved replay strategy"
+
+  adaptive_ewc:
+    base_class: "EwcModel"
+    parameters:
+      e_lambda: 2000
+      adaptive_lambda: true
+      importance_decay: 0.95
+    description: "Adaptive EWC with dynamic importance weighting"
+```
+
+### Method-Agnostic Evaluation
+
+The ERI visualization system automatically supports any method that:
+
+1. Inherits from Mammoth's `ContinualModel`
+2. Integrates with the existing `EinstellungEvaluator`
+3. Provides standard accuracy metrics on required splits
 
 ## Error Handling
 

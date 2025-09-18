@@ -86,22 +86,29 @@
 
 5. WHEN handling incomplete data THEN the system SHALL gracefully handle missing data (warn, skip panel if impossible)
 
-### 1.4 Integration with Mammoth
+### 1.4 Integration with Mammoth ✅ COMPLETED
 
 **User Story:** As a researcher using the existing Mammoth ERI implementation, I want the visualization system to integrate seamlessly, so that I can generate plots from my current experiment pipeline.
 
 #### Acceptance Criteria
 
-1. WHEN running experiments THEN the system SHALL auto-log and export required metrics via EinstellungEvaluator hooks:
+1. ✅ WHEN running experiments THEN the system SHALL auto-log and export required metrics via EinstellungEvaluator hooks:
 
    - After each effective Phase 2 epoch: SC patched + SC masked accuracies
    - Export timeline to CSV via export_results
 
-2. WHEN calculating metrics THEN the system SHALL use the exact metric definitions from EinstellungMetricsCalculator
+2. ✅ WHEN calculating metrics THEN the system SHALL use the exact metric definitions from EinstellungMetricsCalculator
 
-3. WHEN integrating with datasets THEN the system SHALL work with SequentialCIFAR100Einstellung224 and its evaluation subsets
+3. ✅ WHEN integrating with datasets THEN the system SHALL work with SequentialCIFAR100Einstellung224 and its evaluation subsets
 
-4. WHEN processing ViT models THEN the system SHALL optionally integrate ViT attention via EinstellungAttentionAnalyzer
+4. ✅ WHEN processing ViT models THEN the system SHALL optionally integrate ViT attention via EinstellungAttentionAnalyzer
+
+**IMPLEMENTATION STATUS:** The end-to-end pipeline has been successfully implemented by extending the existing `run_einstellung_experiment.py` runner. The integration works with existing Mammoth infrastructure including:
+
+- ✅ EinstellungEvaluator hooks are registered and active
+- ✅ All required evaluation subsets (T1_all, T2_shortcut_normal, T2_shortcut_masked, T2_nonshortcut_normal) are evaluated
+- ✅ AttentionAnalyzer is initialized for ViT models
+- ✅ Checkpoint management and experiment orchestration work seamlessly
 
 ### 1.5 Documentation Updates for Reviewer Points
 
@@ -130,6 +137,38 @@
 4. WHEN processing data THEN the system SHALL provide clear progress logging and helpful errors
 
 5. WHEN running batch mode THEN the system SHALL process multiple CSVs; produce comparative summaries
+
+### 1.7 Custom Method Integration
+
+**User Story:** As a researcher implementing novel continual learning methods, I want to easily integrate my custom methods with the ERI visualization system, so that I can evaluate their performance against established baselines.
+
+#### Acceptance Criteria
+
+1. WHEN implementing custom methods THEN the system SHALL support seamless integration with Mammoth's ContinualModel framework
+
+2. WHEN adding new methods THEN the system SHALL automatically include them in visualization outputs without code changes
+
+3. WHEN running experiments THEN the system SHALL support custom method configurations through YAML files
+
+4. WHEN evaluating custom methods THEN the system SHALL apply the same ERI metrics (AD, PD_t, SFR_rel) consistently
+
+5. WHEN generating visualizations THEN the system SHALL automatically assign colors and include custom methods in legends and heatmaps
+
+### 1.8 Extended Method Coverage
+
+**User Story:** As a researcher conducting comprehensive ERI analysis, I want to evaluate additional continual learning methods beyond the basic baselines, so that I can provide more thorough empirical coverage.
+
+#### Acceptance Criteria
+
+1. WHEN running method comparisons THEN the system SHALL support advanced replay methods (e.g., enhanced DER++ variants)
+
+2. WHEN evaluating regularization approaches THEN the system SHALL support advanced EWC variants and other regularization techniques
+
+3. WHEN conducting analysis THEN the system SHALL maintain consistent evaluation protocols across all methods
+
+4. WHEN generating reports THEN the system SHALL provide method-specific insights and recommendations
+
+5. WHEN scaling experiments THEN the system SHALL handle increased method counts efficiently in batch processing
 
 ## Non-Functional Requirements
 

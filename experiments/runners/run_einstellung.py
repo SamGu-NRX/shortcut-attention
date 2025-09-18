@@ -16,6 +16,7 @@ import argparse
 import json
 import logging
 import os
+import subprocess
 import sys
 import time
 import yaml
@@ -145,25 +146,125 @@ class ERIExperimentRunner:
         # Ensure output directory exists
         os.makedirs(args.output_dir, exist_ok=True)
 
-        # Device configuration
-        args.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        # Device configuration - fix the device/gpu_id issue
+        if torch.cuda.is_available():
+            args.device = '0'  # Device ID as string for get_device function
+            args.gpu_id = 0
+        else:
+            args.device = None  # Let get_device handle CPU fallback
+            args.gpu_id = -1  # Use -1 for CPU
 
-        # Logging configuration
+        # Required Mammoth arguments
         args.wandb = False  # Disable wandb for ERI experiments
         args.csv_log = True
         args.tensorboard = False
         args.nowand = True
         args.non_verbose = False
         args.disable_log = False
-
-        # Validation and evaluation
         args.validation = False
         args.eval_epochs = None
+        args.savecheck = 'last' if self.config.get('output', {}).get('save_checkpoints', True) else None
+        args.loadcheck = None
+        args.inference_only = False
 
-        # Checkpoint configuration
-        args.savecheck = self.config.get('output', {}).get('save_checkpoints', True)
+        # Additional required arguments
+        args.label_perc = 1.0
+        args.label_perc_by_class = 1.0
+        args.joint = False
+        args.start_from = None
+        args.stop_after = None
+        args.enable_other_metrics = False
+        args.eval_future = False
+        args.noise_rate = 0.0
+
+        # Einstellung specific flags
+        args.einstellung_apply_shortcut = True
+
+        # Optimizer settings
+        args.optim_wd = 0.0
+        args.optim_mom = 0.9
+        args.optim_nesterov = False
+
+        # Scheduler settings (optional)
+        args.lr_scheduler = None
+
+        # Other common settings
+        args.debug_mode = False
+        args.notes = f"ERI experiment: {method} seed {seed}"
+        args.base_path = './data'  # Base path for datasets
+
+        # Additional missing attributes that might be needed
+        args.conf_jobnum = None
+        args.conf_timestamp = None
+        args.conf_host = None
+        args.code_optimization = False
+
+        # More potential missing attributes
+        args.distributed = False
+        args.world_size = 1
+        args.rank = 0
+        args.local_rank = 0
 
         return args
+
+    def _args_to_cmd_list(self, args: argparse.Namespace) -> List[str]:
+        """
+        Convert arguments namespace to command line argument list.
+
+        Args:
+            args: Arguments namespace
+
+        Returns:
+            List of command line arguments
+        """
+        cmd_args = []
+
+        # Core arguments
+        cmd_args.extend(['--dataset', args.dataset])
+        cmd_args.extend(['--model', args.model])
+        cmd_args.extend(['--backbone', args.backbone])
+        cmd_args.extend(['--n_epochs', str(args.n_epochs)])
+        cmd_args.extend(['--batch_size', str(args.batch_size)])
+        cmd_args.extend(['--lr', str(args.lr)])
+        cmd_args.extend(['--seed', str(args.seed)])
+
+        # Method-specific parameters
+        if hasattr(args, 'buffer_size') and args.buffer_size:
+            cmd_args.extend(['--buffer_size', str(args.buffer_size)])
+        if hasattr(args, 'alpha') and args.alpha is not None:
+            cmd_args.extend(['--alpha', str(args.alpha)])
+        if hasattr(args, 'beta') and args.beta is not None:
+            cmd_args.extend(['--beta', str(args.beta)])
+        if hasattr(args, 'e_lambda') and args.e_lambda is not None:
+            cmd_args.extend(['--e_lambda', str(args.e_lambda)])
+        if hasattr(args, 'gamma') and args.gamma is not None:
+            cmd_args.extend(['--gamma', str(args.gamma)])
+
+        # Einstellung parameters
+        if hasattr(args, 'einstellung_patch_size'):
+            cmd_args.extend(['--einstellung_patch_size', str(args.einstellung_patch_size)])
+        if hasattr(args, 'einstellung_adaptation_threshold'):
+            cmd_args.extend(['--einstellung_adaptation_threshold', str(args.einstellung_adaptation_threshold)])
+        if hasattr(args, 'einstellung_evaluation_subsets') and args.einstellung_evaluation_subsets:
+            cmd_args.extend(['--einstellung_evaluation_subsets', '1'])
+        if hasattr(args, 'einstellung_extract_attention') and args.einstellung_extract_attention:
+            cmd_args.extend(['--einstellung_extract_attention', '1'])
+        if hasattr(args, 'einstellung_apply_shortcut') and args.einstellung_apply_shortcut:
+            cmd_args.extend(['--einstellung_apply_shortcut', '1'])
+
+        # Patch color (special handling for list)
+        if hasattr(args, 'einstellung_patch_color') and args.einstellung_patch_color:
+            cmd_args.extend(['--einstellung_patch_color'] + [str(c) for c in args.einstellung_patch_color])
+
+        # Logging and output (only include valid arguments)
+        if args.savecheck:
+            cmd_args.extend(['--savecheck', str(args.savecheck)])
+
+        # Device (only if not None)
+        if args.device is not None:
+            cmd_args.extend(['--device', str(args.device)])
+
+        return cmd_args
 
     def setup_eri_integration(self, args: argparse.Namespace) -> None:
         """
@@ -275,7 +376,7 @@ class ERIExperimentRunner:
 
             # Get the evaluator that will be created by Mammoth
             # Note: This assumes get_einstellung_evaluator creates/returns the evaluator
-            evaluator = get_einstellung_evaluator(args)
+            evaluator = get_einstellung_evaluator()
 
             # Register our visualization hooks
             self.register_hooks_with_evaluator(evaluator)
@@ -284,8 +385,27 @@ class ERIExperimentRunner:
             self.logger.info("Starting Mammoth training with ERI integration")
             start_time = time.time()
 
-            # Call Mammoth main with our configured arguments
-            mammoth_result = mammoth_main(args)
+            # Convert args namespace to command line arguments
+            cmd_args = self._args_to_cmd_list(args)
+
+            # Call Mammoth via subprocess (like the existing runner)
+            import subprocess
+            cmd = [sys.executable, 'main.py'] + cmd_args
+
+            self.logger.info(f"Running command: {' '.join(cmd)}")
+
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=3600,  # 1 hour timeout
+                cwd=Path(__file__).parent.parent.parent  # Run from mammoth root
+            )
+
+            if result.returncode != 0:
+                raise RuntimeError(f"Mammoth training failed: {result.stderr}")
+
+            mammoth_result = result.stdout
 
             training_time = time.time() - start_time
 
