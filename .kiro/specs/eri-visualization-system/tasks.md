@@ -274,7 +274,7 @@ Tasks are organized into logical phases with clear dependencies. Each task inclu
     - Performance test ensures computational overhead remains manageable for combined approach
   - _Requirements: 1.11.1, 1.11.2, 1.11.3, 1.11.4, 1.11.5, 1.11.6, 1.11.7_
 
-- [ ] **14. Mammoth Model Wrappers — ContinualModel Integration**
+- [-] **14. Mammoth Model Wrappers — ContinualModel Integration**
 
   - Files: models/gpm_model.py, models/dgr_model.py, models/gpm_dgr_hybrid_model.py, tests/models/test_model_wrappers.py
   - Implement ContinualModel wrappers for each adapted method:
