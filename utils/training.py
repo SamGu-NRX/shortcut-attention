@@ -92,8 +92,10 @@ def train_single_epoch(model: ContinualModel,
             break
 
         inputs, labels, not_aug_inputs = data[0], data[1], data[2]
-        inputs, labels = inputs.to(model.device), labels.to(model.device, dtype=torch.long)
-        not_aug_inputs = not_aug_inputs.to(model.device)
+        # Use non_blocking=True for faster CPU-GPU transfers
+        inputs = inputs.to(model.device, non_blocking=True)
+        labels = labels.to(model.device, dtype=torch.long, non_blocking=True)
+        not_aug_inputs = not_aug_inputs.to(model.device, non_blocking=True)
 
         extra_fields = {
             train_loader.dataset.extra_return_fields[k]: _to_device(train_loader.dataset.extra_return_fields[k], data[3 + k], model.device)
@@ -107,7 +109,9 @@ def train_single_epoch(model: ContinualModel,
         if scheduler is not None and args.scheduler_mode == 'iter':
             scheduler.step()
 
-        if args.code_optimization == 0 and 'cuda' in str(args.device):
+        # Removed excessive CUDA synchronization that was causing performance bottleneck
+        # Only synchronize when absolutely necessary for debugging
+        if args.code_optimization == 0 and 'cuda' in str(args.device) and args.debug_mode:
             torch.cuda.synchronize()
         system_tracker()
         i += 1

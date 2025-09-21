@@ -1152,7 +1152,8 @@ def run_experiment(model: str, backbone: str, seed: int,
         '--non_verbose', '0',  # Enable verbose progress bars
         '--results_path', results_path,
         '--savecheck', 'last',
-        '--base_path', './data'
+        '--base_path', './data',
+        '--code_optimization', str(kwargs.get('code_optimization', 1))  # Enable automatic CUDA performance optimizations
     ]
 
     # Add model-specific arguments
@@ -1635,6 +1636,10 @@ def main():
     parser.add_argument('--auto_checkpoint', action='store_true',
                        help='Automatically use existing checkpoints if found')
 
+    # Performance optimization
+    parser.add_argument('--code_optimization', type=int, default=1, choices=[0, 1, 2, 3],
+                       help='CUDA performance optimization level (0=none, 1=TF32+cuDNN, 2=+BF16, 3=+torch.compile)')
+
     # Logging
     parser.add_argument('--verbose', action='store_true',
                        help='Enable verbose logging')
@@ -1683,7 +1688,8 @@ def main():
                 seed=args.seed,
                 results_path=results_path,
                 execution_mode=execution_mode,
-                epochs=args.epochs
+                epochs=args.epochs,
+                code_optimization=args.code_optimization
             )
 
             if result and result.get('success', False):
@@ -1727,7 +1733,8 @@ def main():
             seed=args.seed,
             results_path=results_path,
             execution_mode=execution_mode,
-            epochs=args.epochs
+            epochs=args.epochs,
+            code_optimization=args.code_optimization
         )
 
         if result and result.get('success', False):

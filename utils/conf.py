@@ -187,8 +187,20 @@ def create_seeded_dataloader(args, dataset, non_verbose=False, **dataloader_args
     """
 
     n_cpus = 4 if not hasattr(os, 'sched_getaffinity') else len(os.sched_getaffinity(0))
-    num_workers = min(8, n_cpus) if args.num_workers is None else args.num_workers  # limit to 8 cpus if not specified
+
+    # Use PyTorch defaults for num_workers unless explicitly set
+    if args.num_workers is None:
+        # Let PyTorch/system decide optimal worker count
+        # Only provide minimal guidance
+        num_workers = 0  # Start with single-threaded (often fastest for CUDA)
+    else:
+        num_workers = args.num_workers
+
     dataloader_args['num_workers'] = num_workers if 'num_workers' not in dataloader_args else dataloader_args['num_workers']
+
+    # Only enable pin_memory for CUDA (proven optimization)
+    if torch.cuda.is_available() and 'pin_memory' not in dataloader_args:
+        dataloader_args['pin_memory'] = True
     if not non_verbose:
         logging.info(f'Using {dataloader_args["num_workers"]} workers for the dataloader.')
     if args.seed is not None:
