@@ -727,7 +727,8 @@ def prompt_checkpoint_action(checkpoints: List[str], strategy: str, backbone: st
 
 
 def create_einstellung_args(strategy='derpp', backbone='resnet18', seed=42,
-                          evaluation_only=False, checkpoint_path=None):
+                          evaluation_only=False, checkpoint_path=None,
+                          debug=False):
     """
     Create arguments namespace for Einstellung experiments.
 
@@ -748,12 +749,12 @@ def create_einstellung_args(strategy='derpp', backbone='resnet18', seed=42,
         dataset_name = 'seq-cifar100-einstellung-224'
         patch_size = 16  # Larger for 224x224 images
         batch_size = 32
-        n_epochs = 20
+        n_epochs = 5 if debug else 20  # Shorter epochs in debug mode
     else:
         dataset_name = 'seq-cifar100-einstellung'
         patch_size = 4   # Smaller for 32x32 images
         batch_size = 32
-        n_epochs = 50
+        n_epochs = 10 if debug else 50  # Shorter epochs in debug mode
 
     # Base arguments
     cmd_args = [
@@ -776,6 +777,9 @@ def create_einstellung_args(strategy='derpp', backbone='resnet18', seed=42,
     else:
         # Enable automatic checkpoint saving for new training
         cmd_args.extend(['--savecheck', 'last'])
+
+    if debug:
+        cmd_args.extend(['--debug_mode', '1'])
 
     # Strategy-specific parameters
     if strategy == 'derpp':
@@ -1119,7 +1123,14 @@ def run_experiment(model: str, backbone: str, seed: int,
         logger.log("   This will prevent Einstellung integration from activating!")
 
     # Honour overrides for core training hyper-parameters while keeping sensible defaults
-    default_epochs = 20 if 'vit' in backbone.lower() else 50
+    debug = kwargs.get('debug', False)
+    if debug:
+        default_epochs = 5 if 'vit' in backbone.lower() else 10  # Shorter epochs for debug mode
+        logger.log("🐛 DEBUG MODE: Using shorter training epochs for faster testing")
+        logger.log(f"   - Debug epochs: {default_epochs} (full training: {20 if 'vit' in backbone.lower() else 50})")
+    else:
+        default_epochs = 20 if 'vit' in backbone.lower() else 50
+
     n_epochs = kwargs.get('epochs')
     if n_epochs is None:
         n_epochs = kwargs.get('n_epochs')
@@ -1365,7 +1376,8 @@ def run_experiment(model: str, backbone: str, seed: int,
 
 
 def run_einstellung_experiment(strategy='derpp', backbone='resnet18', seed=42,
-                             skip_training=False, force_retrain=False, auto_checkpoint=True):
+                             skip_training=False, force_retrain=False, auto_checkpoint=True,
+                             debug=False):
     """
     Run a single Einstellung Effect experiment with enhanced checkpoint management.
 
@@ -1447,7 +1459,8 @@ def run_einstellung_experiment(strategy='derpp', backbone='resnet18', seed=42,
 
     # Create experiment arguments
     cmd_args = create_einstellung_args(
-        strategy, backbone, seed, evaluation_only, checkpoint_to_load
+        strategy, backbone, seed, evaluation_only, checkpoint_to_load,
+        debug=debug
     )
 
     # Create output directory
@@ -1539,7 +1552,8 @@ def run_einstellung_experiment(strategy='derpp', backbone='resnet18', seed=42,
         }
 
 
-def run_comparative_experiment(skip_training=False, force_retrain=False, auto_checkpoint=True):
+def run_comparative_experiment(skip_training=False, force_retrain=False, auto_checkpoint=True,
+                              debug=False):
     """Run comparative experiments across different strategies."""
 
     print("Running Comparative Einstellung Effect Experiments")
@@ -1567,7 +1581,8 @@ def run_comparative_experiment(skip_training=False, force_retrain=False, auto_ch
             strategy, backbone, seed=42,
             skip_training=skip_training,
             force_retrain=force_retrain,
-            auto_checkpoint=auto_checkpoint
+            auto_checkpoint=auto_checkpoint,
+            debug=debug
         )
         if result:
             results.append(result)
@@ -1643,6 +1658,8 @@ def main():
     # Logging
     parser.add_argument('--verbose', action='store_true',
                        help='Enable verbose logging')
+    parser.add_argument('--debug', action='store_true',
+                       help='Enable debug mode (shorter training epochs for faster testing)')
 
     args = parser.parse_args()
 
@@ -1689,7 +1706,8 @@ def main():
                 results_path=results_path,
                 execution_mode=execution_mode,
                 epochs=args.epochs,
-                code_optimization=args.code_optimization
+                code_optimization=args.code_optimization,
+                debug=args.debug
             )
 
             if result and result.get('success', False):
@@ -1734,7 +1752,8 @@ def main():
             results_path=results_path,
             execution_mode=execution_mode,
             epochs=args.epochs,
-            code_optimization=args.code_optimization
+            code_optimization=args.code_optimization,
+            debug=args.debug
         )
 
         if result and result.get('success', False):
