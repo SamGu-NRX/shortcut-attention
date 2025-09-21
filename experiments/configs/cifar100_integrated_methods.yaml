@@ -81,10 +81,9 @@ methods:
       model: "gpm"
       lr: 0.001
       optimizer: "adam"
-      gpm_energy_threshold: 0.95
-      gpm_max_collection_batches: 200
-      gpm_layer_names: ["backbone.layer3", "classifier"]
-      gpm_device: "auto"
+      gpm_threshold_base: 0.97
+      gpm_threshold_increment: 0.003
+      gpm_activation_samples: 512
 
   - name: "dgr"
     description: "Deep Generative Replay (adapted)"
@@ -94,30 +93,8 @@ methods:
       optimizer: "adam"
       dgr_z_dim: 100
       dgr_vae_lr: 0.001
-      dgr_replay_weight: 0.5
-      dgr_vae_train_epochs: 1
-
-  - name: "gpm_dgr_hybrid"
-    description: "GPM + DGR Hybrid Method"
-    config:
-      model: "gpm_dgr_hybrid"
-      lr: 0.001
-      optimizer: "adam"
-      # GPM component
-      gmp:
-        energy_threshold: 0.95
-        max_collection_batches: 200
-        layer_names: ["backbone.layer3", "classifier"]
-      # DGR component
-      dgr:
-        z_dim: 100
-        vae_lr: 0.001
-        replay_weight: 0.5
-        vae_train_epochs: 1
-      # Hybrid coordination
-      hybrid:
-        execution_order: "dgr_then_gpm"
-        coordinate_memory_updates: true
+      dgr_replay_ratio: 0.5
+      dgr_temperature: 2.0
 
 # Experimental Design
 experimental_design:
@@ -240,7 +217,7 @@ advanced:
   method_overrides:
     # Example: Override specific parameters for individual methods
     # gpm:
-    #   gpm_energy_threshold: 0.99  # Higher threshold for GPM
+    #   gpm_threshold_base: 0.99  # Higher threshold for GPM
     # dgr:
     #   dgr_vae_train_epochs: 2  # More VAE training for DGR
 

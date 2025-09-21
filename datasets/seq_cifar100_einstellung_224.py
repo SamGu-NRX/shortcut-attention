@@ -32,7 +32,7 @@ from PIL import Image
 from datasets.seq_cifar100_224 import SequentialCIFAR100224
 from datasets.seq_cifar100 import MyCIFAR100, TCIFAR100
 from datasets.transforms.denormalization import DeNormalize
-from datasets.utils.continual_dataset import store_masked_loaders
+from datasets.utils.continual_dataset import fix_class_names_order, store_masked_loaders
 from utils.conf import base_path
 from datasets.utils import set_default_from_args
 
@@ -80,7 +80,9 @@ for sc in SHORTCUT_SUPERCLASSES:
     SHORTCUT_FINE_LABELS.extend(CIFAR100_SUPERCLASS_MAPPING[sc])
 
 # All labels used in the experiment
-ALL_USED_FINE_LABELS = sorted(T1_FINE_LABELS + T2_FINE_LABELS)
+# Maintain contiguous Task 1 and Task 2 blocks. Sorting would mix
+# classes across tasks, breaking task-aligned label offsets.
+ALL_USED_FINE_LABELS = T1_FINE_LABELS + T2_FINE_LABELS
 
 # Create mapping from original labels to contiguous labels (0-59)
 CLASS_MAP_TO_CONTIGUOUS = {}
@@ -114,14 +116,23 @@ class EinstellungMixin:
         # Filter data and targets
         filtered_data = []
         filtered_targets = []
+        task_ids = []
 
         for i, target in enumerate(self.targets):
             if target in label_mapping:
                 filtered_data.append(self.data[i])
-                filtered_targets.append(label_mapping[target])
+                new_label = label_mapping[target]
+                filtered_targets.append(new_label)
+                if target in T1_FINE_LABELS:
+                    task_ids.append(0)
+                elif target in T2_FINE_LABELS:
+                    task_ids.append(1)
+                else:
+                    task_ids.append(0)
 
         self.data = np.array(filtered_data)
         self.targets = filtered_targets
+        self.task_ids = np.array(task_ids)
 
         logging.info(f"Filtered Einstellung dataset: {len(self.data)} samples from {len(ALL_USED_FINE_LABELS)} classes")
 
@@ -182,6 +193,21 @@ class TEinstellungCIFAR100_224(TCIFAR100, EinstellungMixin):
         # Filter to Einstellung classes after initialization
         self.filter_einstellung_classes()
 
+    def __getitem__(self, index: int) -> Tuple[torch.Tensor, int]:
+        """Retrieve items with Einstellung shortcut processing for evaluation."""
+        img, target = self.data[index], self.targets[index]
+
+        img = Image.fromarray(img, mode='RGB')
+        img = self.apply_einstellung_effect(img, index)
+
+        if self.transform is not None:
+            img = self.transform(img)
+
+        if self.target_transform is not None:
+            target = self.target_transform(target)
+
+        return img, target
+
 
 class MyEinstellungCIFAR100_224(MyCIFAR100, EinstellungMixin):
     """
@@ -241,7 +267,7 @@ class SequentialCIFAR100Einstellung224(SequentialCIFAR100224):
 
     NAME = 'seq-cifar100-einstellung-224'
     SETTING = 'class-il'
-    N_CLASSES_PER_TASK = 30  # Average: (40+20)/2 for Mammoth compatibility
+    N_CLASSES_PER_TASK = [len(T1_FINE_LABELS), len(T2_FINE_LABELS)]  # [40, 20]
     N_CLASSES_PER_TASK_T1 = len(T1_FINE_LABELS)  # 40 classes
     N_CLASSES_PER_TASK_T2 = len(T2_FINE_LABELS)  # 20 classes
     N_TASKS = 2
@@ -278,7 +304,9 @@ class SequentialCIFAR100Einstellung224(SequentialCIFAR100224):
         )
 
         test_dataset = TEinstellungCIFAR100_224(
-            base_path() + 'CIFAR100', train=False, download=True, transform=test_transform
+            base_path() + 'CIFAR100', train=False, download=True, transform=test_transform,
+            apply_shortcut=self.apply_shortcut, mask_shortcut=self.mask_shortcut,
+            patch_size=self.patch_size, patch_color=self.patch_color
         )
 
         # Use parent's proven loader creation
@@ -298,7 +326,8 @@ class SequentialCIFAR100Einstellung224(SequentialCIFAR100224):
         # T1_all: All Task 1 data
         t1_dataset = TEinstellungCIFAR100_224(
             base_path() + 'CIFAR100', train=False, download=True, transform=test_transform,
-            apply_shortcut=False, mask_shortcut=False, patch_size=self.patch_size
+            apply_shortcut=False, mask_shortcut=False, patch_size=self.patch_size,
+            patch_color=self.patch_color
         )
         t1_indices = [i for i, target in enumerate(t1_dataset.targets)
                      if ALL_USED_FINE_LABELS[target] in T1_FINE_LABELS]
@@ -323,7 +352,8 @@ class SequentialCIFAR100Einstellung224(SequentialCIFAR100224):
         # T2_shortcut_masked: Task 2 shortcut classes with shortcuts masked
         t2_shortcut_masked = TEinstellungCIFAR100_224(
             base_path() + 'CIFAR100', train=False, download=True, transform=test_transform,
-            apply_shortcut=False, mask_shortcut=True, patch_size=self.patch_size
+            apply_shortcut=False, mask_shortcut=True, patch_size=self.patch_size,
+            patch_color=self.patch_color
         )
         subsets['T2_shortcut_masked'] = torch.utils.data.DataLoader(
             torch.utils.data.Subset(t2_shortcut_masked, shortcut_indices),
@@ -341,6 +371,16 @@ class SequentialCIFAR100Einstellung224(SequentialCIFAR100224):
         )
 
         return subsets
+
+    def get_class_names(self):
+        if self.class_names is not None:
+            return self.class_names
+
+        cifar100_classes = CIFAR100(base_path() + 'CIFAR100', train=True, download=True).classes
+        used_class_names = [cifar100_classes[idx] for idx in ALL_USED_FINE_LABELS]
+        classes = fix_class_names_order(used_class_names, self.args)
+        self.class_names = classes
+        return self.class_names
 
     # Inherit all the proven ViT-specific methods from parent
     # No need to override: get_transform, get_backbone, get_epochs, get_batch_size, etc.

@@ -79,18 +79,22 @@ class GPMDGRHybrid:
             fc_units=dgr_config.get('fc_units', 400),
             recon_loss=dgr_config.get('recon_loss', 'BCE'),
             network_output=dgr_config.get('network_output', 'sigmoid'),
+            lr=dgr_config.get('vae_lr', 0.001),
             device=device
         )
         self.vae.to(self.device)
-        self.vae.set_optimizer(dgr_config.get('vae_lr', 0.001))
 
         # Store previous VAE for replay generation
         self.previous_vae = None
+        self.previous_classifier = None
 
         # Configuration
         self.replay_weight = dgr_config.get('replay_weight', 0.5)
         self.vae_train_epochs = dgr_config.get('vae_train_epochs', 1)
         self.update_frequency = gpm_config.get('update_frequency', 1)  # How often to update memories
+        self.replay_targets = dgr_config.get('replay_targets', 'hard')
+        self.distill_temperature = dgr_config.get('distill_temperature', 2.0)
+        self.replay_batch_size = dgr_config.get('replay_batch_size', 0)
 
         # Data storage for memory updates
         self.current_task_data = []
@@ -104,6 +108,8 @@ class GPMDGRHybrid:
             self.monitor_dir = Path("outputs") / "hybrid_monitoring"
             self.monitor_dir.mkdir(parents=True, exist_ok=True)
             logging.info(f"Hybrid method monitoring enabled: {self.monitor_dir}")
+
+        self.last_vae_stats: Dict[str, float] = {}
 
         logging.info(f"GPM+DGR Hybrid initialized: GPM threshold={self.gpm.energy_threshold}, "
                     f"DGR z_dim={self.vae.z_dim}, replay_weight={self.replay_weight}")
@@ -137,9 +143,13 @@ class GPMDGRHybrid:
         # Step 1: DGR replay generation
         replay_inputs = None
         replay_labels = None
+        replay_logits = None
 
-        if self.previous_vae is not None:
-            replay_inputs, replay_labels = self._generate_replay_data(real_inputs.size(0))
+        current_task = getattr(self.model, 'current_task', 0)
+        rnt = 1.0 / float(max(1, current_task + 1))
+
+        if self.previous_vae is not None and self.previous_classifier is not None:
+            replay_inputs, replay_labels, replay_logits = self._generate_replay_data(real_inputs.size(0))
 
         # Step 2: Loss computation
         optimizer.zero_grad()
@@ -156,15 +166,14 @@ class GPMDGRHybrid:
         }
 
         # Add replay loss if available
-        if replay_inputs is not None and replay_labels is not None:
+        if replay_inputs is not None:
             replay_outputs = self.model(replay_inputs)
-            loss_replay = criterion(replay_outputs, replay_labels)
+            loss_replay = self._compute_replay_loss(replay_outputs, replay_labels, replay_logits, criterion)
 
-            # Combine losses with weighting
-            total_loss = (1 - self.replay_weight) * loss_real + self.replay_weight * loss_replay
+            total_loss = rnt * loss_real + (1 - rnt) * loss_replay
 
-            loss_dict['loss_replay'] = loss_replay.item()
-            loss_dict['total_loss'] = total_loss.item()
+            loss_dict['loss_replay'] = float(loss_replay.item())
+            loss_dict['total_loss'] = float(total_loss.item())
 
         # Step 3: Backward pass
         total_loss.backward()
@@ -175,13 +184,18 @@ class GPMDGRHybrid:
         # Step 5: Optimizer step
         optimizer.step()
 
+        # Step 6: Train VAE with current and replay data
+        vae_current = real_inputs.detach()
+        vae_replay = replay_inputs.detach() if replay_inputs is not None else None
+        self.last_vae_stats = self.vae.train_batch(vae_current, vae_replay, rnt)
+
         # Monitor performance periodically
         if self.enable_monitoring and epoch % self.monitor_frequency == 0:
             self._monitor_hybrid_performance(epoch, loss_dict, replay_inputs)
 
         return loss_dict
 
-    def _generate_replay_data(self, batch_size: int) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor]]:
+    def _generate_replay_data(self, batch_size: int) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor], Optional[torch.Tensor]]:
         """
         Generate replay data using the previous VAE.
 
@@ -189,30 +203,48 @@ class GPMDGRHybrid:
             batch_size: Number of samples to generate
 
         Returns:
-            Tuple of (replay_inputs, replay_labels) or (None, None)
+            Tuple of (replay_inputs, replay_labels, replay_logits) or (None, None, None)
         """
-        if self.previous_vae is None:
-            return None, None
+        if self.previous_vae is None or self.previous_classifier is None:
+            return None, None, None
 
         try:
             # Generate samples from previous VAE
-            replay_inputs = self.previous_vae.generate_samples(batch_size, self.device)
+            replay_inputs = self.previous_vae.generate_samples(
+                self.replay_batch_size or batch_size,
+                device=self.device
+            )
 
-            # TODO: check this
-            # Generate pseudo-labels (simplified approach)
-            # In practice, you might want to use a more sophisticated labeling strategy
-            # Infer number of classes from model output dimension
             with torch.no_grad():
-                dummy_input = replay_inputs[:1]
-                dummy_output = self.model(dummy_input)
-                num_classes = dummy_output.shape[-1]
-            replay_labels = torch.randint(0, num_classes, (batch_size,), device=self.device)
+                logits = self.previous_classifier(replay_inputs)
+                replay_labels = logits.argmax(dim=1)
 
-            return replay_inputs, replay_labels
+            return replay_inputs, replay_labels, logits.detach()
 
         except Exception as e:
             logging.warning(f"Failed to generate replay data: {e}")
-            return None, None
+            return None, None, None
+
+    def _compute_replay_loss(self,
+                              replay_outputs: torch.Tensor,
+                              replay_labels: Optional[torch.Tensor],
+                              replay_logits: Optional[torch.Tensor],
+                              criterion: nn.Module) -> torch.Tensor:
+        if replay_outputs is None:
+            return torch.tensor(0.0, device=self.device)
+
+        if self.replay_targets == 'soft':
+            assert replay_logits is not None
+            temperature = float(self.distill_temperature)
+            kd_loss = F.kl_div(
+                F.log_softmax(replay_outputs / temperature, dim=1),
+                F.softmax(replay_logits / temperature, dim=1),
+                reduction='batchmean'
+            ) * (temperature ** 2)
+            return kd_loss
+
+        assert replay_labels is not None
+        return criterion(replay_outputs, replay_labels)
 
     def end_task(self, train_loader: torch.utils.data.DataLoader, task_id: int) -> None:
         """
@@ -252,9 +284,16 @@ class GPMDGRHybrid:
                 self._train_vae_on_current_task()
 
                 # Store current VAE as previous for next task
-                self.previous_vae = copy.deepcopy(self.vae).eval()
+                self.previous_vae = self.vae.clone_frozen()
 
                 logging.info(f"DGR VAE updated for task {task_id}")
+
+            # Store frozen classifier for label generation
+            self.previous_classifier = copy.deepcopy(self.model).to(self.device)
+            self.previous_classifier.eval()
+            for param in self.previous_classifier.parameters():
+                if isinstance(param, torch.Tensor):
+                    param.requires_grad_(False)
 
         except Exception as e:
             logging.error(f"Failed to update DGR VAE: {e}")
@@ -348,6 +387,7 @@ class GPMDGRHybrid:
                 'task_id': task_id,
                 'vae_parameters': sum(p.numel() for p in self.vae.parameters()),
                 'has_previous_vae': self.previous_vae is not None,
+                'has_previous_classifier': self.previous_classifier is not None,
                 'z_dim': self.vae.z_dim
             }
 

@@ -65,7 +65,10 @@ for superclass in T2_SUPERCLASSES:
 SHORTCUT_SUPERCLASS = T2_SUPERCLASSES[0]  # 'large man-made outdoor things'
 SHORTCUT_FINE_LABELS = SUPERCLASS_MAPPING[SHORTCUT_SUPERCLASS]
 
-ALL_USED_FINE_LABELS = sorted(T1_FINE_LABELS + T2_FINE_LABELS)
+# Preserve task boundaries: Task 1 classes first, then Task 2 classes.
+# Using a sorted list would interleave labels from both tasks and break
+# the contiguous ranges expected by Mammoth's task offsets.
+ALL_USED_FINE_LABELS = T1_FINE_LABELS + T2_FINE_LABELS
 
 # Create contiguous label mapping
 CLASS_MAP_TO_CONTIGUOUS = {
@@ -116,15 +119,24 @@ class MyCIFAR100Einstellung(CIFAR100):
         used_indices = []
         new_targets = []
         new_data = []
+        task_ids = []
 
         for i, target in enumerate(self.targets):
             if target in ALL_USED_FINE_LABELS:
                 used_indices.append(i)
-                new_targets.append(CLASS_MAP_TO_CONTIGUOUS[target])
+                contiguous_label = CLASS_MAP_TO_CONTIGUOUS[target]
+                new_targets.append(contiguous_label)
                 new_data.append(self.data[i])
+                if target in T1_FINE_LABELS:
+                    task_ids.append(0)
+                elif target in T2_FINE_LABELS:
+                    task_ids.append(1)
+                else:
+                    task_ids.append(0)
 
         self.data = np.array(new_data)
         self.targets = new_targets
+        self.task_ids = np.array(task_ids)
 
     def __getitem__(self, index: int) -> Tuple[Image.Image, int, Image.Image]:
         """
@@ -210,7 +222,7 @@ class SequentialCIFAR100Einstellung(ContinualDataset):
 
     NAME = 'seq-cifar100-einstellung'
     SETTING = 'class-il'
-    N_CLASSES_PER_TASK = 30  # Average for Mammoth compatibility (40+20)/2
+    N_CLASSES_PER_TASK = [len(T1_FINE_LABELS), len(T2_FINE_LABELS)]  # [40, 20]
     N_CLASSES_PER_TASK_T1 = len(T1_FINE_LABELS)  # 40 classes
     N_CLASSES_PER_TASK_T2 = len(T2_FINE_LABELS)  # 20 classes
     N_TASKS = 2

@@ -81,6 +81,10 @@ class ERIDataLoader:
         # Create dataset
         return self._create_dataset_from_dataframe(df, {"source": str(filepath)})
 
+    def load_from_csv(self, filepath: Union[str, Path]) -> ERITimelineDataset:
+        """Backward-compatible alias for load_csv."""
+        return self.load_csv(filepath)
+
     def load_from_evaluator_export(self, export: Dict[str, Any]) -> ERITimelineDataset:
         """
         Convert EinstellungEvaluator export to ERITimelineDataset.

@@ -76,12 +76,24 @@ class EinstellungEvaluator:
     def initialize_attention_analyzer(self, model):
         """Initialize attention analyzer with the model (called after model is available)."""
         if self.extract_attention and self.attention_analyzer is None:
+            # Double-check model compatibility before initialization
+            if not self._is_vision_transformer(model):
+                self.logger.warning("⚠️  Model does not support attention extraction (not a Vision Transformer)")
+                self.logger.warning("   Disabling attention analysis for this experiment")
+                self.extract_attention = False
+                return
+
             try:
                 self.attention_analyzer = EinstellungAttentionAnalyzer(model, self.args.device)
-                self.logger.info("Initialized Einstellung attention analyzer")
+                self.logger.info("✅ Initialized Einstellung attention analyzer for ViT model")
             except Exception as e:
-                self.logger.warning(f"Could not initialize attention analyzer: {e}")
+                self.logger.warning(f"❌ Could not initialize attention analyzer: {e}")
+                self.logger.warning("   Continuing without attention analysis")
                 self.attention_analyzer = None
+                self.extract_attention = False
+        elif not self.extract_attention:
+            self.logger.info("ℹ️  Attention extraction disabled - using CNN backbone (ResNet/etc.)")
+            self.logger.info("   Attention analysis is only available for Vision Transformer models")
 
     def meta_begin_task(self, model, dataset):
         """Hook called at the beginning of each task."""
@@ -254,7 +266,9 @@ class EinstellungEvaluator:
                     inputs, labels = inputs.to(self.args.device), labels.to(self.args.device)
 
                     # Forward pass
-                    outputs = model.net(inputs)
+                    # Use the model's forward to obtain unified logits even for
+                    # multi-head continual models (e.g., GPM).
+                    outputs = model(inputs)
                     if isinstance(outputs, tuple):
                         outputs = outputs[0]  # Handle models that return tuples
 
@@ -444,7 +458,26 @@ def create_einstellung_evaluator(args) -> Optional[EinstellungEvaluator]:
 
     # Extract configuration from args
     adaptation_threshold = getattr(args, 'einstellung_adaptation_threshold', 0.8)
-    extract_attention = getattr(args, 'einstellung_extract_attention', True)
+
+    # Conditionally enable attention extraction based on backbone type
+    # Only enable for ViT models, disable for ResNet and other CNN architectures
+    backbone_type = getattr(args, 'backbone', 'resnet18').lower()
+    is_vit_backbone = ('vit' in backbone_type or
+                      'vision' in backbone_type or
+                      'transformer' in backbone_type)
+
+    # Override extract_attention based on backbone compatibility
+    user_requested_attention = getattr(args, 'einstellung_extract_attention', True)
+    if user_requested_attention and not is_vit_backbone:
+        # Log warning that attention extraction is not supported for this backbone
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"⚠️  Attention extraction requested but not supported for backbone '{args.backbone}'")
+        logger.warning("   Attention analysis is only available for Vision Transformer (ViT) models")
+        logger.warning("   Disabling attention extraction for this experiment")
+        extract_attention = False
+    else:
+        extract_attention = user_requested_attention and is_vit_backbone
 
     return EinstellungEvaluator(
         args=args,

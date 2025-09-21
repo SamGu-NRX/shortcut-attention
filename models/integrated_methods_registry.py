@@ -72,12 +72,7 @@ class IntegratedMethodRegistry:
             'config_file': 'dgr.yaml',
             'description': 'Deep Generative Replay using VAE-based sample generation adapted from original DGR implementation'
         },
-        'gpm_dgr_hybrid': {
-            'class_name': 'GPMDGRHybridModel',
-            'module_name': 'gpm_dgr_hybrid_model',
-            'config_file': 'gpm_dgr_hybrid.yaml',
-            'description': 'Hybrid method combining adapted GPM gradient projection with DGR generative replay'
-        }
+        # Hybrid methods are not supported with the original-model integration.
     }
 
     @classmethod

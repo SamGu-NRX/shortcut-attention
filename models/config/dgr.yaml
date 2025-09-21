@@ -8,13 +8,9 @@ model: dgr
 
 # VAE Architecture Parameters
 dgr_z_dim: 100 # Latent dimension (original default)
-dgr_vae_fc_layers: 3 # Number of FC layers in VAE (original default)
-dgr_vae_fc_units: 400 # Number of units in VAE FC layers (original default)
-
-# Training Parameters
 dgr_vae_lr: 0.001 # Learning rate for VAE training (original default)
-dgr_replay_weight: 0.5 # Weight for replay data in training (1-replay_weight for current data)
-dgr_vae_train_epochs: 1 # Number of epochs to train VAE per task
+dgr_replay_ratio: 0.5 # Relative importance of new data vs replay (original default)
+dgr_temperature: 2.0 # Distillation temperature used for replay logits
 
 # VAE Loss Configuration
 # These are handled internally by the VAE but documented here for reference:
@@ -50,13 +46,13 @@ usage_notes: |
   - VAE architecture is optimized for 32x32 images but adapts to other sizes
   - Replay quality depends on VAE training quality
   - Consider increasing dgr_vae_train_epochs for better replay quality
-  - Adjust dgr_replay_weight based on task difficulty and forgetting patterns
+  - Adjust dgr_replay_ratio based on task difficulty and forgetting patterns
 
 # Hyperparameter Tuning Guidelines
 tuning_guidelines: |
   - dgr_z_dim: Increase for more complex datasets (64-200 for ImageNet)
   - dgr_vae_lr: Lower for stable training (0.0001-0.001)
-  - dgr_replay_weight: Higher values emphasize replay (0.3-0.7 typical range)
+  - dgr_replay_ratio: Higher values emphasize replay (0.3-0.7 typical range)
   - dgr_vae_train_epochs: Increase for better replay quality (1-5 epochs)
   - dgr_vae_fc_units: Increase for larger images (400-800 for high-res)
 

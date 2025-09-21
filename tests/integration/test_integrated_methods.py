@@ -153,7 +153,7 @@ class TestIntegratedMethodsEndToEnd:
 
         # Check that methods are registered
         available_methods = IntegratedMethodRegistry.get_available_methods()
-        expected_methods = ['gpm', 'dgr', 'gpm_dgr_hybrid']
+        expected_methods = ['gpm', 'dgr']
 
         for method in expected_methods:
             assert method in available_methods, f"Method {method} not registered"
@@ -165,7 +165,7 @@ class TestIntegratedMethodsEndToEnd:
             assert metadata.name == method
             assert metadata.description, f"No description for method {method}"
 
-    @pytest.mark.parametrize("method_name", ["gpm", "dgr", "gpm_dgr_hybrid"])
+    @pytest.mark.parametrize("method_name", ["gpm", "dgr"])
     def test_configuration_validation(self, method_name):
         """Test configuration validation for each integrated method."""
         # Load configuration file
@@ -186,7 +186,7 @@ class TestIntegratedMethodsEndToEnd:
         except Exception as e:
             pytest.fail(f"Failed to process configuration for {method_name}: {e}")
 
-    @pytest.mark.parametrize("method_name", ["gpm", "dgr", "gpm_dgr_hybrid"])
+    @pytest.mark.parametrize("method_name", ["gpm", "dgr"])
     def test_method_instantiation(self, method_name, backbone, loss_fn, test_args, device):
         """Test that integrated methods can be instantiated correctly."""
         # Update args for specific method
@@ -284,7 +284,7 @@ class TestIntegratedMethodsEndToEnd:
         """Test that visualization pipeline works with integrated methods."""
         # Create mock CSV data with integrated methods
         mock_data = []
-        methods = ['Scratch_T2', 'sgd', 'gpm', 'dgr', 'gpm_dgr_hybrid']  # Include existing + integrated
+        methods = ['Scratch_T2', 'sgd', 'gpm', 'dgr']  # Include existing + integrated
         splits = ['T1_all', 'T2_shortcut_normal', 'T2_shortcut_masked', 'T2_nonshortcut_normal']
         seeds = [42, 43]
         epochs = [0.0, 1.0, 2.0, 3.0, 4.0]
@@ -326,7 +326,7 @@ class TestIntegratedMethodsEndToEnd:
             dataset = loader.load_csv(csv_path)
 
             # Check that integrated methods are included
-            for method in ['gpm', 'dgr', 'gpm_dgr_hybrid']:
+            for method in ['gpm', 'dgr']:
                 assert method in dataset.methods, f"Integrated method {method} not in loaded dataset"
 
             # Test processing
@@ -334,7 +334,7 @@ class TestIntegratedMethodsEndToEnd:
             curves = processor.compute_accuracy_curves(dataset)
 
             # Check that curves exist for integrated methods
-            for method in ['gpm', 'dgr', 'gpm_dgr_hybrid']:
+            for method in ['gpm', 'dgr']:
                 method_curves = {k: v for k, v in curves.items() if k.startswith(method)}
                 assert len(method_curves) > 0, f"No curves computed for integrated method {method}"
 
@@ -386,7 +386,7 @@ class TestIntegratedMethodsEndToEnd:
         torch.cuda.empty_cache()
         initial_memory = torch.cuda.memory_allocated(device)
 
-        methods_to_test = ['gpm', 'dgr', 'gpm_dgr_hybrid']
+        methods_to_test = ['gpm', 'dgr']
         memory_usage = {}
 
         for method_name in methods_to_test:
@@ -423,14 +423,9 @@ class TestIntegratedMethodsEndToEnd:
             usage_mb = usage / (1024 * 1024)
             assert usage_mb < 1000, f"Method {method_name} uses too much memory: {usage_mb:.2f} MB"
 
-        # Check that hybrid method doesn't use excessive memory compared to components
-        if 'gpm_dgr_hybrid' in memory_usage and 'gpm' in memory_usage and 'dgr' in memory_usage:
-            hybrid_usage = memory_usage['gpm_dgr_hybrid']
-            component_usage = memory_usage['gpm'] + memory_usage['dgr']
-
-            # Hybrid should use less than 2x the sum of components (allowing for some overhead)
-            assert hybrid_usage < 2 * component_usage, \
-                f"Hybrid method uses excessive memory: {hybrid_usage / (1024*1024):.2f} MB vs components {component_usage / (1024*1024):.2f} MB"
+        # Ensure integrated methods produce reasonable memory usage entries
+        for key in ['gpm', 'dgr']:
+            assert key in memory_usage
 
     def test_performance_metrics_consistency(self, temp_dir):
         """Test that ERI metrics are computed consistently across methods."""
@@ -533,7 +528,7 @@ class TestIntegratedMethodsEndToEnd:
 
     def test_configuration_parameter_loading(self):
         """Test that configuration parameters are loaded and applied correctly."""
-        for method_name in ['gpm', 'dgr', 'gpm_dgr_hybrid']:
+        for method_name in ['gpm', 'dgr']:
             config_path = Path(__file__).parent.parent.parent / "models" / "config" / f"{method_name}.yaml"
 
             with open(config_path, 'r') as f:
@@ -545,18 +540,14 @@ class TestIntegratedMethodsEndToEnd:
 
             # Check method-specific parameters
             if method_name == 'gpm':
-                assert 'gmp_energy_threshold' in config or 'gpm_energy_threshold' in config, \
-                    f"Missing energy threshold in GPM config"
-                assert 'gpm_layer_names' in config, f"Missing layer names in GPM config"
+                assert 'gpm_threshold_base' in config or 'gpm_energy_threshold' in config, \
+                    "Missing threshold setting in GPM config"
+                assert 'gpm_activation_samples' in config, "Missing activation sample setting in GPM config"
 
             elif method_name == 'dgr':
                 assert 'dgr_z_dim' in config, f"Missing z_dim in DGR config"
                 assert 'dgr_vae_lr' in config, f"Missing VAE learning rate in DGR config"
-
-            elif method_name == 'gpm_dgr_hybrid':
-                assert 'gpm' in config, f"Missing GPM section in hybrid config"
-                assert 'dgr' in config, f"Missing DGR section in hybrid config"
-                assert 'hybrid' in config, f"Missing hybrid section in hybrid config"
+                assert 'dgr_replay_ratio' in config, f"Missing replay ratio in DGR config"
 
     def test_end_to_end_pipeline_minimal(self, test_args, backbone, loss_fn, temp_dir):
         """Minimal end-to-end pipeline test for integrated methods."""
@@ -614,7 +605,7 @@ class TestIntegratedMethodsConfiguration:
     def test_all_config_files_exist(self):
         """Test that all required configuration files exist."""
         config_dir = Path(__file__).parent.parent.parent / "models" / "config"
-        required_configs = ['gpm.yaml', 'dgr.yaml', 'gpm_dgr_hybrid.yaml']
+        required_configs = ['gpm.yaml', 'dgr.yaml']
 
         for config_file in required_configs:
             config_path = config_dir / config_file
@@ -624,7 +615,7 @@ class TestIntegratedMethodsConfiguration:
         """Test that configuration files have correct structure."""
         config_dir = Path(__file__).parent.parent.parent / "models" / "config"
 
-        for config_file in ['gpm.yaml', 'dgr.yaml', 'gpm_dgr_hybrid.yaml']:
+        for config_file in ['gpm.yaml', 'dgr.yaml']:
             config_path = config_dir / config_file
 
             with open(config_path, 'r') as f:
@@ -657,13 +648,13 @@ class TestIntegratedMethodsConfiguration:
         with open(config_dir / 'gpm.yaml', 'r') as f:
             gpm_config = yaml.safe_load(f)
 
-        if 'gpm_energy_threshold' in gpm_config:
-            threshold = gpm_config['gpm_energy_threshold']
-            assert 0.8 <= threshold <= 0.99, f"GPM energy threshold out of range: {threshold}"
+        if 'gpm_threshold_base' in gpm_config:
+            threshold = gpm_config['gpm_threshold_base']
+            assert 0.8 <= threshold <= 0.99, f"GPM threshold base out of range: {threshold}"
 
-        if 'gpm_max_collection_batches' in gpm_config:
-            batches = gpm_config['gpm_max_collection_batches']
-            assert 50 <= batches <= 5000, f"GPM max collection batches out of range: {batches}"
+        if 'gpm_activation_samples' in gpm_config:
+            samples = gpm_config['gpm_activation_samples']
+            assert 32 <= samples <= 8192, f"GPM activation samples out of range: {samples}"
 
         # Test DGR config
         with open(config_dir / 'dgr.yaml', 'r') as f:
@@ -676,6 +667,10 @@ class TestIntegratedMethodsConfiguration:
         if 'dgr_vae_lr' in dgr_config:
             vae_lr = dgr_config['dgr_vae_lr']
             assert 1e-5 <= vae_lr <= 1e-1, f"DGR VAE learning rate out of range: {vae_lr}"
+
+        if 'dgr_replay_ratio' in dgr_config:
+            ratio = dgr_config['dgr_replay_ratio']
+            assert 0.0 <= ratio <= 1.0, f"DGR replay ratio out of range: {ratio}"
 
 
 class TestIntegratedMethodsDocumentation:
@@ -691,7 +686,7 @@ class TestIntegratedMethodsDocumentation:
         assert "# Integrated Methods Documentation" in full_docs, "Missing documentation header"
 
         # Test documentation for individual methods
-        for method in ['gpm', 'dgr', 'gpm_dgr_hybrid']:
+        for method in ['gpm', 'dgr']:
             method_docs = generate_integrated_methods_documentation(method)
             assert len(method_docs) > 0, f"No documentation generated for {method}"
             assert method.upper() in method_docs, f"Method name not in documentation for {method}"

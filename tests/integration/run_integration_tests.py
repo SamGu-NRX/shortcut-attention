@@ -120,7 +120,7 @@ def validate_test_environment():
 
     # Check that required config files exist
     config_dir = project_root / 'models' / 'config'
-    required_configs = ['gpm.yaml', 'dgr.yaml', 'gpm_dgr_hybrid.yaml']
+    required_configs = ['gpm.yaml', 'dgr.yaml']
 
     for config_file in required_configs:
         config_path = config_dir / config_file

@@ -486,9 +486,9 @@ class TestIntegrationScenarios:
             config_path = Path(temp_dir) / "gpm.yaml"
             config_data = {
                 'model': 'gpm',
-                'gpm_energy_threshold': 0.95,
-                'gpm_max_collection_batches': 200,
-                'gpm_layer_names': ['backbone.layer3', 'classifier'],
+                'gpm_threshold_base': 0.97,
+                'gpm_threshold_increment': 0.003,
+                'gpm_activation_samples': 512,
                 'description': 'GPM method',
                 'compatibility': {'class-il': True}
             }
@@ -517,10 +517,10 @@ class TestIntegrationScenarios:
                     assert metadata is not None
                     assert metadata.name == 'gpm'
                     assert metadata.class_name == 'GPMModel'
-                    assert 'gpm_energy_threshold' in metadata.hyperparameters
+                    assert 'gpm_threshold_base' in metadata.hyperparameters
 
                     # Test configuration validation
-                    valid_config = {'gpm_energy_threshold': 0.90}
+                    valid_config = {'gpm_threshold_base': 0.90}
                     errors = IntegratedMethodRegistry.validate_configuration('gpm', valid_config)
                     assert errors == []
 

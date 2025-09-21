@@ -16,7 +16,7 @@ from argparse import ArgumentParser
 from typing import TYPE_CHECKING, Tuple, Optional
 
 from models.utils.continual_model import ContinualModel
-from models.gpm import GPMAdapter
+from models.get_model import GPMAdapter
 from models.dgr_mammoth_adapter import DGRVAE
 from utils.args import add_rehearsal_args
 
@@ -111,7 +111,20 @@ class GPMDGRHybridModel(ContinualModel):
         )
 
         # Initialize DGR components
-        self.current_vae = None
+        image_channels, image_height, image_width = self.image_shape
+        image_size = max(image_height, image_width)
+
+        self.current_vae = DGRVAE(
+            image_size=image_size,
+            image_channels=image_channels,
+            z_dim=self.dgr_z_dim,
+            fc_layers=self.dgr_vae_fc_layers,
+            fc_units=self.dgr_vae_fc_units,
+            lr=self.dgr_vae_lr,
+            device=self.device,
+            image_height=image_height,
+            image_width=image_width,
+        ).to(self.device)
         self.previous_vae = None
         self.current_task_buffer = []
         self.current_task_data = []  # For GPM memory update
@@ -130,18 +143,24 @@ class GPMDGRHybridModel(ContinualModel):
         # DGR preparation
         # Move previous VAE to storage
         if self.current_vae is not None:
-            self.previous_vae = self.current_vae
-            self.previous_vae.eval()  # Set to evaluation mode
+            if hasattr(self.current_vae, "clone_frozen"):
+                self.previous_vae = self.current_vae.clone_frozen()
+            else:
+                self.previous_vae = self.current_vae
 
         # Initialize new VAE for current task
         image_channels, image_height, image_width = self.image_shape
-        image_size = max(image_height, image_width)  # Assume square images
+        image_size = max(image_height, image_width)
         self.current_vae = DGRVAE(
             image_size=image_size,
             image_channels=image_channels,
             z_dim=self.dgr_z_dim,
             fc_layers=self.dgr_vae_fc_layers,
-            fc_units=self.dgr_vae_fc_units
+            fc_units=self.dgr_vae_fc_units,
+            lr=self.dgr_vae_lr,
+            device=self.device,
+            image_height=image_height,
+            image_width=image_width,
         ).to(self.device)
 
         # Clear task buffer
@@ -194,7 +213,7 @@ class GPMDGRHybridModel(ContinualModel):
             self.current_task_buffer.extend([x.cpu() for x in not_aug_inputs])
 
         # Step 1: Generate DGR replay data
-        replay_inputs, replay_labels = self._generate_replay_data(inputs.size(0))
+        replay_inputs, replay_labels, _ = self._generate_replay_batch(inputs.size(0))
 
         # Step 2: Forward pass on current data
         outputs = self.net(inputs)
@@ -258,6 +277,10 @@ class GPMDGRHybridModel(ContinualModel):
 
             # Train VAE
             self.current_vae.train_vae(dataloader, epochs=self.dgr_vae_train_epochs, lr=self.dgr_vae_lr)
+
+    def _generate_replay_batch(self, batch_size: int) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor], Optional[torch.Tensor]]:
+        inputs, labels = self._generate_replay_data(batch_size)
+        return inputs, labels, None
 
     def _generate_replay_data(self, batch_size: int) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor]]:
         """

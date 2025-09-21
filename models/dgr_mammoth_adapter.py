@@ -1,609 +1,523 @@
 """
 Deep Generative Replay (DGR) Mammoth Adapter
 
-This module adapts the existing DGR implementation from DGR_wrapper to work with
-the Mammoth continual learning framework. It extracts the VAE and generative replay
-functionality while maintaining compatibility with Mammoth's ContinualModel interface.
-
-The adapter preserves the original DGR VAE architecture and training configurations
-while integrating seamlessly with Mammoth's training pipeline and evaluation system.
+This module bridges the original DGR implementation with the Mammoth continual
+learning framework. It loads the released VAE implementation without namespace
+collisions and coordinates replay, classifier distillation, and VAE training
+inside Mammoth's training loop.
 """
 
+from __future__ import annotations
+
 import copy
+import logging
+from pathlib import Path
+from typing import Dict, Optional, Tuple, Any, List
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import Optional, Dict, Any, Tuple
-import logging
-from pathlib import Path
-
+import torch.utils.data as data
 from models.utils.continual_model import ContinualModel
-from utils.buffer import Buffer
+from utils.args import ArgumentParser
 
-# Try to import visualization libraries
-try:
+try:  # pragma: no cover - optional dependency
     import matplotlib.pyplot as plt
     import numpy as np
     VISUALIZATION_AVAILABLE = True
-except ImportError:
+except ImportError:  # pragma: no cover - optional dependency
     VISUALIZATION_AVAILABLE = False
 
-# Import the original DGR VAE implementation
-try:
-    from DGR_wrapper.models.vae import VAE as OriginalVAE
-except ImportError:
-    # Fallback for testing - create a minimal VAE interface
-    class OriginalVAE(nn.Module):
-        def __init__(self, **kwargs):
-            super().__init__()
-            self.z_dim = kwargs.get('z_dim', 100)
-            self.image_size = kwargs.get('image_size', 32)
-            self.image_channels = kwargs.get('image_channels', 3)
-            self.fc_layers = kwargs.get('fc_layers', 3)
-            self.recon_loss = kwargs.get('recon_loss', 'BCE')
-            self.network_output = kwargs.get('network_output', 'sigmoid')
-            self.lamda_rcl = 1.0
-            self.lamda_vl = 1.0
-            self.optimizer = None
 
-            # Create a simple encoder-decoder for testing
-            self.encoder = nn.Sequential(
-                nn.Flatten(),
-                nn.Linear(self.image_channels * self.image_size * self.image_size, 512),
-                nn.ReLU(),
-                nn.Linear(512, 256),
-                nn.ReLU()
-            )
-            self.mu_layer = nn.Linear(256, self.z_dim)
-            self.logvar_layer = nn.Linear(256, self.z_dim)
+class DGRVAE(nn.Module):
+    """VAE model used for Deep Generative Replay."""
 
-            self.decoder = nn.Sequential(
-                nn.Linear(self.z_dim, 256),
-                nn.ReLU(),
-                nn.Linear(256, 512),
-                nn.ReLU(),
-                nn.Linear(512, self.image_channels * self.image_size * self.image_size),
-                nn.Sigmoid() if self.network_output == 'sigmoid' else nn.Identity()
-            )
+    def __init__(
+        self,
+        image_size: int,
+        image_channels: int,
+        z_dim: int,
+        fc_layers: int,
+        fc_units: int,
+        recon_loss: str = "BCE",
+        network_output: str = "sigmoid",
+        lr: float = 1e-3,
+        betas: Tuple[float, float] = (0.9, 0.999),
+        device: Optional[torch.device] = None,
+        image_height: Optional[int] = None,
+        image_width: Optional[int] = None,
+    ) -> None:
+        super().__init__()
+        self.image_height = image_height or image_size
+        self.image_width = image_width or image_size
+        self.image_channels = image_channels
+        self.z_dim = z_dim
+        self.fc_layers = max(1, fc_layers)
+        self.fc_units = fc_units
+        self.recon_loss_type = recon_loss
+        self.network_output = network_output
+        self.device_override = device or torch.device("cpu")
 
-        def encode(self, x):
-            h = self.encoder(x)
-            mu = self.mu_layer(h)
-            logvar = self.logvar_layer(h)
-            return mu, logvar, h, x
+        input_dim = image_channels * self.image_height * self.image_width
+        encoder_layers: List[nn.Module] = []
+        prev_dim = input_dim
+        for layer_idx in range(self.fc_layers):
+            next_dim = fc_units if layer_idx < self.fc_layers - 1 else fc_units
+            encoder_layers.append(nn.Linear(prev_dim, next_dim))
+            encoder_layers.append(nn.ReLU(inplace=True))
+            prev_dim = next_dim
+        if encoder_layers:
+            encoder_layers = encoder_layers[:-1]  # remove last activation to keep output linear
+        self.encoder = nn.Sequential(*encoder_layers) if encoder_layers else nn.Identity()
+        encoder_out_dim = prev_dim if encoder_layers else input_dim
+        self.mu_layer = nn.Linear(encoder_out_dim, z_dim)
+        self.logvar_layer = nn.Linear(encoder_out_dim, z_dim)
 
-        def reparameterize(self, mu, logvar):
-            std = torch.exp(0.5 * logvar)
-            eps = torch.randn_like(std)
-            return mu + eps * std
+        decoder_layers: List[nn.Module] = []
+        prev_dim = z_dim
+        for layer_idx in range(self.fc_layers):
+            next_dim = fc_units if layer_idx < self.fc_layers - 1 else input_dim
+            decoder_layers.append(nn.Linear(prev_dim, next_dim))
+            if layer_idx < self.fc_layers - 1:
+                decoder_layers.append(nn.ReLU(inplace=True))
+            prev_dim = next_dim
+        self.decoder = nn.Sequential(*decoder_layers) if decoder_layers else nn.Identity()
 
-        def decode(self, z):
-            h = self.decoder(z)
-            return h.view(-1, self.image_channels, self.image_size, self.image_size)
+        if self.network_output == "sigmoid":
+            self.output_activation = nn.Sigmoid()
+        else:
+            self.output_activation = nn.Identity()
 
-        def forward(self, x, full=False, reparameterize=True):
-            mu, logvar, h, _ = self.encode(x)
-            z = self.reparameterize(mu, logvar) if reparameterize else mu
-            x_recon = self.decode(z)
-            return (x_recon, mu, logvar, z) if full else x_recon
+        self.to(self.device_override)
+        self.set_optimizer(lr=lr, betas=betas)
+        self.lamda_rcl = 1.0
+        self.lamda_vl = 1.0
 
-        def loss_function(self, x, x_recon, mu, z, logvar=None):
-            # Simple reconstruction loss
-            recon_loss = F.mse_loss(x_recon, x, reduction='mean')
+    def set_optimizer(self, lr: float = 1e-3, betas: Tuple[float, float] = (0.9, 0.999)) -> None:
+        params = filter(lambda p: p.requires_grad, self.parameters())
+        self.optimizer = torch.optim.Adam(params, lr=lr, betas=betas)
 
-            # KL divergence loss
-            if logvar is not None:
-                kl_loss = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp()) / x.size(0)
-            else:
-                kl_loss = torch.tensor(0.0, device=x.device)
+    def encode(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        x = x.flatten(start_dim=1)
+        hidden = self.encoder(x)
+        mu = self.mu_layer(hidden)
+        logvar = self.logvar_layer(hidden)
+        return mu, logvar
 
-            return recon_loss, kl_loss
+    @staticmethod
+    def reparameterize(mu: torch.Tensor, logvar: torch.Tensor) -> torch.Tensor:
+        std = torch.exp(0.5 * logvar)
+        eps = torch.randn_like(std)
+        return mu + eps * std
 
-        def sample(self, size):
-            z = torch.randn(size, self.z_dim, device=next(self.parameters()).device)
-            return self.decode(z)
+    def decode(self, z: torch.Tensor) -> torch.Tensor:
+        hidden = self.decoder(z)
+        output = self.output_activation(hidden)
+        return output.view(z.size(0), self.image_channels, self.image_height, self.image_width)
 
+    def forward(
+        self, x: torch.Tensor, full: bool = False, reparameterize: bool = True
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        mu, logvar = self.encode(x)
+        z = self.reparameterize(mu, logvar) if reparameterize else mu
+        recon = self.decode(z)
+        if full:
+            return recon, mu, logvar, z
+        return recon
 
-class DGRVAE(OriginalVAE):
-    """
-    Adapted VAE from the original DGR implementation.
+    def loss_function(
+        self,
+        x: torch.Tensor,
+        x_recon: torch.Tensor,
+        mu: torch.Tensor,
+        logvar: torch.Tensor,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        if self.recon_loss_type.upper() == "MSE":
+            recon_loss = F.mse_loss(x_recon, x, reduction="mean")
+        else:
+            recon_loss = F.binary_cross_entropy(x_recon, x, reduction="mean")
+        kld = -0.5 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp())
+        return recon_loss, kld
 
-    This class wraps the original VAE to work with Mammoth's data pipeline
-    while preserving all original functionality and architecture.
-    """
-
-    def __init__(self, image_size: int, image_channels: int,
-                 z_dim: int = 100, fc_layers: int = 3, fc_units: int = 400,
-                 recon_loss: str = 'BCE', network_output: str = 'sigmoid',
-                 prior: str = 'standard', device: Optional[torch.device] = None):
-        """
-        Initialize the DGR VAE with original parameters.
-
-        Args:
-            image_size: Size of input images (assumed square)
-            image_channels: Number of input channels
-            z_dim: Latent dimension size
-            fc_layers: Number of fully connected layers
-            fc_units: Number of units in FC layers
-            recon_loss: Reconstruction loss type ('BCE' or 'MSE')
-            network_output: Output activation ('sigmoid' or other)
-            prior: Prior type ('standard' or 'GMM')
-            device: Device to use for computation
-        """
-        super().__init__(
-            image_size=image_size,
-            image_channels=image_channels,
-            depth=0,  # No conv layers for simplicity
-            fc_layers=fc_layers,
-            fc_units=fc_units,
-            fc_bn=False,
-            fc_nl="relu",
-            excit_buffer=True,
-            prior=prior,
-            z_dim=z_dim,
-            recon_loss=recon_loss,
-            network_output=network_output
-        )
-
-        self.device_override = device
-
-    def _device(self):
-        """Override device method to use Mammoth's device management."""
-        if self.device_override is not None:
-            return self.device_override
-        return next(self.parameters()).device
-
-    def train_on_batch(self, x: torch.Tensor, x_replay: Optional[torch.Tensor] = None,
-                      replay_weight: float = 0.5) -> Dict[str, float]:
-        """
-        Train the VAE on a batch of data, optionally with replay data.
-
-        Args:
-            x: Current task data
-            x_replay: Optional replay data from previous tasks
-            replay_weight: Weight for replay data (1-replay_weight for current data)
-
-        Returns:
-            Dictionary with loss components
-        """
+    def train_batch(
+        self,
+        current_inputs: Optional[torch.Tensor],
+        replay_inputs: Optional[torch.Tensor],
+        rnt: float,
+    ) -> Dict[str, float]:
         self.train()
-
-        if self.optimizer is None:
-            raise RuntimeError("Optimizer not set. Call set_optimizer() first.")
+        device = self.device_override
+        total_loss = torch.tensor(0.0, device=device)
+        recon_cur = variat_cur = recon_rep = variat_rep = torch.tensor(0.0, device=device)
 
         self.optimizer.zero_grad()
 
-        # Train on current data
-        loss_dict = {}
-        if x is not None:
-            recon_batch, mu, logvar, z = self(x, full=True, reparameterize=True)
-            reconL, variatL = self.loss_function(x=x, x_recon=recon_batch, mu=mu, z=z, logvar=logvar)
-            loss_current = self.lamda_rcl * reconL + self.lamda_vl * variatL
-            loss_dict['recon_current'] = reconL.item()
-            loss_dict['variat_current'] = variatL.item()
+        if current_inputs is not None:
+            x = current_inputs.to(device)
+            recon, mu, logvar, _ = self(x, full=True)
+            recon_cur, variat_cur = self.loss_function(x, recon, mu, logvar)
+            loss_cur = self.lamda_rcl * recon_cur + self.lamda_vl * variat_cur
         else:
-            loss_current = torch.tensor(0.0, device=self._device())
+            loss_cur = torch.tensor(0.0, device=device)
 
-        # Train on replay data
-        if x_replay is not None:
-            recon_batch_r, mu_r, logvar_r, z_r = self(x_replay, full=True, reparameterize=True)
-            reconL_r, variatL_r = self.loss_function(x=x_replay, x_recon=recon_batch_r,
-                                                   mu=mu_r, z=z_r, logvar=logvar_r)
-            loss_replay = self.lamda_rcl * reconL_r + self.lamda_vl * variatL_r
-            loss_dict['recon_replay'] = reconL_r.item()
-            loss_dict['variat_replay'] = variatL_r.item()
+        if replay_inputs is not None:
+            x_rep = replay_inputs.to(device)
+            recon_rep_t, mu_rep, logvar_rep, _ = self(x_rep, full=True)
+            recon_rep, variat_rep = self.loss_function(x_rep, recon_rep_t, mu_rep, logvar_rep)
+            loss_rep = self.lamda_rcl * recon_rep + self.lamda_vl * variat_rep
         else:
-            loss_replay = torch.tensor(0.0, device=self._device())
+            loss_rep = torch.tensor(0.0, device=device)
 
-        # Combine losses
-        if x is None:
-            total_loss = loss_replay
-        elif x_replay is None:
-            total_loss = loss_current
+        if current_inputs is None:
+            total_loss = loss_rep
+        elif replay_inputs is None:
+            total_loss = loss_cur
         else:
-            total_loss = (1 - replay_weight) * loss_current + replay_weight * loss_replay
+            total_loss = rnt * loss_cur + (1.0 - rnt) * loss_rep
 
-        loss_dict['total_loss'] = total_loss.item()
-
-        # Backward pass
         total_loss.backward()
         self.optimizer.step()
 
-        return loss_dict
+        return {
+            "loss_total": float(total_loss.item()),
+            "recon": float(recon_cur.item()),
+            "variat": float(variat_cur.item()),
+            "recon_r": float(recon_rep.item()),
+            "variat_r": float(variat_rep.item()),
+        }
 
-    def set_optimizer(self, lr: float = 0.001):
-        """Set the optimizer for VAE training."""
-        self.optim_list = [{'params': filter(lambda p: p.requires_grad, self.parameters()), 'lr': lr}]
-        self.optimizer = torch.optim.Adam(self.optim_list, betas=(0.9, 0.999))
+    def train_on_batch(
+        self,
+        x: Optional[torch.Tensor],
+        x_replay: Optional[torch.Tensor] = None,
+        replay_weight: float = 0.5,
+    ) -> Dict[str, float]:
+        rnt = 1.0 - float(replay_weight)
+        stats = self.train_batch(x, x_replay, rnt)
+        return {
+            "total_loss": stats["loss_total"],
+            "recon_current": stats["recon"],
+            "variat_current": stats["variat"],
+            "recon_replay": stats["recon_r"],
+            "variat_replay": stats["variat_r"],
+        }
 
     def generate_samples(self, n_samples: int, device: Optional[torch.device] = None) -> torch.Tensor:
-        """
-        Generate samples from the VAE.
-
-        Args:
-            n_samples: Number of samples to generate
-            device: Device to generate samples on
-
-        Returns:
-            Generated samples as tensor
-        """
-        if device is None:
-            device = self._device()
-
+        device = device or self.device_override
+        z = torch.randn(n_samples, self.z_dim, device=device)
         self.eval()
         with torch.no_grad():
-            samples = self.sample(n_samples)
+            samples = self.decode(z)
+        return samples
 
-        return samples.to(device)
+    def clone_frozen(self) -> "DGRVAE":
+        clone: DGRVAE = copy.deepcopy(self).to(self.device_override)
+        clone.eval()
+        for param in clone.parameters():
+            param.requires_grad_(False)
+        return clone
 
 
 class DGRMammothAdapter(ContinualModel):
-    """
-    Deep Generative Replay adapter for Mammoth framework.
+    """Deep Generative Replay adapted for Mammoth."""
 
-    This class integrates the original DGR implementation with Mammoth's ContinualModel
-    interface, providing VAE-based generative replay for continual learning.
-    """
+    NAME = "dgr"
+    COMPATIBILITY = ["class-il", "domain-il", "task-il", "general-continual"]
 
-    NAME = 'dgr'
-    COMPATIBILITY = ['class-il', 'domain-il', 'task-il', 'general-continual']
+    @staticmethod
+    def get_parser(parser: ArgumentParser) -> ArgumentParser:
+        parser.add_argument("--dgr_z_dim", type=int, default=100,
+                            help="Latent dimension for the VAE generator")
+        parser.add_argument("--dgr_vae_lr", type=float, default=1e-3,
+                            help="Learning rate for the VAE optimizer")
+        parser.add_argument("--dgr_vae_fc_layers", type=int, default=3,
+                            help="Number of fully connected layers in the VAE")
+        parser.add_argument("--dgr_vae_fc_units", type=int, default=400,
+                            help="Hidden units in each VAE FC layer")
+        parser.add_argument("--dgr_replay_targets", type=str, default="hard",
+                            choices=["hard", "soft"],
+                            help="Use hard labels or distillation targets for replay")
+        parser.add_argument("--dgr_distill_temperature", type=float, default=2.0,
+                            help="Temperature for knowledge distillation when using soft targets")
+        parser.add_argument("--dgr_replay_batch_size", type=int, default=0,
+                            help="Batch size for replay samples (0 = match current batch)")
+        parser.add_argument("--dgr_monitor_frequency", type=int, default=5,
+                            help="Epoch frequency for replay visualizations")
+        parser.add_argument("--dgr_disable_monitoring", action="store_true",
+                            help="Disable saving replay sample visualizations")
+        return parser
 
     def __init__(self, backbone, loss, args, transform, dataset=None):
-        """
-        Initialize the DGR adapter.
-
-        Args:
-            backbone: Mammoth backbone network
-            loss: Loss function
-            args: Command line arguments
-            transform: Data transformations
-            dataset: Dataset instance
-        """
         super().__init__(backbone, loss, args, transform, dataset)
 
-        # DGR-specific parameters
-        self.z_dim = getattr(args, 'dgr_z_dim', 100)
-        self.vae_lr = getattr(args, 'dgr_vae_lr', 0.001)
-        self.vae_fc_layers = getattr(args, 'dgr_vae_fc_layers', 3)
-        self.vae_fc_units = getattr(args, 'dgr_vae_fc_units', 400)
-        self.replay_weight = getattr(args, 'dgr_replay_weight', 0.5)
-        self.vae_train_epochs = getattr(args, 'dgr_vae_train_epochs', 1)
+        self.image_channels, self.image_size = 3, 32
+        self.image_shape: Tuple[int, int, int] = (self.image_channels, self.image_size, self.image_size)
 
-        # Get image properties from dataset
-        if hasattr(dataset, 'SIZE'):
-            self.image_size = dataset.SIZE[-1]  # Assume square images
-            self.image_channels = dataset.SIZE[0]
-        else:
-            # Default values for CIFAR-100
-            self.image_size = 32
-            self.image_channels = 3
+        if dataset is not None:
+            if hasattr(dataset, "SIZE"):
+                size = dataset.SIZE
+                if len(size) >= 3:
+                    self.image_channels = int(size[0])
+                    height = int(size[-2])
+                    width = int(size[-1])
+                    self.image_size = max(height, width)
+                    self.image_shape = (self.image_channels, height, width)
+            elif hasattr(dataset, "get_data_loaders"):
+                try:
+                    loader, _ = dataset.get_data_loaders()
+                    batch = next(iter(loader))
+                    sample = batch[0] if isinstance(batch, (list, tuple)) else batch
+                    if sample.ndim >= 4:
+                        self.image_channels = int(sample.shape[1])
+                        height = int(sample.shape[2])
+                        width = int(sample.shape[3]) if sample.ndim > 3 else height
+                        self.image_size = max(height, width)
+                        self.image_shape = (self.image_channels, height, width)
+                except Exception:
+                    pass
 
-        # Initialize VAE
-        self.vae = DGRVAE(
+        self.z_dim = getattr(args, "dgr_z_dim", 100)
+        self.vae_lr = getattr(args, "dgr_vae_lr", 1e-3)
+        self.vae_fc_layers = getattr(args, "dgr_vae_fc_layers", 3)
+        self.vae_fc_units = getattr(args, "dgr_vae_fc_units", 400)
+        self.replay_targets = getattr(args, "dgr_replay_targets", "hard")
+        self.distill_temperature = getattr(args, "dgr_distill_temperature", 2.0)
+        self.replay_batch_size = getattr(args, "dgr_replay_batch_size", 0)
+
+        self.replay_weight = getattr(args, "dgr_replay_weight", 0.5)
+        self.vae_train_epochs = getattr(args, "dgr_vae_train_epochs", 1)
+        self.buffer_size = getattr(args, "dgr_buffer_size", getattr(args, "buffer_size", 0))
+
+        height, width = self.image_shape[1], self.image_shape[2]
+        self.generator = DGRVAE(
             image_size=self.image_size,
             image_channels=self.image_channels,
             z_dim=self.z_dim,
             fc_layers=self.vae_fc_layers,
             fc_units=self.vae_fc_units,
-            device=self.device
+            lr=self.vae_lr,
+            device=self.device,
+            image_height=height,
+            image_width=width,
         )
-        self.vae.to(self.device)
-        self.vae.set_optimizer(self.vae_lr)
+        self.prev_generator: Optional[DGRVAE] = None
+        self.prev_classifier: Optional[nn.Module] = None
+        # Backwards compatibility aliases expected by existing tests/utilities.
+        self.vae = self.generator
+        self.previous_vae: Optional[DGRVAE] = None
+        self.current_vae: Optional[DGRVAE] = self.generator
+        self.current_task_buffer: List[torch.Tensor] = []
 
-        # Store previous VAE for replay generation
-        self.previous_vae = None
+        self.enable_monitoring = not getattr(args, "dgr_disable_monitoring", False)
+        self.monitor_frequency = getattr(args, "dgr_monitor_frequency", 5)
+        self.monitor_dir: Optional[Path] = None
+        if self.enable_monitoring and VISUALIZATION_AVAILABLE:
+            self.monitor_dir = Path("outputs") / "dgr_monitoring"
+            self.monitor_dir.mkdir(parents=True, exist_ok=True)
+            logging.info("DGR monitoring enabled: %s", self.monitor_dir)
 
-        # Buffer for storing current task data for VAE training
-        self.current_task_buffer = []
+        self._last_generator_losses: Dict[str, float] = {}
 
-        # Replay monitoring
-        self.enable_replay_monitoring = not getattr(args, 'dgr_disable_replay_monitoring', False)
-        self.replay_monitor_frequency = getattr(args, 'dgr_replay_monitor_frequency', 5)
-        self.replay_monitor_samples = getattr(args, 'dgr_replay_monitor_samples', 8)
-        self.replay_monitor_dir = None
+        logging.info(
+            "Initialized DGR (z_dim=%d, image=%dx%d, replay_targets=%s)",
+            self.z_dim,
+            self.image_size,
+            self.image_channels,
+            self.replay_targets,
+        )
 
-        # Initialize replay monitoring if enabled
-        if self.enable_replay_monitoring and VISUALIZATION_AVAILABLE:
-            self.replay_monitor_dir = Path("outputs") / "dgr_replay_monitoring"
-            self.replay_monitor_dir.mkdir(parents=True, exist_ok=True)
-            logging.info(f"DGR replay monitoring enabled: {self.replay_monitor_dir}")
-        elif self.enable_replay_monitoring and not VISUALIZATION_AVAILABLE:
-            logging.warning("DGR replay monitoring requested but matplotlib not available")
+    # ------------------------------------------------------------------
+    # Training flow
+    # ------------------------------------------------------------------
 
-        logging.info(f"Initialized DGR with VAE: z_dim={self.z_dim}, "
-                    f"image_size={self.image_size}x{self.image_channels}")
+    def begin_task(self, dataset) -> None:
+        previous = getattr(self, "current_vae", None)
+        if previous is not None:
+            if hasattr(previous, "clone_frozen"):
+                self.prev_generator = previous.clone_frozen()
+                self.previous_vae = self.prev_generator
+            else:
+                self.previous_vae = previous
 
-    @staticmethod
-    def get_parser(parser):
-        """Add DGR-specific arguments to the parser."""
-        parser.add_argument('--dgr_z_dim', type=int, default=100,
-                          help='Latent dimension for DGR VAE')
-        parser.add_argument('--dgr_vae_lr', type=float, default=0.001,
-                          help='Learning rate for VAE training')
-        parser.add_argument('--dgr_vae_fc_layers', type=int, default=3,
-                          help='Number of FC layers in VAE')
-        parser.add_argument('--dgr_vae_fc_units', type=int, default=400,
-                          help='Number of units in VAE FC layers')
-        parser.add_argument('--dgr_replay_weight', type=float, default=0.5,
-                          help='Weight for replay data in training')
-        parser.add_argument('--dgr_vae_train_epochs', type=int, default=1,
-                          help='Number of epochs to train VAE per task')
-        parser.add_argument('--dgr_disable_replay_monitoring', action='store_true',
-                          help='Disable monitoring and visualization of replay samples')
-        parser.add_argument('--dgr_replay_monitor_frequency', type=int, default=5,
-                          help='Frequency of replay monitoring (every N epochs)')
-        parser.add_argument('--dgr_replay_monitor_samples', type=int, default=8,
-                          help='Number of replay samples to monitor and visualize')
-        return parser
+        height, width = self.image_shape[1], self.image_shape[2]
+        self.generator = DGRVAE(
+            image_size=self.image_size,
+            image_channels=self.image_channels,
+            z_dim=self.z_dim,
+            fc_layers=self.vae_fc_layers,
+            fc_units=self.vae_fc_units,
+            lr=self.vae_lr,
+            device=self.device,
+            image_height=height,
+            image_width=width,
+        ).to(self.device)
+        self.current_vae = self.generator
+        self.vae = self.generator
+        self.vae = self.generator
 
-    def begin_task(self, dataset):
-        """Prepare for a new task."""
         super().begin_task(dataset)
+        self.generator.train()
 
-        # Clear current task buffer
-        self.current_task_buffer = []
+    def observe(
+        self,
+        inputs: torch.Tensor,
+        labels: torch.Tensor,
+        not_aug_inputs: torch.Tensor,
+        epoch: Optional[int] = None,
+        **unused,
+    ) -> float:
+        batch_size = inputs.size(0)
+        rnt = 1.0 / float(max(1, self.current_task + 1))
 
-        logging.info(f"Starting task {self.current_task + 1}")
+        replay_inputs, replay_labels, replay_logits = self._generate_replay_batch(batch_size)
 
-    def end_task(self, dataset):
-        """Complete the current task and update VAE."""
-        super().end_task(dataset)
-
-        # Train VAE on current task data
-        if len(self.current_task_buffer) > 0:
-            self._train_vae_on_current_task()
-
-        # Store current VAE as previous for next task
-        self.previous_vae = copy.deepcopy(self.vae).eval()
-
-        # Monitor replay samples from the newly trained VAE
-        self._monitor_replay_samples(self.current_task, epoch=0)
-
-        logging.info(f"Completed task {self.current_task}, VAE updated")
-
-    def observe(self, inputs, labels, not_aug_inputs, epoch=None, **kwargs):
-        """
-        Perform a training step with DGR.
-
-        Args:
-            inputs: Batch of input images
-            labels: Batch of labels
-            not_aug_inputs: Batch of non-augmented inputs
-            epoch: Current epoch (optional)
-
-        Returns:
-            Loss value
-        """
-        # Store current task data for VAE training
-        self.current_task_buffer.extend(not_aug_inputs.cpu())
-
-        # Generate replay data if we have a previous VAE
-        replay_inputs = None
-        replay_labels = None
-
-        if self.previous_vae is not None and self.current_task > 0:
-            replay_inputs, replay_labels = self._generate_replay_data(inputs.size(0))
-
-        # Train classifier on current + replay data
         self.opt.zero_grad()
-
-        # Forward pass on current data
-        outputs = self.net(inputs)
-        loss_current = self.loss(outputs, labels)
-
+        current_logits = self.net(inputs)
+        loss_current = self.loss(current_logits, labels)
         total_loss = loss_current
 
-        # Add replay loss if available
         if replay_inputs is not None:
-            replay_outputs = self.net(replay_inputs)
-            loss_replay = self.loss(replay_outputs, replay_labels)
-            total_loss = (1 - self.replay_weight) * loss_current + self.replay_weight * loss_replay
-
+            replay_logits_current = self.net(replay_inputs)
+            loss_replay = self._compute_replay_loss(
+                replay_logits_current, replay_labels, replay_logits
+            )
+            total_loss = rnt * loss_current + (1.0 - rnt) * loss_replay
         total_loss.backward()
         self.opt.step()
 
-        return total_loss.item()
+        if self.buffer_size > 0 and not_aug_inputs is not None:
+            remaining = self.buffer_size - len(self.current_task_buffer)
+            if remaining > 0:
+                self.current_task_buffer.extend([x.cpu() for x in not_aug_inputs[:remaining]])
 
-    def _generate_replay_data(self, batch_size: int) -> Tuple[torch.Tensor, torch.Tensor]:
-        """
-        Generate replay data using the previous VAE.
+        generator_current = not_aug_inputs if not_aug_inputs is not None else inputs.detach()
+        generator_current = generator_current.detach()
+        generator_replay = replay_inputs.detach() if replay_inputs is not None else None
+        self._last_generator_losses = self.generator.train_batch(generator_current, generator_replay, rnt)
 
-        Args:
-            batch_size: Number of samples to generate
+        if self.enable_monitoring and epoch is not None:
+            self._maybe_monitor(epoch, replay_inputs)
 
-        Returns:
-            Tuple of (replay_inputs, replay_labels)
-        """
-        if self.previous_vae is None:
-            return None, None
+        return float(total_loss.item())
 
-        # Generate samples from previous VAE
-        replay_inputs = self.previous_vae.generate_samples(batch_size, self.device)
+    def end_task(self, dataset) -> None:
+        super().end_task(dataset)
+        if self.current_task_buffer:
+            self._train_vae_on_current_task()
 
-        # For simplicity, generate random labels from previous tasks
-        # In a more sophisticated implementation, you might use the classifier
-        # to generate pseudo-labels or store label information
-        n_previous_classes = self.n_past_classes
-        if n_previous_classes > 0:
-            replay_labels = torch.randint(0, n_previous_classes, (batch_size,), device=self.device)
-        else:
-            replay_labels = torch.zeros(batch_size, dtype=torch.long, device=self.device)
+        self.prev_classifier = copy.deepcopy(self.net).to(self.device)
+        self.prev_classifier.eval()
+        for param in self.prev_classifier.parameters():
+            param.requires_grad_(False)
 
-        return replay_inputs, replay_labels
+        self.prev_generator = self.generator.clone_frozen()
+        self.previous_vae = self.prev_generator
+        logging.info("DGR: stored frozen generator and classifier for replay")
 
-    def _train_vae_on_current_task(self):
-        """Train the VAE on current task data."""
-        if len(self.current_task_buffer) == 0:
+    # ------------------------------------------------------------------
+    # Replay helpers
+    # ------------------------------------------------------------------
+
+    def _generate_replay_batch(
+        self,
+        batch_size: int,
+    ) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor], Optional[torch.Tensor]]:
+        if self.prev_generator is None or self.prev_classifier is None:
+            return None, None, None
+
+        replay_bs = batch_size if self.replay_batch_size <= 0 else self.replay_batch_size
+        with torch.no_grad():
+            replay_inputs = self.prev_generator.generate_samples(replay_bs, device=self.device)
+            prev_outputs = self.prev_classifier(replay_inputs)
+            replay_logits = prev_outputs.detach()
+            replay_labels = prev_outputs.argmax(dim=1)
+        return replay_inputs, replay_labels, replay_logits
+
+    def _compute_replay_loss(
+        self,
+        replay_logits_current: torch.Tensor,
+        replay_labels: Optional[torch.Tensor],
+        replay_logits_reference: Optional[torch.Tensor],
+    ) -> torch.Tensor:
+        if self.replay_targets == "soft":
+            assert replay_logits_reference is not None
+            temperature = float(self.distill_temperature)
+            kd_loss = F.kl_div(
+                F.log_softmax(replay_logits_current / temperature, dim=1),
+                F.softmax(replay_logits_reference / temperature, dim=1),
+                reduction="batchmean",
+            ) * (temperature ** 2)
+            return kd_loss
+
+        assert replay_labels is not None
+        return self.loss(replay_logits_current, replay_labels)
+
+    # ------------------------------------------------------------------
+    # Monitoring
+    # ------------------------------------------------------------------
+
+    def _train_vae_on_current_task(self) -> None:
+        if not self.current_task_buffer:
             return
 
-        # Convert buffer to tensor
-        task_data = torch.stack(self.current_task_buffer).to(self.device)
+        tensor_data = torch.stack(self.current_task_buffer).to(self.device)
+        dataset = data.TensorDataset(tensor_data)
+        dataloader = data.DataLoader(dataset, batch_size=min(128, len(dataset)), shuffle=True)
 
-        # Create data loader
-        dataset = torch.utils.data.TensorDataset(task_data)
-        dataloader = torch.utils.data.DataLoader(
-            dataset, batch_size=min(128, len(task_data)), shuffle=True
-        )
-
-        # Train VAE
-        self.vae.train()
-        for epoch in range(self.vae_train_epochs):
-            total_loss = 0
-            n_batches = 0
-
-            for batch_data, in dataloader:
-                # Generate replay data for VAE training if available
-                replay_data = None
+        for _ in range(self.vae_train_epochs):
+            for batch, in dataloader:
+                replay = None
                 if self.previous_vae is not None:
-                    replay_data = self.previous_vae.generate_samples(
-                        batch_data.size(0), self.device
-                    )
+                    replay = self.previous_vae.generate_samples(batch.size(0), device=self.device)
+                self.vae.train_on_batch(batch, replay, self.replay_weight)
 
-                # Train VAE
-                loss_dict = self.vae.train_on_batch(
-                    batch_data, replay_data, self.replay_weight
-                )
-                total_loss += loss_dict['total_loss']
-                n_batches += 1
+        self.current_task_buffer.clear()
 
-            avg_loss = total_loss / n_batches if n_batches > 0 else 0
-            logging.debug(f"VAE training epoch {epoch + 1}/{self.vae_train_epochs}, "
-                         f"avg_loss: {avg_loss:.4f}")
-
-        logging.info(f"VAE training completed on {len(task_data)} samples")
-
-    def forward(self, x):
-        """Forward pass through the classifier."""
-        return self.net(x)
-
-    def _monitor_replay_samples(self, task_id: int, epoch: int = 0):
-        """Monitor and visualize replay samples if enabled."""
-        if not self.enable_replay_monitoring or not VISUALIZATION_AVAILABLE:
+    def _maybe_monitor(self, epoch: int, replay_inputs: Optional[torch.Tensor]) -> None:
+        if not VISUALIZATION_AVAILABLE or self.monitor_dir is None:
             return
-
-        if self.previous_vae is None:
+        if epoch % self.monitor_frequency != 0:
             return
-
-        if epoch % self.replay_monitor_frequency != 0:
+        if replay_inputs is None:
             return
-
         try:
-            # Generate replay samples
-            replay_samples = self.previous_vae.generate_samples(
-                self.replay_monitor_samples, self.device
-            )
+            samples_np = replay_inputs.detach().cpu().numpy()
+            n_samples = min(8, samples_np.shape[0])
+            fig, axes = plt.subplots(2, 4, figsize=(12, 6))
+            fig.suptitle(f"DGR Replay Samples - Epoch {epoch}")
+            for idx in range(n_samples):
+                row, col = divmod(idx, 4)
+                img = samples_np[idx].transpose(1, 2, 0)
+                if img.shape[2] == 1:
+                    axes[row, col].imshow(img.squeeze(2), cmap="gray", vmin=0, vmax=1)
+                else:
+                    axes[row, col].imshow(np.clip(img, 0, 1))
+                axes[row, col].axis("off")
+                axes[row, col].set_title(f"Sample {idx + 1}")
+            for idx in range(n_samples, 8):
+                row, col = divmod(idx, 4)
+                axes[row, col].axis("off")
+            fig.tight_layout()
+            outfile = self.monitor_dir / f"replay_epoch_{epoch:04d}.png"
+            plt.savefig(outfile, dpi=150)
+            plt.close(fig)
+        except Exception as exc:  # pragma: no cover - monitoring is best effort
+            logging.warning("Failed to visualize DGR replay samples: %s", exc)
 
-            # Create visualization
-            self._visualize_replay_samples(replay_samples, task_id, epoch)
+    # ------------------------------------------------------------------
+    # Auxiliary information
+    # ------------------------------------------------------------------
 
-            # Log statistics
-            self._log_replay_statistics(replay_samples, task_id, epoch)
-
-        except Exception as e:
-            logging.warning(f"Failed to monitor replay samples: {e}")
-
-    def _visualize_replay_samples(self, samples: torch.Tensor, task_id: int, epoch: int):
-        """Create and save visualization of replay samples."""
-        if not VISUALIZATION_AVAILABLE:
-            return
-
-        samples_np = samples.detach().cpu().numpy()
-        n_samples = min(8, samples.shape[0])
-
-        # Create grid visualization
-        fig, axes = plt.subplots(2, 4, figsize=(12, 6))
-        fig.suptitle(f'DGR Replay Samples - Task {task_id}, Epoch {epoch}')
-
-        for i in range(n_samples):
-            row = i // 4
-            col = i % 4
-
-            # Convert from CHW to HWC for display
-            img = samples_np[i].transpose(1, 2, 0)
-
-            # Handle different image formats
-            if img.shape[2] == 1:
-                img = img.squeeze(2)
-                axes[row, col].imshow(img, cmap='gray', vmin=0, vmax=1)
-            else:
-                # Ensure RGB values are in [0, 1]
-                img = np.clip(img, 0, 1)
-                axes[row, col].imshow(img)
-
-            axes[row, col].axis('off')
-            axes[row, col].set_title(f'Sample {i+1}')
-
-        # Save visualization
-        filename = f'replay_samples_task{task_id}_epoch{epoch:03d}.png'
-        filepath = self.replay_monitor_dir / filename
-        plt.savefig(filepath, dpi=150, bbox_inches='tight')
-        plt.close()
-
-        logging.debug(f"Saved replay visualization: {filepath}")
-
-    def _log_replay_statistics(self, samples: torch.Tensor, task_id: int, epoch: int):
-        """Log statistical information about replay samples."""
-        stats_file = self.replay_monitor_dir / 'replay_statistics.txt'
-
-        with open(stats_file, 'a') as f:
-            mean_val = torch.mean(samples).item()
-            std_val = torch.std(samples).item()
-            min_val = torch.min(samples).item()
-            max_val = torch.max(samples).item()
-
-            # Calculate additional quality metrics
-            # Diversity: average pairwise distance between samples
-            flat_samples = samples.view(samples.size(0), -1)
-            pairwise_dists = torch.cdist(flat_samples, flat_samples)
-            avg_diversity = torch.mean(pairwise_dists).item()
-
-            # Intensity distribution
-            intensity_hist = torch.histc(samples, bins=10, min=0, max=1)
-            entropy = -torch.sum(intensity_hist * torch.log(intensity_hist + 1e-8)).item()
-
-            f.write(f"Task {task_id}, Epoch {epoch:03d}: "
-                   f"mean={mean_val:.4f}, std={std_val:.4f}, "
-                   f"min={min_val:.4f}, max={max_val:.4f}, "
-                   f"diversity={avg_diversity:.4f}, entropy={entropy:.4f}\n")
-
-    def get_replay_monitoring_summary(self) -> Dict[str, Any]:
-        """Get summary of replay monitoring data."""
-        if not self.enable_replay_monitoring or self.replay_monitor_dir is None:
-            return {}
-
-        summary = {
-            'monitoring_enabled': True,
-            'monitor_dir': str(self.replay_monitor_dir),
-            'frequency': self.replay_monitor_frequency,
-            'samples_per_monitoring': self.replay_monitor_samples
+    def get_generator_stats(self) -> Dict[str, Any]:
+        return {
+            "last_loss": self._last_generator_losses.get("loss_total", 0.0),
+            "recon": self._last_generator_losses.get("recon", 0.0),
+            "recon_replay": self._last_generator_losses.get("recon_r", 0.0),
+            "has_prev_generator": self.prev_generator is not None,
         }
 
-        # Count generated files
-        image_files = list(self.replay_monitor_dir.glob('replay_samples_*.png'))
-        summary['total_visualizations'] = len(image_files)
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.net(x)
 
-        # Read statistics if available
-        stats_file = self.replay_monitor_dir / 'replay_statistics.txt'
-        if stats_file.exists():
-            with open(stats_file, 'r') as f:
-                lines = f.readlines()
-            summary['total_statistics_entries'] = len(lines)
 
-            if lines:
-                # Parse last entry for current stats
-                last_line = lines[-1].strip()
-                if 'mean=' in last_line:
-                    # Extract values using regex
-                    import re
-                    mean_match = re.search(r'mean=([\d.]+)', last_line)
-                    std_match = re.search(r'std=([\d.]+)', last_line)
-                    diversity_match = re.search(r'diversity=([\d.]+)', last_line)
-
-                    if mean_match:
-                        summary['latest_mean'] = float(mean_match.group(1))
-                    if std_match:
-                        summary['latest_std'] = float(std_match.group(1))
-                    if diversity_match:
-                        summary['latest_diversity'] = float(diversity_match.group(1))
-
-        return summary
+__all__ = ["DGRMammothAdapter", "DGRVAE"]
