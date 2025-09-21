@@ -71,7 +71,7 @@ einstellung_integration/
 
 **Key Features**:
 
-- Inherits from Mammoth's `SequentialCIFAR100` and `SeqCIFAR100224` for ViTs 
+- Inherits from Mammoth's `SequentialCIFAR100` and `SeqCIFAR100224` for ViTs
 - Dynamic patch injection based on configuration
 - Multi-subset evaluation support
 - Proper class filtering and remapping

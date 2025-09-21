@@ -4,16 +4,16 @@
 - **Model:** derpp
 - **Backbone:** resnet18
 - **Seed:** 42
-- **Timestamp:** 2025-07-21 16:52:15
+- **Timestamp:** 2025-09-21 05:07:23
 
 ## 📊 Results
 | Metric | Value |
 |--------|-------|
-| Final Accuracy | 0.00% |
+| Final Accuracy | 68.11% |
 | Used Checkpoint | False |
-| Training Time | 4495.1s |
+| Training Time | 5015.7s |
 | Evaluation Time | 0.0s |
-| Total Time | 4495.2s |
+| Total Time | 5015.8s |
 
 ## 🎉 Status
 ✅ **Experiment Completed Successfully**

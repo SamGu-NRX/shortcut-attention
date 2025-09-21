@@ -1,0 +1,135 @@
+# ERI Visualization System Configuration
+# CIFAR-100 Einstellung Experiments with 224x224 resolution for ViT compatibility
+
+# Experiment Configuration
+experiment:
+  dataset: "seq-cifar100-einstellung-224"
+  backbone: "resnet18" # Options: resnet18, vit_base_patch16_224
+  n_epochs: 50
+  batch_size: 32
+  lr: 0.01
+  seeds: [42, 123, 456, 789, 1011] # Multiple seeds for statistical analysis
+
+# Einstellung Effect Parameters
+einstellung:
+  patch_size: 4 # Shortcut patch size in pixels
+  patch_color: [255, 0, 255] # Magenta RGB values
+  adaptation_threshold: 0.6 # Threshold for Adaptation Delay calculation
+  extract_attention: true # Extract attention maps (ViT only)
+
+  # Evaluation subsets (automatically handled by existing infrastructure)
+  evaluation_subsets:
+    - "T1_all" # Task 1 performance (negative transfer test)
+    - "T2_shortcut_normal" # Task 2 shortcut classes with shortcuts
+    - "T2_shortcut_masked" # Task 2 shortcut classes without shortcuts
+    - "T2_nonshortcut_normal" # Task 2 non-shortcut classes (baseline)
+
+# Continual Learning Methods Configuration
+methods:
+  sgd:
+    # Standard SGD baseline (naive fine-tuning)
+    description: "Standard SGD fine-tuning baseline"
+
+  ewc_on:
+    # Elastic Weight Consolidation
+    e_lambda: 1000 # EWC regularization strength
+    gamma: 1.0 # EWC gamma parameter
+    description: "Elastic Weight Consolidation"
+
+  derpp:
+    # Dark Experience Replay++
+    buffer_size: 500 # Replay buffer size
+    alpha: 0.1 # Distillation loss weight
+    beta: 0.5 # Current batch loss weight
+    description: "Dark Experience Replay++"
+
+# Output Configuration
+output:
+  base_dir: "./eri_results" # Base output directory
+  save_checkpoints: true # Save model checkpoints
+
+  # Visualization settings
+  visualization:
+    tau: 0.6 # Default threshold for AD calculation
+    tau_grid: [0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80] # Tau sensitivity analysis
+    smoothing_window: 3 # Smoothing window for curves
+    confidence_level: 0.95 # Confidence interval level
+
+    # Plot styling
+    figure_size: [12, 10] # Figure dimensions
+    dpi: 300 # Output resolution
+    formats: ["pdf", "png"] # Output formats
+
+    # Color palette for methods
+    colors:
+      Scratch_T2: "#333333"
+      sgd: "#1f77b4"
+      ewc_on: "#2ca02c"
+      derpp: "#d62728"
+      Interleaved: "#9467bd"
+
+# Dataset Variant Configuration (for enhanced experiments)
+dataset_variants:
+  shortcut_salience:
+    patch_sizes: [2, 4, 6, 8] # Different patch sizes
+    locations: ["fixed", "corners"] # Fixed top-left vs random corners
+    injection_ratios: [0.5, 1.0] # Fraction of SC images with patches
+
+  # Optional future extensions
+  imagenet100_einstellung:
+    enabled: false
+    resize_to: 224
+
+  text_continual_learning:
+    enabled: false
+    datasets: ["sst2", "imdb"]
+
+# Integration Settings
+integration:
+  # Mammoth integration
+  use_existing_evaluator: true # Use utils/einstellung_evaluator.py
+  use_existing_dataset: true # Use datasets/seq_cifar100_einstellung_224.py
+
+  # Hook configuration
+  export_frequency: 1 # Export metrics every N epochs
+  auto_visualize: true # Generate plots automatically
+
+  # Checkpoint integration
+  reuse_checkpoints: true # Reuse existing checkpoints when available
+  checkpoint_dir: "./checkpoints" # Checkpoint directory
+
+# Logging Configuration
+logging:
+  level: "INFO" # DEBUG, INFO, WARNING, ERROR
+  console: true # Log to console
+  file: "eri_experiment.log" # Log file name
+
+# Performance Settings
+performance:
+  parallel_processing: false # Enable parallel batch processing
+  memory_efficient: true # Use memory-efficient data structures
+  cache_results: false # Cache computed curves (experimental)
+
+# Validation Settings
+validation:
+  check_data_integrity: true # Validate CSV data format
+  require_all_subsets: true # Require all evaluation subsets
+  min_seeds: 3 # Minimum seeds for statistical analysis
+
+# Advanced Configuration
+advanced:
+  # Attention analysis (ViT only)
+  attention_analysis:
+    enabled: true
+    layers: ["last"] # Which layers to analyze
+    heads: "all" # Which attention heads
+
+  # Additional metrics (optional)
+  additional_metrics:
+    calibration_error: false # ECE under masking
+    representation_drift: false # CKA analysis
+
+  # Experimental features
+  experimental:
+    dynamic_tau: false # Dynamic threshold adaptation
+    ensemble_methods: false # Multi-method ensembles

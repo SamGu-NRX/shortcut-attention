@@ -1,0 +1,93 @@
+# Gradient Projection Memory (GPM) Configuration
+#
+# This configuration file contains the hyperparameters for the GPM method
+# adapted from the original GPM implementation. These parameters maintain
+# compatibility with the original GPM paper while working with Mammoth.
+
+model: gpm
+
+# GPM Core Parameters (from original implementation)
+gpm_threshold_base: 0.97 # Base energy threshold for SVD basis selection (original default: 0.95)
+gpm_threshold_increment: 0.003 # Increment applied after each task to encourage tighter bases
+gpm_activation_samples: 512 # Number of samples cached per task for subspace estimation
+
+# Memory Management Parameters
+gpm_max_basis_size: 1000 # Maximum basis vectors per layer (prevents memory explosion)
+gpm_compression_threshold: 0.95 # Threshold for basis compression via QR decomposition
+gpm_min_component_threshold: 1e-6 # Minimum component magnitude (prune smaller components)
+
+# Activation Collection Parameters
+gpm_use_global_pooling: true # Apply global average pooling for conv layers (original default)
+gpm_center_activations: true # Center activations before SVD (original default)
+gpm_activation_batch_size: 128 # Batch size for activation collection
+
+# Mammoth Integration Parameters
+buffer_size: 0 # GPM doesn't use a replay buffer (uses gradient projection)
+lr: 0.001 # Learning rate for main classifier
+optimizer: adam # Optimizer for main classifier (Adam recommended for GPM)
+
+# Method Description
+description: |
+  Gradient Projection Memory (GPM) uses SVD-based subspace extraction to identify
+  important gradient directions for previous tasks, then projects current gradients
+  orthogonally to this subspace to prevent catastrophic forgetting. This implementation
+  adapts the original GPM approach to work with the Mammoth framework while preserving
+  the original SVD computation and gradient projection mechanisms.
+
+# Computational Requirements
+computational_notes: |
+  - Memory: O(sum(d_i * r_i)) where d_i is layer dimension, r_i is basis rank
+  - SVD computation: O(d^2 * n) where d is feature dimension, n is number of samples
+  - Gradient projection: O(d * r) per layer per backward pass
+  - Memory update: Once per task (amortized cost)
+  - Recommended for: Scenarios where gradient-based continual learning is preferred
+
+# Usage Notes
+usage_notes: |
+  - Works best with deep networks (ResNet, ViT) where layer-wise projection is effective
+  - Layer selection is crucial: choose layers with rich representations
+  - Energy threshold controls basis size vs. forgetting trade-off
+  - Higher thresholds (0.95-0.99) preserve more information but use more memory
+  - Lower thresholds (0.80-0.90) use less memory but may increase forgetting
+  - Activation collection should use representative samples from each task
+
+# Hyperparameter Tuning Guidelines
+tuning_guidelines: |
+  - gpm_threshold_base: Start with 0.97, increase for complex tasks (0.97-0.99)
+  - gpm_threshold_increment: Small increments (0.001-0.005) balance stability vs. plasticity
+  - gpm_activation_samples: Increase when tasks are large or highly imbalanced (512-2048)
+  - gpm_max_basis_size: Increase for complex datasets (500-2000)
+  - For ResNet: ["backbone.layer2", "backbone.layer3", "classifier"]
+  - For ViT: ["backbone.blocks.8", "backbone.blocks.11", "head"]
+  - Monitor basis growth and adjust compression_threshold if memory issues occur
+
+# Compatibility
+compatibility:
+  - class-il: true
+  - domain-il: true
+  - task-il: true
+  - general-continual: true
+  - datasets:
+      [
+        "seq-cifar10",
+        "seq-cifar100",
+        "seq-tinyimagenet",
+        "seq-cifar100-einstellung-224",
+        "perm-mnist",
+        "rot-mnist",
+      ]
+  - backbones: ["ResNet18", "ResNet32", "ResNet50", "ViT", "MLP"]
+
+# Original GPM Paper Reference
+reference: |
+  Saha, Gobinda, Inioluwa Deborah Raji, and Kamalika Chaudhuri.
+  "Gradient Projection Memory for Continual Learning."
+  International Conference on Learning Representations (ICLR), 2021.
+
+# Implementation Notes
+implementation_notes: |
+  - Adapted from original GPM implementation in /GPM directory
+  - Preserves original SVD computation and energy threshold mechanisms
+  - Maintains original activation collection and global pooling strategies
+  - Integrates with Mammoth's ContinualModel interface and training hooks
+  - Supports both GPU and CPU computation with automatic device detection

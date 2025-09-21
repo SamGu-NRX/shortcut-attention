@@ -1,0 +1,72 @@
+# Deep Generative Replay (DGR) Configuration
+#
+# This configuration file contains the hyperparameters for the DGR method
+# adapted from the original DGR implementation. These parameters maintain
+# compatibility with the original DGR paper while working with Mammoth.
+
+model: dgr
+
+# VAE Architecture Parameters
+dgr_z_dim: 100 # Latent dimension (original default)
+dgr_vae_lr: 0.001 # Learning rate for VAE training (original default)
+dgr_replay_ratio: 0.5 # Relative importance of new data vs replay (original default)
+dgr_temperature: 2.0 # Distillation temperature used for replay logits
+
+# VAE Loss Configuration
+# These are handled internally by the VAE but documented here for reference:
+# - recon_loss: 'BCE' (Binary Cross Entropy for reconstruction)
+# - network_output: 'sigmoid' (Sigmoid activation for output)
+# - prior: 'standard' (Standard Gaussian prior)
+# - lamda_rcl: 1.0 (Reconstruction loss weight)
+# - lamda_vl: 1.0 (Variational loss weight)
+
+# Mammoth Integration Parameters
+buffer_size: 0 # DGR doesn't use a replay buffer (uses generative replay)
+lr: 0.001 # Learning rate for main classifier
+optimizer: adam # Optimizer for main classifier (Adam recommended for DGR)
+
+# Method Description
+description: |
+  Deep Generative Replay (DGR) uses a Variational Autoencoder (VAE) to generate
+  synthetic samples from previous tasks, enabling continual learning without
+  storing real examples. This implementation adapts the original DGR approach
+  to work with the Mammoth framework while preserving the original VAE
+  architecture and training procedures.
+
+# Computational Requirements
+computational_notes: |
+  - Memory: Stores VAE parameters for each completed task
+  - Training time: Additional VAE training after each task
+  - Generation time: VAE forward pass for replay sample generation
+  - Recommended for: Scenarios where storing real data is not feasible
+
+# Usage Notes
+usage_notes: |
+  - Works best with image datasets (CIFAR-10/100, ImageNet, etc.)
+  - VAE architecture is optimized for 32x32 images but adapts to other sizes
+  - Replay quality depends on VAE training quality
+  - Consider increasing dgr_vae_train_epochs for better replay quality
+  - Adjust dgr_replay_ratio based on task difficulty and forgetting patterns
+
+# Hyperparameter Tuning Guidelines
+tuning_guidelines: |
+  - dgr_z_dim: Increase for more complex datasets (64-200 for ImageNet)
+  - dgr_vae_lr: Lower for stable training (0.0001-0.001)
+  - dgr_replay_ratio: Higher values emphasize replay (0.3-0.7 typical range)
+  - dgr_vae_train_epochs: Increase for better replay quality (1-5 epochs)
+  - dgr_vae_fc_units: Increase for larger images (400-800 for high-res)
+
+# Compatibility
+compatibility:
+  - class-il: true
+  - domain-il: true
+  - task-il: true
+  - general-continual: true
+  - datasets:
+      [
+        "seq-cifar10",
+        "seq-cifar100",
+        "seq-tinyimagenet",
+        "seq-cifar100-einstellung-224",
+      ]
+  - backbones: ["ResNet18", "ResNet32", "ResNet50", "ViT"]

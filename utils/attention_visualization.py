@@ -50,10 +50,20 @@ class AttentionAnalyzer:
         # Logging
         import logging
         self.logger = logging.getLogger(__name__)
-        self.logger.info(f"🚀 OPTIMIZED AttentionAnalyzer initialized:")
-        self.logger.info(f"   - Max samples per analysis: {max_samples_per_analysis}")
-        self.logger.info(f"   - Extract layers: {extract_layers}")
-        self.logger.info(f"   - Extract heads: {extract_heads}")
+
+        # Check if model supports attention extraction
+        backbone = self._get_vit_backbone()
+        if backbone is None or not self._supports_attention_extraction(backbone):
+            self.logger.warning("⚠️  Model does not support attention extraction")
+            self.logger.warning("   AttentionAnalyzer initialized but will return empty results")
+            self.logger.warning("   Use Vision Transformer (ViT) models for attention analysis")
+            self.is_compatible = False
+        else:
+            self.logger.info(f"🚀 OPTIMIZED AttentionAnalyzer initialized for ViT model:")
+            self.logger.info(f"   - Max samples per analysis: {max_samples_per_analysis}")
+            self.logger.info(f"   - Extract layers: {extract_layers}")
+            self.logger.info(f"   - Extract heads: {extract_heads}")
+            self.is_compatible = True
 
     def extract_attention_maps(self, inputs: torch.Tensor,
                              skip_if_large_batch: bool = True) -> List[torch.Tensor]:
@@ -68,6 +78,11 @@ class AttentionAnalyzer:
             A list of attention map tensors from selected layers only.
             Each tensor has shape [B, selected_heads, N, N].
         """
+        # Early exit if model is not compatible
+        if not getattr(self, 'is_compatible', True):
+            self.logger.debug("Skipping attention extraction - model not compatible (non-ViT)")
+            return []
+
         # OPTIMIZATION: Early exit for large batches to prevent memory issues
         if skip_if_large_batch and inputs.shape[0] > self.max_samples:
             self.logger.debug(f"Skipping attention extraction - batch too large: {inputs.shape[0]} > {self.max_samples}")
@@ -149,14 +164,24 @@ class AttentionAnalyzer:
         """Navigate model hierarchy to find ViT backbone."""
         try:
             # For ContinualModel -> backbone structure
+            backbone = None
             if hasattr(self.model, "net") and hasattr(self.model.net, "backbone"):
-                return self.model.net.backbone
+                backbone = self.model.net.backbone
             elif hasattr(self.model, "net"):
-                return self.model.net
+                backbone = self.model.net
             elif hasattr(self.model, "backbone"):
-                return self.model.backbone
+                backbone = self.model.backbone
             else:
-                return self.model
+                backbone = self.model
+
+            # Check if this is actually a ViT backbone
+            if backbone is not None:
+                backbone_type = type(backbone).__name__.lower()
+                if not ('vit' in backbone_type or 'vision' in backbone_type or 'transformer' in backbone_type):
+                    self.logger.debug(f"Found backbone {type(backbone).__name__} but it's not a ViT model")
+                    return None
+
+            return backbone
         except Exception as e:
             self.logger.debug(f"Error navigating model hierarchy: {e}")
             return None

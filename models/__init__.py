@@ -16,6 +16,14 @@ os.chdir(mammoth_path)
 from models.utils.continual_model import ContinualModel
 from utils.conf import warn_once
 
+# Import integrated methods registry for ERI visualization system
+try:
+    from models.integrated_methods_registry import extend_mammoth_model_names
+    INTEGRATED_METHODS_AVAILABLE = True
+except ImportError:
+    INTEGRATED_METHODS_AVAILABLE = False
+    warn_once("Integrated methods registry not available")
+
 
 def get_all_models() -> List[dict]:
     return {model.split('.')[0].replace('_', '-'): model.split('.')[0] for model in os.listdir('models')
@@ -90,6 +98,14 @@ def get_model_names() -> Dict[str, ContinualModel]:
             except Exception as e:
                 warn_once("Error in model", model)
                 names[model.replace('_', '-')] = e
+
+        # Extend with integrated methods for ERI visualization system
+        if INTEGRATED_METHODS_AVAILABLE:
+            try:
+                names = extend_mammoth_model_names(names)
+            except Exception as e:
+                warn_once("Error loading integrated methods", str(e))
+
         return names
 
     if not hasattr(get_model_names, 'names'):

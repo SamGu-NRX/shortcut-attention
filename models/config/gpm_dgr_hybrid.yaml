@@ -1,0 +1,120 @@
+# GPM + DGR Hybrid Method Configuration
+#
+# This configuration file contains the hyperparameters for the hybrid method
+# that combines adapted GPM (Gradient Projection Memory) with DGR (Deep Generative Replay).
+# Parameters are based on the original implementations of both methods.
+
+model: gpm_dgr_hybrid
+
+# GPM Component Configuration (from original GPM implementation)
+gpm:
+  energy_threshold: 0.95 # Energy threshold for GPM basis selection
+  max_collection_batches: 200 # Maximum batches for GPM activation collection
+  layer_names: ["backbone.layer3", "classifier"] # Layers for GPM projection
+  device: "auto" # Device for GPM computations
+  max_basis_size: 1000 # Maximum basis vectors per layer
+  compression_threshold: 0.95 # Threshold for basis compression
+  min_component_threshold: 1e-6 # Minimum component magnitude
+  use_global_pooling: true # Apply global average pooling for conv layers
+  center_activations: true # Center activations before SVD
+
+# DGR Component Configuration (from original DGR implementation)
+dgr:
+  z_dim: 100 # VAE latent dimension (original default)
+  vae_fc_layers: 3 # Number of FC layers in VAE
+  vae_fc_units: 400 # Number of units in VAE FC layers
+  vae_lr: 0.001 # Learning rate for VAE training
+  vae_train_epochs: 1 # Number of epochs to train VAE per task
+  replay_weight: 0.5 # Weight for replay data in training
+
+# Hybrid Method Coordination
+hybrid:
+  execution_order: "dgr_then_gpm" # Order: dgr_then_gpm or gpm_then_dgr
+  memory_update_frequency: "per_task" # When to update both memories: per_task or per_epoch
+  coordinate_memory_updates: true # Coordinate GPM and DGR memory updates
+  shared_feature_space: true # Use shared feature space for both methods
+  memory_device_coordination: "auto" # auto, gpu_gpm_cpu_dgr, all_gpu, all_cpu
+
+# Training Coordination Parameters
+training:
+  replay_ratio: 0.5 # Ratio of replay samples to real samples
+  gpm_projection_after_replay: true # Apply GPM projection after replay loss computation
+  coordinate_optimizers: false # Use separate optimizers for VAE and main network
+  gradient_accumulation: false # Accumulate gradients across replay and real batches
+
+# Mammoth Integration Parameters
+buffer_size: 0 # Hybrid method doesn't use traditional replay buffer
+lr: 0.001 # Learning rate for main classifier
+optimizer: adam # Optimizer for main classifier
+vae_optimizer: adam # Optimizer for VAE component
+
+# Method Description
+description: |
+  Hybrid method combining adapted GPM gradient projection with DGR generative replay.
+  GPM prevents catastrophic forgetting through orthogonal gradient projection while
+  DGR provides synthetic replay samples through VAE-based generation. The combination
+  leverages both gradient-based and replay-based continual learning strategies for
+  enhanced performance on challenging continual learning scenarios.
+
+# Computational Requirements
+computational_notes: |
+  - Memory: Combined requirements of GPM bases and DGR VAE parameters
+  - Training time: Additional VAE training + GPM basis computation per task
+  - Generation time: VAE forward pass for replay + GPM gradient projection per step
+  - SVD computation: O(d^2 * n) for GPM basis updates
+  - VAE training: Additional epochs per task for generative model
+  - Recommended for: Complex scenarios requiring both replay and gradient protection
+
+# Usage Notes
+usage_notes: |
+  - Best suited for challenging continual learning scenarios with significant forgetting
+  - Combines benefits of both gradient projection and generative replay
+  - Execution order can be tuned: dgr_then_gpm typically works better
+  - Memory coordination is important to prevent device conflicts
+  - Consider reducing replay_weight if GPM projection is very effective
+  - Monitor total memory usage as it combines both method requirements
+  - VAE quality affects replay effectiveness, GPM energy threshold affects projection quality
+
+# Hyperparameter Tuning Guidelines
+tuning_guidelines: |
+  - Start with default parameters from individual methods
+  - Adjust replay_weight based on relative method effectiveness (0.3-0.7)
+  - Increase gpm.energy_threshold for better forgetting prevention (0.95-0.99)
+  - Increase dgr.vae_train_epochs for better replay quality (1-3 epochs)
+  - Use execution_order="dgr_then_gpm" for most scenarios
+  - Set coordinate_memory_updates=true to prevent memory conflicts
+  - For memory-constrained scenarios: reduce gpm.max_basis_size and dgr.z_dim
+  - For compute-constrained scenarios: reduce dgr.vae_train_epochs and gpm.max_collection_batches
+  - Monitor individual component effectiveness and adjust weights accordingly
+
+# Compatibility
+compatibility:
+  - class-il: true
+  - domain-il: true
+  - task-il: true
+  - general-continual: true
+  - datasets:
+      [
+        "seq-cifar10",
+        "seq-cifar100",
+        "seq-tinyimagenet",
+        "seq-cifar100-einstellung-224",
+      ]
+  - backbones: ["ResNet18", "ResNet32", "ResNet50", "ViT"]
+
+# Method Component References
+references: |
+  GPM: Saha, Gobinda, Inioluwa Deborah Raji, and Kamalika Chaudhuri.
+       "Gradient Projection Memory for Continual Learning." ICLR 2021.
+
+  DGR: Shin, Hanul, Jung Kwon Lee, Jaehong Kim, and Jiwon Kim.
+       "Continual learning with deep generative replay." NIPS 2017.
+
+# Implementation Notes
+implementation_notes: |
+  - Combines adapted implementations from /GPM and /DGR_wrapper directories
+  - Coordinates memory updates to prevent conflicts between methods
+  - Supports flexible execution orders and memory device coordination
+  - Integrates with Mammoth's ContinualModel interface and training hooks
+  - Provides comprehensive error handling for method coordination failures
+  - Maintains compatibility with existing ERI evaluation framework
