@@ -400,6 +400,12 @@ class VisionTransformer(MammothBackbone):
         int_features = []
         attn_maps = []
 
+        # Determine which layers should return attention (if any)
+        extract_layers_requested = getattr(self, "attention_extract_layers", None)
+        if extract_layers_requested is not None:
+            # Convert to set for faster lookup
+            extract_layers_requested = set(extract_layers_requested)
+
         # Patch embedding
         patch_start = time.time()
         x = self.patch_embed(x)
@@ -416,16 +422,24 @@ class VisionTransformer(MammothBackbone):
             AB_blk = AB.get(idx)
             block_kwargs = {'AB': AB_blk} if AB_blk is not None else {}
 
-            if return_attention_scores:
+            # Decide if we need attention prob from this layer
+            need_attn = return_attention_scores and (
+                extract_layers_requested is None or idx in extract_layers_requested
+            )
+
+            if need_attn:
                 # PERFORMANCE WARNING: Attention extraction is expensive
-                if idx == 0:  # Only log once
-                    logger.debug(f"   ⚠️  ATTENTION EXTRACTION ENABLED - This significantly slows training!")
+                if idx == 0:
+                    logger.debug("   ⚠️  ATTENTION EXTRACTION ENABLED - This may slow training!")
 
                 out, attn_probs = blk(x, return_attention_scores=True, **block_kwargs)
                 attn_maps.append(attn_probs)
                 x = out
             else:
                 x = blk(x, **block_kwargs)
+                # Preserve index alignment for downstream code
+                if return_attention_scores:
+                    attn_maps.append(None)
 
             if return_all:
                 int_features.append(x.clone())

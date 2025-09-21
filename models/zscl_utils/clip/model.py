@@ -378,7 +378,7 @@ class CLIP(nn.Module):
         logits_per_image = logit_scale * image_features @ text_features.t()
         logits_per_text = logits_per_image.t()
         return logits_per_image, logits_per_text
-        
+
         # return image_features, text_features, self.logit_scale.exp()
 
 
