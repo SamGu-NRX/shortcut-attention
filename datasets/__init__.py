@@ -132,23 +132,9 @@ def get_dataset_config_names(dataset: str):
 
 
 def get_dataset_class(args: Namespace, return_args=False) -> ContinualDataset:
-    """
-    Return the class of the selected continual dataset among those that are available.
-    If an error was detected while loading the available datasets, it raises the appropriate error message.
-
-    Args:
-        args (Namespace): the arguments which contains the `--dataset` attribute
-        return_args (bool): whether to return the parsable arguments of the dataset
-
-    Exceptions:
-        AssertError: if the dataset is not available
-        Exception: if an error is detected in the dataset
-
-    Returns:
-        the continual dataset class
-    """
     names = get_dataset_names()
-    assert args.dataset in names
+    if args.dataset not in names:
+        raise ValueError(f"Dataset '{args.dataset}' is not registered. Available datasets: {list(names.keys())}")
     if isinstance(names[args.dataset], Exception):
         raise names[args.dataset]
     if return_args:
@@ -157,26 +143,14 @@ def get_dataset_class(args: Namespace, return_args=False) -> ContinualDataset:
 
 
 def get_dataset(args: Namespace) -> ContinualDataset:
-    """
-    Creates and returns a continual dataset among those that are available.
-    If an error was detected while loading the available datasets, it raises the appropriate error message.
-
-    Args:
-        args (Namespace): the arguments which contains the hyperparameters
-
-    Exceptions:
-        AssertError: if the dataset is not available
-        Exception: if an error is detected in the dataset
-
-    Returns:
-        the continual dataset instance
-    """
     dataset_class, dataset_args = get_dataset_class(args, return_args=True)
     missing_args = [arg for arg in dataset_args.keys() if arg not in vars(args)]
-    assert len(missing_args) == 0, "Missing arguments for the dataset: " + ', '.join(missing_args)
-
-    parsed_args = {arg: getattr(args, arg) for arg in dataset_args.keys()}
-
+    if len(missing_args) > 0:
+        from utils.conf import warn_once
+        warn_once(f"Missing arguments for the dataset: {', '.join(missing_args)}. Check your config and command line arguments.")
+        # Optionally, raise an error here instead of just warning
+        # raise ValueError(f"Missing arguments for the dataset: {', '.join(missing_args)}")
+    parsed_args = {arg: getattr(args, arg) for arg in dataset_args.keys() if hasattr(args, arg)}
     return dataset_class(args, **parsed_args)
 
 

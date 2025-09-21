@@ -9,3 +9,5 @@ onedrivedownloader
 ftfy
 regex
 pyyaml
+gdown
+sentencepiece

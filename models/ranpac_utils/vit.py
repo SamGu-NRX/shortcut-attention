@@ -98,7 +98,7 @@ class Attention(nn.Module):
     def _shape(self, tensor: torch.Tensor, seq_len: int, bsz: int):
         return tensor.view(bsz, seq_len, self.num_heads, self.head_dim).transpose(1, 2).contiguous()
 
-    def forward(self, x):
+    def forward(self, x, **kwargs):
         B, N, C = x.shape
 
         q = self.q_proj(x)

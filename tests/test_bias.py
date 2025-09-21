@@ -3,6 +3,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from main import main
 import pytest
+pytest.importorskip('gdown')
 
 
 @pytest.mark.parametrize('split_id', [1, 2])

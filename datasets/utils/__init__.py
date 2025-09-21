@@ -145,7 +145,11 @@ def load_dataset_config(dataset_config: str, dataset: str) -> dict:
     with open(filepath, 'r') as f:
         config = yaml.safe_load(f)
 
-        return config
+    if not config:
+        warn_once(f"Loaded dataset config from {filepath} is empty. Check the YAML file for errors.")
+        return {}
+
+    return config
 
 
 def build_torchvision_transform(transform_specs: List[dict]) -> transforms.Compose:

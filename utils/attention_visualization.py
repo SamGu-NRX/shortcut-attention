@@ -106,6 +106,12 @@ class AttentionAnalyzer:
                     self.logger.warning("Could not find ViT backbone - skipping attention extraction")
                     return []
 
+                # Inform backbone which layers to extract attention from (optimization)
+                try:
+                    backbone.attention_extract_layers = self.extract_layers
+                except Exception:
+                    pass
+
                 # Check if the backbone supports attention score extraction
                 if not self._supports_attention_extraction(backbone):
                     self.logger.warning("Backbone does not support attention extraction")
@@ -122,6 +128,10 @@ class AttentionAnalyzer:
                     if layer_idx < len(all_attn_maps):
                         layer_attn = all_attn_maps[layer_idx]  # [B, num_heads, N, N]
 
+                        # Skip layers where attention was not extracted
+                        if layer_attn is None:
+                            continue
+
                         # OPTIMIZATION: Extract only selected heads
                         if len(self.extract_heads) < layer_attn.shape[1]:
                             selected_heads = []
@@ -136,6 +146,9 @@ class AttentionAnalyzer:
 
                 # Clear GPU memory
                 del inputs, output, all_attn_maps
+                # Remove the temporary attribute if it was set
+                if hasattr(backbone, 'attention_extract_layers'):
+                    delattr(backbone, 'attention_extract_layers')
                 torch.cuda.empty_cache()
 
                 self.logger.debug(f"Successfully extracted attention from {len(extracted_maps)} layers")

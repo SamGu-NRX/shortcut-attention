@@ -417,7 +417,7 @@ class ResidualAttentionBlock(nn.Module):
             load = self._gates_to_load(gates)
         return gates, load
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor, **kwargs):
         x = x + self.attention(self.ln_1(x))
         if global_taskid is not None:
             x_re = x.permute(1, 0, 2)[:, 0, :]
