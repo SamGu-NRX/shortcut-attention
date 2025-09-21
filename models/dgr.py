@@ -247,6 +247,13 @@ class Dgr(ContinualModel):
             only_x=False,
         )
         replay_inputs = replay_inputs.to(self.device)
+
+        # Handle case where y_np is None (when VAE doesn't use GMM prior or decoder gates)
+        if y_np is None:
+            # Generate random labels from seen classes for replay samples
+            import numpy as np
+            y_np = np.random.choice(self.seen_classes, size=batch_size)
+
         replay_labels = torch.from_numpy(y_np).long().to(self.device)
         with torch.no_grad():
             replay_scores = self.prev_classifier.classify(replay_inputs)
