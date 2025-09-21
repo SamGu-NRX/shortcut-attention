@@ -2,262 +2,175 @@
 
 ## Overview
 
-This design implements a robust dataset caching system for the Einstellung dataset that integrates seamlessly with Mammoth's continual learning framework. The solution eliminates the performance bottleneck caused by on-the-fly image processing by preprocessing and caching all Einstellung images, improving training speed from 3 it/s to 15-30+ it/s while maintaining full compatibility with Mammoth's architecture.
+This design implements a minimal, robust dataset caching system for the Einstellung dataset that leverages Mammoth's existing, proven infrastructure. Rather than duplicating functionality, we make targeted modifications to eliminate the on-the-fly image processing bottleneck while maintaining full compatibility with Mammoth's continual learning framework.
 
-The design follows Mammoth's proven patterns by inheriting from existing dataset classes, using the framework's standard data loading pipeline, and maintaining identical behavior to the original implementation. No custom or hacky solutions are introduced - only robust, well-tested approaches that align with Mammoth's native processes.
+The solution improves training speed from 3 it/s to 15-30+ it/s by preprocessing and caching Einstellung images once, then serving them directly from cache. All existing Mammoth functionality (task splitting, evaluation, class ordering, etc.) works unchanged.
+
+This design implements a robust dataset caching system for the Einstellung dataset that integrates seamlessly with Mammoth's continual learning framework. The solution eliminates the performance bottleneck caused by on-the-fly image processing by preprocessing and caching all Einstellung images, improving training speed while maintaining full compatibility with Mammoth's architecture.
+
 
 ## Architecture
 
-### Core Components
+### Minimal Wrapper Approach
 
-#### 1. CachedEinstellungMixin
-A mixin class that provides caching functionality to any Einstellung dataset implementation. This follows Mammoth's pattern of using mixins for extending functionalitye maintaining inheritance from proven base classes.
+The design leverages Mammoth's existing, proven functionality rather than duplicating it. The core insight is that Mammoth's `ContinualDataset` and `store_masked_loaders` already handle all the complex data management - we only need to modify the underlying dataset's `__getitem__` method to return cached images instead of processing them on-the-fly.
 
-**Key Features:**
-- Integrates with existing Einstellung dataset classes through multiple inheritance
-- Uses Mammoth's standard `base_path()` for cache storage location
-- Implements atomic cache operations using Python's standard library
-- Provides fallback to original implementation on cache failures
+#### 1. Minimal Cache Integration
+Instead of complex mixins, we modify the existing `MyCIFAR100Einstellung` class to:
+- Check for cached images on first access
+- Build cache if missing using existing `_apply_einstellung_effect` method
+- Replace `__getitem__` to return cached data
+- Maintain identical interface to original implementation
 
-#### 2. Cache Storage System
-Utilizes Mammoth's existing data directory structure and follows proven storage patterns.
+#### 2. Leverage Existing Mammoth Infrastructure
+**What we DON'T duplicate:**
+- Data loading pipeline (store_masked_loaders works as-is)
+- Task splitting logic (ContinualDataset handles this)
+- Evaluation systems (all existing evaluation works unchanged)
+- Class ordering and permutation (fix_class_names_order works as-is)
+- Validation and noise injection (existing systems work unchanged)
 
+**What we DO add:**
+- Simple cache check in dataset initialization
+- Cache building using existing processing methods
+- Cache loading in `__getitem__`
+
+#### 3. Simple Cache Structure
 **Storage Location:** `base_path() + 'CIFAR100/einstellung_cache/'`
-**Cache Structure:**
+**Minimal Structure:**
 ```
 data/CIFAR100/einstellung_cache/
-├── metadata/
-│   ├── cache_params_<hash>.json    # Cache parameter validation
-│   └── integrity_<hash>.json       # Integrity checksums
-├── train/
-│   ├── cached_images_<hash>.pkl    # Preprocessed training images
-│   └── cached_targets_<hash>.pkl   # Corresponding targets
-└── test/
-    ├── cached_images_<hash>.pkl    # Preprocessed test images
-    └── cached_targets_<hash>.pkl   # Corresponding targets
-```
-
-#### 3. Enhanced Dataset Classes
-New dataset classes that inherit from proven Mammoth implementations and add caching capabilities.
-
-**Class Hierarchy:**
-```
-CachedSequentialCIFAR100Einstellung(SequentialCIFAR100Einstellung, CachedEinstellungMixin)
-CachedSequentialCIFAR100Einstellung224(SequentialCIFAR100Einstellung224, CachedEinstellungMixin)
+├── train_<params_hash>.pkl    # All training data in one file
+└── test_<params_hash>.pkl     # All test data in one file
 ```
 
 ## Components and Interfaces
 
-### CachedEinstellungMixin Interface
+### Modified Dataset Classes
+
+We create minimal modifications to existing classes:
 
 ```python
-class CachedEinstellungMixin:
-    def __init__(self, enable_cache=True, cache_validation=True, **kwargs):
-        """Initialize caching system with validation"""
+class MyCIFAR100EinstellungCached(MyCIFAR100Einstellung):
+    """Minimal cached version - only overrides __init__ and __getitem__"""
 
-    def _get_cache_key(self) -> str:
-        """Generate secure hash-based cache key from parameters"""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._setup_cache()  # Simple cache setup
 
-    def _build_cache(self) -> bool:
-        """Build cache using original dataset implementation"""
-
-    def _load_cache(self) -> bool:
-        """Load existing cache with integrity validation"""
-
-    def _validate_cache_integrity(self) -> bool:
-        """Validate cache integrity using checksums"""
-
-    def _fallback_to_original(self):
-        """Fallback to original implementation on cache failure"""
+    def __getitem__(self, index):
+        # Return cached data if available, otherwise fallback to original
+        if hasattr(self, '_cached_data'):
+            return self._get_cached_item(index)
+        return super().__getitem__(index)
 ```
 
-### Cache Management Interface
+### Cache Management (Minimal)
 
 ```python
-class CacheManager:
-    def create_cache_directory(self, cache_path: str) -> bool:
-        """Create cache directory structure"""
+def _setup_cache(self):
+    """Minimal cache setup - check if cache exists, build if needed"""
+    cache_key = self._get_cache_key()
+    cache_path = self._get_cache_path(cache_key)
 
-    def atomic_write(self, data: Any, filepath: str) -> bool:
-        """Atomic write operation with integrity checks"""
+    if os.path.exists(cache_path):
+        self._load_cache(cache_path)
+    else:
+        self._build_cache(cache_path)
 
-    def validate_parameters(self, cache_key: str, current_params: dict) -> bool:
-        """Validate cache parameters match current configuration"""
+def _build_cache(self, cache_path):
+    """Build cache using existing _apply_einstellung_effect method"""
+    # Use existing proven processing logic
+    # Store results in simple pickle file
 
-    def cleanup_old_caches(self, keep_recent: int = 3) -> None:
-        """Clean up old cache files"""
+def _load_cache(self, cache_path):
+    """Load cache from pickle file"""
+    # Simple pickle load with error handling
 ```
-
-### Integration with Mammoth Framework
-
-The cached datasets integrate with Mammoth's framework through:
-
-1. **ContinualDataset Inheritance**: All cached classes inherit from proven Mammoth dataset implementations
-2. **store_masked_loaders Integration**: Cache system works seamlessly with Mammoth's data loading pipeline
-3. **MammothDatasetWrapper Compatibility**: Cached datasets work with Mammoth's wrapper system
-4. **Evaluation System Integration**: All evaluation subsets and metrics work identically
 
 ## Data Models
 
-### Cache Metadata Model
+### Minimal Cache Structure
 
 ```python
 @dataclass
-class CacheMetadata:
-    cache_version: str
-    dataset_name: str
-    parameters: Dict[str, Any]  # patch_size, patch_color, etc.
-    creation_timestamp: float
-    dataset_size: int
-    checksum: str
-    python_version: str
-    torch_version: str
-```
-
-### Cache Entry Model
-
-```python
-@dataclass
-class CacheEntry:
-    images: np.ndarray  # Preprocessed images as numpy arrays
-    targets: np.ndarray  # Corresponding targets
-    task_ids: np.ndarray  # Task assignments
-    metadata: CacheMetadata
-    integrity_hash: str
+class CacheData:
+    processed_images: np.ndarray  # All preprocessed images
+    original_data: np.ndarray     # Original CIFAR data (unchanged)
+    targets: np.ndarray          # Targets (unchanged)
+    params_hash: str             # Parameter validation
 ```
 
 ## Error Handling
 
-### Cache Failure Recovery
-The system implements comprehensive error handling with automatic fallback:
-
-1. **Cache Corruption Detection**: Checksum validation on cache load
-2. **Parameter Mismatch**: Automatic cache rebuild when parameters change
-3. **Disk Space Issues**: Graceful degradation to original implementation
-4. **Concurrent Access**: File locking to prevent corruption during multi-process training
-5. **Version Incompatibility**: Automatic cache rebuild for version mismatches
-
-### Error Logging
-All cache operations use Mammoth's standard logging infrastructure:
-- Cache hits/misses
-- Build progress and completion
-- Fallback activations
-- Error conditions with detailed context
+### Simple Fallback Strategy
+- If cache loading fails → fallback to original implementation
+- If cache building fails → fallback to original implementation
+- If parameter mismatch → rebuild cache automatically
+- All errors logged using existing Mammoth logging
 
 ## Testing Strategy
 
-### Unit Tests
-Following Mammoth's testing patterns in the `tests/` directory:
+### Validation Approach
+1. **Pixel-Perfect Validation**: Compare cached vs on-the-fly results
+2. **Integration Testing**: Ensure all existing Mammoth functionality works
+3. **Performance Testing**: Measure speed improvement
 
-1. **Cache Functionality Tests**
-   - Cache creation and loading
-   - Parameter validation
-   - Integrity checking
-   - Atomic operations
+### Existing Test Compatibility
+All existing Mammoth tests continue to work unchanged since we maintain identical interfaces.
 
-2. **Dataset Compatibility Tests**
-   - Identical behavior to original implementation
-   - Integration with store_masked_loaders
-   - Evaluation subset generation
-   - Class name ordering
+## Implementation Strategy
 
-3. **Performance Tests**
-   - Cache build time measurement
-   - Loading speed comparison
-   - Memory usage validation
-   - Concurrent access handling
+### Phase 1: Core Caching (Minimal)
+- Add simple cache check to existing dataset classes
+- Implement basic cache building using existing processing methods
+- Add cache loading in `__getitem__`
 
-### Integration Tests
-1. **Mammoth Framework Integration**
-   - Full training loop compatibility
-   - Model evaluation consistency
-   - Logging system integration
-   - Multi-task scenario testing
-
-2. **Cross-Resolution Testing**
-   - 32x32 (ResNet) and 224x224 (ViT) compatibility
-   - Parameter-specific cache isolation
-   - Configuration switching validation
-
-### Validation Tests
-1. **Pixel-Perfect Comparison**
-   - Cached vs on-the-fly image comparison
-   - Statistical validation of results
-   - Einstellung effect preservation
-   - Evaluation metric consistency
-
-## Performance Optimizations
-
-### Memory Management
-1. **Lazy Loading**: Load cache data only when needed
-2. **Memory Mapping**: Use memory-mapped files for large caches
-3. **Batch Processing**: Process cache in configurable batches
-4. **Garbage Collection**: Explicit cleanup of temporary objects
-
-### Disk I/O Optimization
-1. **Atomic Operations**: Prevent corruption during writes
-2. **Compression**: Optional compression for cache files
-3. **Parallel I/O**: Multi-threaded cache building where safe
-4. **Progress Tracking**: User feedback during cache operations
-
-### CUDA Integration
-The cached dataset maintains full compatibility with existing CUDA optimizations:
-- TF32 and cuDNN benchmark settings
-- Optimal DataLoader worker configuration
-- Pin memory for GPU transfers
-- Proper tensor device placement
-
-## Implementation Phases
-
-### Phase 1: Core Caching Infrastructure
-- Implement CachedEinstellungMixin
-- Create cache management utilities
-- Add parameter validation system
-- Implement atomic file operations
-
-### Phase 2: Dataset Integration
-- Create cached dataset classes
-- Integrate with Mammoth's data loading pipeline
-- Implement fallback mechanisms
-- Add comprehensive error handling
-
-### Phase 3: Validation and Testing
-- Implement pixel-perfect validation
-- Create comprehensive test suite
+### Phase 2: Integration and Validation
+- Ensure compatibility with all existing Mammoth systems
+- Add pixel-perfect validation
 - Performance benchmarking
-- Integration testing with existing experiments
 
-### Phase 4: Documentation and Optimization
-- Add usage documentation
-- Performance tuning
-- Memory optimization
-- Cache cleanup utilities
+### Phase 3: Robustness
+- Add error handling and fallback
+- Cache parameter validation
+- Documentation
+
+## Key Design Principles
+
+### 1. Leverage Existing Mammoth Code
+- Use existing `_apply_einstellung_effect` for cache building
+- Maintain existing class hierarchy and interfaces
+- Work with existing `store_masked_loaders` pipeline
+
+### 2. Minimal Changes
+- Only modify `__init__` and `__getitem__` methods
+- No new base classes or complex inheritance
+- No duplication of existing Mammoth functionality
+
+### 3. Robust Fallback
+- Always fallback to original implementation on any error
+- Maintain identical behavior when cache is disabled
+- Comprehensive error logging
+
+### 4. Simple Cache Format
+- Single pickle file per dataset split
+- Parameter-based cache keys using secure hashing
+- No complex metadata or directory structures
 
 ## Backward Compatibility
 
 The design ensures complete backward compatibility:
+- Existing experiment scripts work unchanged
+- All Mammoth framework features work identically
+- Cache can be disabled with a single parameter
+- Fallback to original implementation is transparent
 
-1. **Existing Scripts**: No changes required to existing experiment scripts
-2. **Parameter Compatibility**: All existing Einstellung parameters supported
-3. **Evaluation Systems**: Identical evaluation results and metrics
-4. **Framework Integration**: Seamless integration with all Mammoth components
+## Performance Expectations
 
-## Security and Robustness
+- **Cache Building**: One-time cost, ~2-5 minutes for full dataset
+- **Training Speed**: 5-10x improvement (3 it/s → 15-30+ it/s)
+- **Memory Usage**: Minimal increase (cache loaded on-demand)
+- **Disk Usage**: ~500MB-1GB for cached dataset
 
-### Data Integrity
-- SHA-256 checksums for all cache files
-- Parameter validation using secure hashing
-- Atomic write operations to prevent corruption
-- Version compatibility checking
-
-### Concurrent Access
-- File locking for multi-process safety
-- Atomic cache building operations
-- Safe fallback during concurrent access
-- Process-safe cache validation
-
-### Error Recovery
-- Comprehensive exception handling
-- Automatic cache rebuilding on corruption
-- Graceful degradation to original implementation
-- Detailed error logging for debugging
+This minimal approach ensures we get maximum performance benefit while maintaining full compatibility with Mammoth's proven, robust infrastructure.

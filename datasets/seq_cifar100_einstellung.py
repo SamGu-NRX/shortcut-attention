@@ -17,6 +17,10 @@ when evaluating Task 1 data, even when shortcuts are removed or masked.
 from argparse import Namespace
 from typing import Tuple, Dict, List, Optional
 import numpy as np
+import os
+import pickle
+import hashlib
+import logging
 
 import torch.nn.functional as F
 import torch.optim
@@ -92,11 +96,12 @@ class MyCIFAR100Einstellung(CIFAR100):
     - Supports magenta patch injection for shortcut learning
     - Supports patch masking for evaluation
     - Maintains compatibility with Mammoth's getitem structure
+    - Includes caching functionality for performance optimization
     """
 
     def __init__(self, root, train=True, transform=None, target_transform=None,
                  download=False, apply_shortcut=False, mask_shortcut=False,
-                 patch_size=4, patch_color=(255, 0, 255)) -> None:
+                 patch_size=4, patch_color=(255, 0, 255), enable_cache=True) -> None:
 
         self.not_aug_transform = transforms.Compose([transforms.ToTensor()])
         self.root = root
@@ -108,11 +113,20 @@ class MyCIFAR100Einstellung(CIFAR100):
         self.patch_color = np.array(patch_color, dtype=np.uint8)
         self.shortcut_labels = set(SHORTCUT_FINE_LABELS)
 
+        # Caching parameters
+        self.enable_cache = enable_cache
+        self._cached_data = None
+        self._cache_loaded = False
+
         super(MyCIFAR100Einstellung, self).__init__(root, train, transform, target_transform,
                                                     not self._check_integrity())
 
         # Filter to only keep used labels and remap
         self._filter_and_remap_labels()
+
+        # Setup cache if enabled
+        if self.enable_cache:
+            self._setup_cache()
 
     def _filter_and_remap_labels(self):
         """Filter dataset to only include T1 and T2 classes, and remap labels to be contiguous."""
@@ -148,6 +162,11 @@ class MyCIFAR100Einstellung(CIFAR100):
         Returns:
             tuple: (image, target, not_aug_image) where target is the remapped class index
         """
+        # Return cached data if available, otherwise fallback to original processing
+        if self.enable_cache and self._cache_loaded and self._cached_data is not None:
+            return self._get_cached_item(index)
+
+        # Original processing (fallback)
         img, target = self.data[index], self.targets[index]
 
         # Convert to PIL Image
@@ -207,6 +226,193 @@ class MyCIFAR100Einstellung(CIFAR100):
 
         return Image.fromarray(arr)
 
+    def _get_cache_key(self) -> str:
+        """
+        Generate a secure hash key based on Einstellung parameters for cache identification.
+
+        Returns:
+            Secure hash string for cache key
+        """
+        # Create parameter string for hashing
+        params = {
+            'apply_shortcut': self.apply_shortcut,
+            'mask_shortcut': self.mask_shortcut,
+            'patch_size': self.patch_size,
+            'patch_color': tuple(self.patch_color),
+            'train': self.train
+        }
+
+        # Create deterministic string representation
+        param_str = str(sorted(params.items()))
+
+        # Generate secure hash
+        return hashlib.sha256(param_str.encode()).hexdigest()[:16]
+
+    def _get_cache_path(self) -> str:
+        """
+        Get the cache file path using Mammoth's base_path structure.
+
+        Returns:
+            Full path to cache file
+        """
+        cache_key = self._get_cache_key()
+        cache_dir = os.path.join(base_path(), 'CIFAR100', 'einstellung_cache')
+
+        # Ensure cache directory exists
+        os.makedirs(cache_dir, exist_ok=True)
+
+        # Create cache filename
+        split_name = 'train' if self.train else 'test'
+        cache_filename = f'{split_name}_{cache_key}.pkl'
+
+        return os.path.join(cache_dir, cache_filename)
+
+    def _setup_cache(self) -> None:
+        """
+        Setup cache by loading existing cache or building new one if needed.
+        """
+        try:
+            cache_path = self._get_cache_path()
+
+            if os.path.exists(cache_path):
+                logging.info(f"Loading Einstellung cache from {cache_path}")
+                self._load_cache(cache_path)
+            else:
+                logging.info(f"Building Einstellung cache at {cache_path}")
+                self._build_cache(cache_path)
+
+        except Exception as e:
+            logging.warning(f"Cache setup failed: {e}. Falling back to original processing.")
+            self._cache_loaded = False
+            self._cached_data = None
+
+    def _build_cache(self, cache_path: str) -> None:
+        """
+        Build cache by preprocessing all images using existing processing methods.
+
+        Args:
+            cache_path: Path where cache should be stored
+        """
+        try:
+            logging.info("Preprocessing images for cache...")
+
+            cached_images = []
+            cached_targets = []
+            cached_not_aug_images = []
+
+            # Process all images using existing methods
+            for i in range(len(self.data)):
+                img, target = self.data[i], self.targets[i]
+
+                # Convert to PIL Image
+                img = Image.fromarray(img, mode='RGB')
+                original_img = img.copy()
+
+                # Apply Einstellung Effect modifications
+                original_target_in_cifar100 = ALL_USED_FINE_LABELS[target]
+                if original_target_in_cifar100 in self.shortcut_labels:
+                    img = self._apply_einstellung_effect(img, i)
+
+                # Store processed images as numpy arrays for caching
+                cached_images.append(np.array(img))
+                cached_targets.append(target)
+                cached_not_aug_images.append(np.array(original_img))
+
+                # Progress logging
+                if (i + 1) % 1000 == 0:
+                    logging.info(f"Processed {i + 1}/{len(self.data)} images")
+
+            # Create cache data structure
+            cache_data = {
+                'processed_images': np.array(cached_images),
+                'targets': np.array(cached_targets),
+                'not_aug_images': np.array(cached_not_aug_images),
+                'params_hash': self._get_cache_key()
+            }
+
+            # Save cache atomically
+            temp_path = cache_path + '.tmp'
+            with open(temp_path, 'wb') as f:
+                pickle.dump(cache_data, f)
+            os.rename(temp_path, cache_path)
+
+            # Load the cache we just built
+            self._cached_data = cache_data
+            self._cache_loaded = True
+
+            logging.info(f"Cache built successfully with {len(cached_images)} images")
+
+        except Exception as e:
+            logging.error(f"Failed to build cache: {e}")
+            # Clean up partial cache file
+            if os.path.exists(cache_path + '.tmp'):
+                os.remove(cache_path + '.tmp')
+            self._cache_loaded = False
+            self._cached_data = None
+
+    def _load_cache(self, cache_path: str) -> None:
+        """
+        Load preprocessed images from cache file.
+
+        Args:
+            cache_path: Path to cache file
+        """
+        try:
+            with open(cache_path, 'rb') as f:
+                cache_data = pickle.load(f)
+
+            # Validate cache parameters
+            if cache_data.get('params_hash') != self._get_cache_key():
+                logging.warning("Cache parameter mismatch. Rebuilding cache.")
+                self._build_cache(cache_path)
+                return
+
+            # Basic integrity check
+            expected_size = len(self.data)
+            if len(cache_data['processed_images']) != expected_size:
+                logging.warning(f"Cache size mismatch: expected {expected_size}, got {len(cache_data['processed_images'])}. Rebuilding cache.")
+                self._build_cache(cache_path)
+                return
+
+            self._cached_data = cache_data
+            self._cache_loaded = True
+            logging.info(f"Cache loaded successfully with {len(cache_data['processed_images'])} images")
+
+        except Exception as e:
+            logging.error(f"Failed to load cache: {e}. Rebuilding cache.")
+            self._build_cache(cache_path)
+
+    def _get_cached_item(self, index: int) -> Tuple[Image.Image, int, Image.Image]:
+        """
+        Get cached data item in the same format as original __getitem__.
+
+        Args:
+            index: Index of the item to retrieve
+
+        Returns:
+            tuple: (image, target, not_aug_image) in the same format as original
+        """
+        # Get cached data
+        img_array = self._cached_data['processed_images'][index]
+        target = self._cached_data['targets'][index]
+        not_aug_array = self._cached_data['not_aug_images'][index]
+
+        # Convert back to PIL Images
+        img = Image.fromarray(img_array, mode='RGB')
+        not_aug_img = self.not_aug_transform(Image.fromarray(not_aug_array, mode='RGB'))
+
+        # Apply transforms (same as original)
+        if self.transform is not None:
+            img = self.transform(img)
+
+        if self.target_transform is not None:
+            target = self.target_transform(target)
+
+        if hasattr(self, 'logits'):
+            return img, target, not_aug_img, self.logits[index]
+
+        return img, target, not_aug_img
+
 
 class SequentialCIFAR100Einstellung(ContinualDataset):
     """
@@ -244,6 +450,7 @@ class SequentialCIFAR100Einstellung(ContinualDataset):
         self.mask_shortcut = getattr(args, 'einstellung_mask_shortcut', False)
         self.patch_size = getattr(args, 'einstellung_patch_size', 4)
         self.patch_color = getattr(args, 'einstellung_patch_color', [255, 0, 255])
+        self.enable_cache = getattr(args, 'einstellung_enable_cache', True)
 
     def get_data_loaders(self) -> Tuple[torch.utils.data.DataLoader, torch.utils.data.DataLoader]:
         transform = self.TRANSFORM
@@ -255,13 +462,15 @@ class SequentialCIFAR100Einstellung(ContinualDataset):
         train_dataset = MyCIFAR100Einstellung(
             base_path() + 'CIFAR100', train=True, download=True, transform=transform,
             apply_shortcut=self.apply_shortcut, mask_shortcut=self.mask_shortcut,
-            patch_size=self.patch_size, patch_color=self.patch_color
+            patch_size=self.patch_size, patch_color=self.patch_color,
+            enable_cache=self.enable_cache
         )
 
         test_dataset = MyCIFAR100Einstellung(
             base_path() + 'CIFAR100', train=False, download=True, transform=test_transform,
             apply_shortcut=self.apply_shortcut, mask_shortcut=self.mask_shortcut,
-            patch_size=self.patch_size, patch_color=self.patch_color
+            patch_size=self.patch_size, patch_color=self.patch_color,
+            enable_cache=self.enable_cache
         )
 
         train, test = store_masked_loaders(train_dataset, test_dataset, self)
@@ -285,49 +494,53 @@ class SequentialCIFAR100Einstellung(ContinualDataset):
         # T1_all: All Task 1 data
         t1_dataset = MyCIFAR100Einstellung(
             base_path() + 'CIFAR100', train=False, download=True, transform=test_transform,
-            apply_shortcut=False, mask_shortcut=False, patch_size=self.patch_size
+            apply_shortcut=False, mask_shortcut=False, patch_size=self.patch_size,
+            enable_cache=self.enable_cache
         )
         # Filter to T1 classes only
         t1_indices = [i for i, target in enumerate(t1_dataset.targets)
                      if ALL_USED_FINE_LABELS[target] in T1_FINE_LABELS]
         subsets['T1_all'] = torch.utils.data.DataLoader(
             torch.utils.data.Subset(t1_dataset, t1_indices),
-            batch_size=self.args.batch_size, shuffle=False, num_workers=4
+            batch_size=self.args.batch_size, shuffle=False, num_workers=4, pin_memory=True
         )
 
         # T2_shortcut_normal: Task 2 shortcut classes with shortcuts
         t2_shortcut_normal = MyCIFAR100Einstellung(
             base_path() + 'CIFAR100', train=False, download=True, transform=test_transform,
-            apply_shortcut=True, mask_shortcut=False, patch_size=self.patch_size, patch_color=self.patch_color
+            apply_shortcut=True, mask_shortcut=False, patch_size=self.patch_size, patch_color=self.patch_color,
+            enable_cache=self.enable_cache
         )
         t2_shortcut_indices = [i for i, target in enumerate(t2_shortcut_normal.targets)
                               if ALL_USED_FINE_LABELS[target] in SHORTCUT_FINE_LABELS]
         subsets['T2_shortcut_normal'] = torch.utils.data.DataLoader(
             torch.utils.data.Subset(t2_shortcut_normal, t2_shortcut_indices),
-            batch_size=self.args.batch_size, shuffle=False, num_workers=4
+            batch_size=self.args.batch_size, shuffle=False, num_workers=4, pin_memory=True
         )
 
         # T2_shortcut_masked: Task 2 shortcut classes with shortcuts masked
         t2_shortcut_masked = MyCIFAR100Einstellung(
             base_path() + 'CIFAR100', train=False, download=True, transform=test_transform,
-            apply_shortcut=False, mask_shortcut=True, patch_size=self.patch_size
+            apply_shortcut=False, mask_shortcut=True, patch_size=self.patch_size,
+            enable_cache=self.enable_cache
         )
         subsets['T2_shortcut_masked'] = torch.utils.data.DataLoader(
             torch.utils.data.Subset(t2_shortcut_masked, t2_shortcut_indices),
-            batch_size=self.args.batch_size, shuffle=False, num_workers=4
+            batch_size=self.args.batch_size, shuffle=False, num_workers=4, pin_memory=True
         )
 
         # T2_nonshortcut_normal: Non-shortcut classes in Task 2
         t2_nonshortcut_normal = MyCIFAR100Einstellung(
             base_path() + 'CIFAR100', train=False, download=True, transform=test_transform,
-            apply_shortcut=False, mask_shortcut=False, patch_size=self.patch_size
+            apply_shortcut=False, mask_shortcut=False, patch_size=self.patch_size,
+            enable_cache=self.enable_cache
         )
         t2_nonshortcut_indices = [i for i, target in enumerate(t2_nonshortcut_normal.targets)
                                  if (ALL_USED_FINE_LABELS[target] in T2_FINE_LABELS and
                                      ALL_USED_FINE_LABELS[target] not in SHORTCUT_FINE_LABELS)]
         subsets['T2_nonshortcut_normal'] = torch.utils.data.DataLoader(
             torch.utils.data.Subset(t2_nonshortcut_normal, t2_nonshortcut_indices),
-            batch_size=self.args.batch_size, shuffle=False, num_workers=4
+            batch_size=self.args.batch_size, shuffle=False, num_workers=4, pin_memory=True
         )
 
         return subsets
