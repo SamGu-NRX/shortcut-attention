@@ -1265,6 +1265,545 @@ def validate_baseline_methods(merged_data) -> Dict[str, Any]:
     return validation_result
 
 
+def create_enhanced_output_structure(base_output_dir: str) -> Dict[str, str]:
+    """
+    Create structured directory hierarchy for comparative analysis outputs.
+
+    Args:
+        base_output_dir: Base directory for comparative analysis
+
+    Returns:
+        Dictionary mapping directory types to their paths
+    """
+    base_path = Path(base_output_dir)
+
+    # Create structured directory hierarchy
+    directories = {
+        'base': str(base_path),
+        'individual_results': str(base_path / "individual_results"),
+        'aggregated_data': str(base_path / "aggregated_data"),
+        'comparative_visualizations': str(base_path / "comparative_visualizations"),
+        'statistical_analysis': str(base_path / "statistical_analysis"),
+        'reports': str(base_path / "reports"),
+        'metadata': str(base_path / "metadata"),
+        'publication_ready': str(base_path / "publication_ready")
+    }
+
+    # Create all directories
+    for dir_path in directories.values():
+        os.makedirs(dir_path, exist_ok=True)
+
+    return directories
+
+
+def organize_individual_method_results(results_list: List[Dict], output_structure: Dict[str, str]) -> Dict[str, str]:
+    """
+    Organize individual method results into structured hierarchy.
+
+    Args:
+        results_list: List of experiment result dictionaries
+        output_structure: Directory structure from create_enhanced_output_structure
+
+    Returns:
+        Dictionary mapping method names to their organized result paths
+    """
+    individual_dir = output_structure['individual_results']
+    organized_results = {}
+
+    for result in results_list:
+        if not result or not result.get('success', False):
+            continue
+
+        method = result.get('strategy', 'unknown')
+        backbone = result.get('backbone', 'unknown')
+        seed = result.get('seed', 42)
+
+        # Create method-specific directory
+        method_dir = os.path.join(individual_dir, f"{method}_{backbone}_seed{seed}")
+        os.makedirs(method_dir, exist_ok=True)
+
+        # Copy/link original results
+        original_output_dir = result.get('output_dir')
+        if original_output_dir and os.path.exists(original_output_dir):
+            # Copy key files to organized structure
+            files_to_copy = [
+                'eri_sc_metrics.csv',
+                'eri_dynamics.pdf',
+                'terminal_log.txt'
+            ]
+
+            for filename in files_to_copy:
+                src_path = os.path.join(original_output_dir, filename)
+                if os.path.exists(src_path):
+                    dst_path = os.path.join(method_dir, filename)
+                    import shutil
+                    shutil.copy2(src_path, dst_path)
+
+            # Copy reports directory if it exists
+            reports_src = os.path.join(original_output_dir, 'reports')
+            if os.path.exists(reports_src):
+                reports_dst = os.path.join(method_dir, 'reports')
+                import shutil
+                shutil.copytree(reports_src, reports_dst, dirs_exist_ok=True)
+
+        organized_results[method] = method_dir
+
+    return organized_results
+
+
+def generate_master_comparative_report(results_list: List[Dict],
+                                     comparative_metrics: Dict[str, Dict],
+                                     statistical_results: Dict[str, Any],
+                                     output_structure: Dict[str, str]) -> str:
+    """
+    Generate master comparative report combining individual and cross-method analysis.
+
+    Args:
+        results_list: List of experiment result dictionaries
+        comparative_metrics: Comparative metrics from compute_comparative_metrics_from_aggregated_data
+        statistical_results: Statistical analysis results
+        output_structure: Directory structure from create_enhanced_output_structure
+
+    Returns:
+        Path to generated master report
+    """
+    reports_dir = output_structure['reports']
+    report_path = os.path.join(reports_dir, "master_comparative_report.html")
+
+    # Generate timestamp
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # Organize results by type
+    baseline_methods = []
+    cl_methods = []
+
+    for result in results_list:
+        if result and result.get('success', False):
+            method = result.get('strategy', 'unknown')
+            if method in ['scratch_t2', 'interleaved']:
+                baseline_methods.append(result)
+            else:
+                cl_methods.append(result)
+
+    # Generate HTML report
+    html_content = f"""<!DOCTYPE html>
+<html>
+<head>
+    <title>Master Comparative Einstellung Analysis Report</title>
+    <style>
+        body {{
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 40px;
+            line-height: 1.6;
+            color: #333;
+        }}
+        .header {{
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            text-align: center;
+        }}
+        .section {{
+            background: #f8f9fa;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border-left: 4px solid #007bff;
+        }}
+        .method-grid {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }}
+        .method-card {{
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }}
+        .baseline-card {{ border-left: 4px solid #28a745; }}
+        .cl-card {{ border-left: 4px solid #007bff; }}
+        .metric-value {{ font-size: 1.5em; font-weight: bold; color: #007bff; }}
+        .success {{ color: #28a745; }}
+        .warning {{ color: #ffc107; }}
+        .danger {{ color: #dc3545; }}
+        table {{
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background: white;
+        }}
+        th, td {{
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #dee2e6;
+        }}
+        th {{
+            background-color: #f8f9fa;
+            font-weight: 600;
+        }}
+        .toc {{
+            background: #e9ecef;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }}
+        .toc ul {{ list-style-type: none; padding-left: 0; }}
+        .toc li {{ margin: 5px 0; }}
+        .toc a {{ text-decoration: none; color: #007bff; }}
+        .toc a:hover {{ text-decoration: underline; }}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🧠 Master Comparative Einstellung Analysis Report</h1>
+        <h2>Comprehensive Cross-Method Cognitive Rigidity Assessment</h2>
+        <p><strong>Generated:</strong> {timestamp}</p>
+        <p><strong>Total Methods:</strong> {len([r for r in results_list if r and r.get('success', False)])}
+           | <strong>Baselines:</strong> {len(baseline_methods)}
+           | <strong>Continual Learning:</strong> {len(cl_methods)}</p>
+    </div>
+
+    <div class="toc">
+        <h3>📋 Table of Contents</h3>
+        <ul>
+            <li><a href="#executive-summary">Executive Summary</a></li>
+            <li><a href="#baseline-methods">Baseline Methods Analysis</a></li>
+            <li><a href="#continual-learning-methods">Continual Learning Methods Analysis</a></li>
+            <li><a href="#comparative-metrics">Comparative Metrics Analysis</a></li>
+            <li><a href="#statistical-significance">Statistical Significance Testing</a></li>
+            <li><a href="#method-rankings">Method Rankings and Recommendations</a></li>
+            <li><a href="#experimental-metadata">Experimental Metadata</a></li>
+        </ul>
+    </div>
+
+    <div class="section" id="executive-summary">
+        <h2>📊 Executive Summary</h2>
+        <p>This report presents a comprehensive comparative analysis of {len(cl_methods)} continual learning methods
+           against {len(baseline_methods)} baseline methods for Einstellung Effect assessment.</p>
+
+        <div class="method-grid">"""
+
+    # Add method summary cards
+    for result in baseline_methods + cl_methods:
+        method = result.get('strategy', 'unknown')
+        backbone = result.get('backbone', 'unknown')
+        final_acc = result.get('final_accuracy', 0)
+        card_class = "baseline-card" if method in ['scratch_t2', 'interleaved'] else "cl-card"
+        method_type = "Baseline" if method in ['scratch_t2', 'interleaved'] else "Continual Learning"
+
+        # Get comparative metrics if available
+        method_metrics = comparative_metrics.get(method, {})
+        pd_t = method_metrics.get('pd_t_final', None)
+        sfr_rel = method_metrics.get('sfr_rel_final', None)
+        ad = method_metrics.get('adaptation_delay', None)
+
+        html_content += f"""
+            <div class="method-card {card_class}">
+                <h4>{method.upper()} ({backbone})</h4>
+                <p><strong>Type:</strong> {method_type}</p>
+                <p><strong>Final Accuracy:</strong> <span class="metric-value">{final_acc:.2f}%</span></p>"""
+
+        if pd_t is not None:
+            html_content += f'<p><strong>Performance Deficit:</strong> {pd_t:.3f}</p>'
+        if sfr_rel is not None:
+            html_content += f'<p><strong>SFR Relative:</strong> {sfr_rel:.3f}</p>'
+        if ad is not None:
+            html_content += f'<p><strong>Adaptation Delay:</strong> {ad:.1f} epochs</p>'
+
+        html_content += "</div>"
+
+    html_content += """
+        </div>
+    </div>"""
+
+    # Baseline Methods Analysis
+    html_content += f"""
+    <div class="section" id="baseline-methods">
+        <h2>🎯 Baseline Methods Analysis</h2>
+        <p>Baseline methods provide reference points for measuring continual learning effectiveness:</p>
+        <table>
+            <tr><th>Method</th><th>Description</th><th>Final Accuracy</th><th>Purpose</th></tr>"""
+
+    for result in baseline_methods:
+        method = result.get('strategy', 'unknown')
+        final_acc = result.get('final_accuracy', 0)
+
+        if method == 'scratch_t2':
+            description = "Task 2 only training"
+            purpose = "Optimal performance reference (no catastrophic forgetting)"
+        elif method == 'interleaved':
+            description = "Mixed Task 1 + Task 2 training"
+            purpose = "Joint training reference (no task boundaries)"
+        else:
+            description = "Unknown baseline"
+            purpose = "Reference method"
+
+        html_content += f"""
+            <tr>
+                <td><strong>{method.upper()}</strong></td>
+                <td>{description}</td>
+                <td class="success">{final_acc:.2f}%</td>
+                <td>{purpose}</td>
+            </tr>"""
+
+    html_content += """
+        </table>
+    </div>"""
+
+    # Continual Learning Methods Analysis
+    html_content += f"""
+    <div class="section" id="continual-learning-methods">
+        <h2>🔄 Continual Learning Methods Analysis</h2>
+        <p>Continual learning methods tested for cognitive rigidity and adaptation capabilities:</p>
+        <table>
+            <tr><th>Method</th><th>Final Accuracy</th><th>PD_t</th><th>SFR_rel</th><th>AD</th><th>Assessment</th></tr>"""
+
+    for result in cl_methods:
+        method = result.get('strategy', 'unknown')
+        final_acc = result.get('final_accuracy', 0)
+
+        method_metrics = comparative_metrics.get(method, {})
+        pd_t = method_metrics.get('pd_t_final', None)
+        sfr_rel = method_metrics.get('sfr_rel_final', None)
+        ad = method_metrics.get('adaptation_delay', None)
+
+        # Determine assessment based on metrics
+        if pd_t is not None and sfr_rel is not None:
+            if pd_t < 0.1 and sfr_rel < 0.1:
+                assessment = "Excellent adaptation"
+                assessment_class = "success"
+            elif pd_t < 0.3 and sfr_rel < 0.3:
+                assessment = "Good adaptation"
+                assessment_class = "success"
+            elif pd_t < 0.5 and sfr_rel < 0.5:
+                assessment = "Moderate rigidity"
+                assessment_class = "warning"
+            else:
+                assessment = "High rigidity"
+                assessment_class = "danger"
+        else:
+            assessment = "Insufficient data"
+            assessment_class = ""
+
+        pd_str = f"{pd_t:.3f}" if pd_t is not None else "N/A"
+        sfr_str = f"{sfr_rel:.3f}" if sfr_rel is not None else "N/A"
+        ad_str = f"{ad:.1f}" if ad is not None else "N/A"
+
+        html_content += f"""
+            <tr>
+                <td><strong>{method.upper()}</strong></td>
+                <td>{final_acc:.2f}%</td>
+                <td>{pd_str}</td>
+                <td>{sfr_str}</td>
+                <td>{ad_str}</td>
+                <td class="{assessment_class}">{assessment}</td>
+            </tr>"""
+
+    html_content += """
+        </table>
+    </div>"""
+
+    # Statistical Significance Section
+    if statistical_results:
+        html_content += f"""
+        <div class="section" id="statistical-significance">
+            <h2>📈 Statistical Significance Testing</h2>
+            <p>Statistical analysis of performance differences between methods:</p>"""
+
+        if 'interpretation' in statistical_results:
+            interpretation = statistical_results['interpretation']
+            html_content += f"""
+            <h4>Key Findings:</h4>
+            <ul>"""
+
+            if 'significant_differences' in interpretation:
+                html_content += f"<li><strong>Significant Differences:</strong> {interpretation['significant_differences']}</li>"
+            if 'large_effects' in interpretation:
+                html_content += f"<li><strong>Effect Sizes:</strong> {interpretation['large_effects']}</li>"
+            if 'best_method' in interpretation:
+                html_content += f"<li><strong>Best Performing Method:</strong> {interpretation['best_method']}</li>"
+
+            html_content += """
+            </ul>"""
+
+        html_content += """
+        </div>"""
+
+    # Experimental Metadata
+    html_content += f"""
+    <div class="section" id="experimental-metadata">
+        <h2>🔬 Experimental Metadata</h2>
+        <table>
+            <tr><th>Parameter</th><th>Value</th></tr>
+            <tr><td>Dataset</td><td>CIFAR-100 Einstellung</td></tr>
+            <tr><td>Task Structure</td><td>2 tasks (T1: base classes, T2: shortcut classes)</td></tr>
+            <tr><td>Evaluation Protocol</td><td>T1_all, T2_shortcut_normal, T2_shortcut_masked, T2_nonshortcut_normal</td></tr>
+            <tr><td>Random Seed</td><td>42</td></tr>
+            <tr><td>Backbone Architecture</td><td>ResNet-18</td></tr>
+            <tr><td>Total Experiments</td><td>{len([r for r in results_list if r and r.get('success', False)])}</td></tr>
+            <tr><td>Report Generated</td><td>{timestamp}</td></tr>
+        </table>
+
+        <h4>Method Configurations:</h4>
+        <ul>"""
+
+    for result in results_list:
+        if result and result.get('success', False):
+            method = result.get('strategy', 'unknown')
+            backbone = result.get('backbone', 'unknown')
+            used_checkpoint = result.get('used_checkpoint', False)
+            source = "Checkpoint" if used_checkpoint else "Training"
+            html_content += f"<li><strong>{method.upper()}</strong> with {backbone} (Source: {source})</li>"
+
+    html_content += """
+        </ul>
+    </div>
+
+    <hr>
+    <p><em>Master Comparative Report generated by Mammoth Einstellung Experiment Runner</em></p>
+</body>
+</html>"""
+
+    # Write report
+    with open(report_path, 'w') as f:
+        f.write(html_content)
+
+    return report_path
+
+
+def create_publication_ready_outputs(output_structure: Dict[str, str],
+                                   comparative_visualizations_dir: str) -> Dict[str, str]:
+    """
+    Create publication-ready figures and organize them in publication_ready directory.
+
+    Args:
+        output_structure: Directory structure from create_enhanced_output_structure
+        comparative_visualizations_dir: Directory containing comparative visualizations
+
+    Returns:
+        Dictionary mapping output types to their publication-ready paths
+    """
+    pub_dir = output_structure['publication_ready']
+    publication_outputs = {}
+
+    # Copy and rename visualizations for publication
+    visualization_mappings = {
+        'eri_dynamics.pdf': 'figure_1_comparative_dynamics.pdf',
+        'eri_heatmap.pdf': 'figure_2_adaptation_heatmap.pdf',
+        'eri_dynamics.png': 'figure_1_comparative_dynamics.png',
+        'eri_heatmap.png': 'figure_2_adaptation_heatmap.png'
+    }
+
+    for original_name, pub_name in visualization_mappings.items():
+        src_path = os.path.join(comparative_visualizations_dir, original_name)
+        if os.path.exists(src_path):
+            dst_path = os.path.join(pub_dir, pub_name)
+            import shutil
+            shutil.copy2(src_path, dst_path)
+            publication_outputs[pub_name] = dst_path
+
+    # Create publication metadata file
+    metadata_path = os.path.join(pub_dir, 'publication_metadata.json')
+    metadata = {
+        'title': 'Comparative Einstellung Effect Analysis in Continual Learning',
+        'figures': {
+            'figure_1': {
+                'title': 'Comparative Learning Dynamics Across Methods',
+                'description': 'Timeline showing accuracy evolution and performance deficits',
+                'files': ['figure_1_comparative_dynamics.pdf', 'figure_1_comparative_dynamics.png']
+            },
+            'figure_2': {
+                'title': 'Adaptation Delay Sensitivity Analysis',
+                'description': 'Heatmap showing robustness across threshold values',
+                'files': ['figure_2_adaptation_heatmap.pdf', 'figure_2_adaptation_heatmap.png']
+            }
+        },
+        'generated': datetime.now().isoformat()
+    }
+
+    with open(metadata_path, 'w') as f:
+        json.dump(metadata, f, indent=2)
+
+    publication_outputs['metadata'] = metadata_path
+
+    return publication_outputs
+
+
+def generate_experiment_metadata(results_list: List[Dict],
+                               comparative_metrics: Dict[str, Dict],
+                               statistical_results: Dict[str, Any],
+                               output_structure: Dict[str, str]) -> str:
+    """
+    Generate comprehensive experimental metadata and configuration summary.
+
+    Args:
+        results_list: List of experiment result dictionaries
+        comparative_metrics: Comparative metrics from compute_comparative_metrics_from_aggregated_data
+        statistical_results: Statistical analysis results
+        output_structure: Directory structure from create_enhanced_output_structure
+
+    Returns:
+        Path to generated metadata file
+    """
+    metadata_dir = output_structure['metadata']
+    metadata_path = os.path.join(metadata_dir, 'experiment_metadata.json')
+
+    # Collect experiment metadata
+    metadata = {
+        'experiment_info': {
+            'title': 'Comparative Einstellung Effect Analysis',
+            'description': 'Cross-method assessment of cognitive rigidity in continual learning',
+            'generated': datetime.now().isoformat(),
+            'total_methods': len([r for r in results_list if r and r.get('success', False)]),
+            'baseline_methods': len([r for r in results_list if r and r.get('success', False) and r.get('strategy') in ['scratch_t2', 'interleaved']]),
+            'continual_learning_methods': len([r for r in results_list if r and r.get('success', False) and r.get('strategy') not in ['scratch_t2', 'interleaved']])
+        },
+        'dataset_config': {
+            'name': 'CIFAR-100 Einstellung',
+            'task_structure': '2 tasks (T1: base classes, T2: shortcut classes)',
+            'evaluation_protocol': ['T1_all', 'T2_shortcut_normal', 'T2_shortcut_masked', 'T2_nonshortcut_normal'],
+            'shortcut_type': 'Visual shortcuts in Task 2 classes'
+        },
+        'method_configurations': {},
+        'comparative_metrics_summary': {},
+        'statistical_analysis_summary': statistical_results,
+        'output_structure': output_structure
+    }
+
+    # Add method configurations
+    for result in results_list:
+        if result and result.get('success', False):
+            method = result.get('strategy', 'unknown')
+            metadata['method_configurations'][method] = {
+                'backbone': result.get('backbone', 'unknown'),
+                'seed': result.get('seed', 42),
+                'final_accuracy': result.get('final_accuracy', 0),
+                'used_checkpoint': result.get('used_checkpoint', False),
+                'training_time': result.get('training_time', 0),
+                'evaluation_time': result.get('evaluation_time', 0),
+                'output_directory': result.get('output_dir', 'unknown')
+            }
+
+    # Add comparative metrics summary
+    for method, metrics in comparative_metrics.items():
+        metadata['comparative_metrics_summary'][method] = {
+            'performance_deficit_final': metrics.get('pd_t_final', None),
+            'shortcut_forgetting_rate_relative_final': metrics.get('sfr_rel_final', None),
+            'adaptation_delay': metrics.get('adaptation_delay', None)
+        }
+
+    # Write metadata
+    with open(metadata_path, 'w') as f:
+        json.dump(metadata, f, indent=2)
+
+    return metadata_path
+
+
 def aggregate_comparative_results(results_list: List[Dict], output_dir: str) -> str:
     """
     Aggregate CSV results from multiple experiments into single comparative dataset.
@@ -2093,33 +2632,94 @@ def run_comparative_experiment(skip_training=False, force_retrain=False, auto_ch
         print(f"\n🔄 Aggregating results from {len(successful_results)} successful experiments...")
 
         try:
-            # Create comparative output directory
+            # Create enhanced output structure (Task 15)
+            print("📁 Creating structured output hierarchy...")
             comparative_output_dir = "./comparative_results"
-            os.makedirs(comparative_output_dir, exist_ok=True)
+            output_structure = create_enhanced_output_structure(comparative_output_dir)
+
+            # Organize individual method results (Task 15)
+            print("📋 Organizing individual method results...")
+            organized_results = organize_individual_method_results(successful_results, output_structure)
 
             # Aggregate CSV results using existing function
-            aggregated_csv = aggregate_comparative_results(successful_results, comparative_output_dir)
+            aggregated_csv = aggregate_comparative_results(successful_results, output_structure['aggregated_data'])
 
             # Generate comparative visualizations using existing ERI system
             print("📊 Generating comparative visualizations...")
-            generate_eri_visualizations(comparative_output_dir, {
+            generate_eri_visualizations(output_structure['comparative_visualizations'], {
                 'config': {'csv_path': aggregated_csv},
                 'model': 'comparative_analysis'
             })
 
             # Generate statistical analysis report (Task 13 & 14)
             print("📈 Performing statistical significance testing...")
+            statistical_results = {}
             try:
                 from utils.statistical_analysis import generate_statistical_report
-                statistical_report_path = generate_statistical_report(aggregated_csv, comparative_output_dir)
+                statistical_report_path = generate_statistical_report(aggregated_csv, output_structure['statistical_analysis'])
                 print(f"📊 Statistical analysis report: {statistical_report_path}")
+
+                # Load statistical results for master report
+                try:
+                    from utils.statistical_analysis import StatisticalAnalyzer
+                    analyzer = StatisticalAnalyzer(alpha=0.05, correction_method='bonferroni')
+                    statistical_results = analyzer.analyze_comparative_metrics(aggregated_csv)
+                except Exception as e:
+                    print(f"⚠️  Statistical results loading failed: {e}")
+                    statistical_results = {}
+
             except Exception as e:
                 print(f"⚠️  Statistical analysis failed: {e}")
                 print("Comparative visualizations are still available")
+                statistical_results = {}
 
-            print(f"✅ Comparative analysis complete!")
-            print(f"📁 Results saved to: {comparative_output_dir}")
+            # Compute comparative metrics for master report
+            comparative_metrics = {}
+            try:
+                comparative_metrics = compute_comparative_metrics_from_aggregated_data(
+                    output_structure['aggregated_data'], successful_results
+                )
+            except Exception as e:
+                print(f"⚠️  Comparative metrics computation failed: {e}")
+                comparative_metrics = {}
+
+            # Generate master comparative report (Task 15)
+            print("📄 Generating master comparative report...")
+            try:
+                master_report_path = generate_master_comparative_report(
+                    successful_results, comparative_metrics, statistical_results, output_structure
+                )
+                print(f"📋 Master report: {master_report_path}")
+            except Exception as e:
+                print(f"⚠️  Master report generation failed: {e}")
+
+            # Create publication-ready outputs (Task 15)
+            print("📚 Creating publication-ready outputs...")
+            try:
+                publication_outputs = create_publication_ready_outputs(
+                    output_structure, output_structure['comparative_visualizations']
+                )
+                print(f"📖 Publication-ready figures: {len(publication_outputs)} files created")
+            except Exception as e:
+                print(f"⚠️  Publication-ready output creation failed: {e}")
+
+            # Generate experiment metadata (Task 15)
+            print("🔬 Generating experiment metadata...")
+            try:
+                metadata_path = generate_experiment_metadata(
+                    successful_results, comparative_metrics, statistical_results, output_structure
+                )
+                print(f"📊 Experiment metadata: {metadata_path}")
+            except Exception as e:
+                print(f"⚠️  Metadata generation failed: {e}")
+
+            print(f"✅ Enhanced comparative analysis complete!")
+            print(f"📁 Structured results saved to: {comparative_output_dir}")
             print(f"📊 Aggregated data: {aggregated_csv}")
+            print(f"📋 Individual results organized in: {output_structure['individual_results']}")
+            print(f"📈 Visualizations in: {output_structure['comparative_visualizations']}")
+            print(f"📄 Reports in: {output_structure['reports']}")
+            print(f"📚 Publication-ready outputs in: {output_structure['publication_ready']}")
 
         except Exception as e:
             print(f"⚠️  Comparative aggregation failed: {e}")
@@ -2142,15 +2742,19 @@ def run_comparative_experiment(skip_training=False, force_retrain=False, auto_ch
     statistical_results = {}
     if (has_scratch_t2 or has_interleaved) and len(successful_results) > 1:
         try:
+            # Use aggregated_data directory from enhanced output structure
+            aggregated_data_dir = output_structure.get('aggregated_data', comparative_output_dir) if 'output_structure' in locals() else comparative_output_dir
             comparative_metrics = compute_comparative_metrics_from_aggregated_data(
-                comparative_output_dir, successful_results
+                aggregated_data_dir, successful_results
             )
 
             # Compute statistical significance for enhanced reporting (Task 14)
             try:
                 from utils.statistical_analysis import StatisticalAnalyzer
                 analyzer = StatisticalAnalyzer(alpha=0.05, correction_method='bonferroni')
-                statistical_results = analyzer.analyze_comparative_metrics(aggregated_csv)
+                # Use the aggregated CSV from the enhanced structure
+                aggregated_csv_path = os.path.join(aggregated_data_dir, "comparative_eri_metrics.csv") if 'aggregated_csv' not in locals() else aggregated_csv
+                statistical_results = analyzer.analyze_comparative_metrics(aggregated_csv_path)
             except Exception as e:
                 print(f"⚠️  Statistical analysis for reporting failed: {e}")
                 statistical_results = {}

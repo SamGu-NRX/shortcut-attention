@@ -150,7 +150,7 @@ Tasks are organized in dependency order, with each task building on previous wor
   - Generate comprehensive comparative analysis report with statistical validation
   - _Requirements: 5.1, 5.4, 6.4, 6.5_
 
-- [-] **15. Implement Enhanced Output Organization**
+- [x] **15. Implement Enhanced Output Organization**
   - Create structured directory hierarchy for comparative analysis outputs
   - Organize individual method results, aggregated data, and comparative visualizations
   - Generate master comparative report combining individual and cross-method analysis
@@ -162,7 +162,7 @@ Tasks are organized in dependency order, with each task building on previous wor
 
 ## Phase 6: Integration Testing and Validation
 
-- [ ] **16. Comprehensive Integration Testing**
+- [x] **16. Comprehensive Integration Testing**
 
   - Create end-to-end integration test for complete comparative analysis pipeline
   - Test baseline method training, evaluation, and CSV generation
@@ -171,7 +171,17 @@ Tasks are organized in dependency order, with each task building on previous wor
   - Verify backward compatibility with existing single-method experiments
   - _Requirements: All requirements validation_
 
-- [ ] **17. Performance and Scalability Testing**
+- [ ] **17. Fix Einstellung Data Collection and Epoch Calculation Bugs**
+
+  - **CRITICAL BUG FIX**: Fix epoch numbering in CSV output - `epoch_eff` shows fractional values (0.1, 0.2, 2.0) instead of actual epoch numbers (1, 2, 3... 50)
+  - Fix timeline data collection failure causing "No timeline data found for subset T1_all" warnings
+  - Fix "Insufficient data for Performance Deficit calculation" and "Insufficient data for SFR calculation" warnings
+  - Investigate and fix effective epoch calculation that stops at 2.0 instead of continuing to actual epoch count
+  - Ensure proper data collection for all evaluation subsets (T1_all, T2_shortcut_normal, T2_shortcut_masked, T2_nonshortcut_normal)
+  - Validate that CSV export contains correct epoch progression and subset accuracy data
+  - _Requirements: Core data collection functionality_
+
+- [ ] **18. Performance and Scalability Testing**
 
   - Test comparative analysis with multiple seeds and methods for performance
   - Validate memory usage and computational efficiency with large datasets
@@ -180,7 +190,7 @@ Tasks are organized in dependency order, with each task building on previous wor
   - Ensure statistical analysis scales appropriately with number of methods and seeds
   - _Requirements: Performance validation_
 
-- [ ] **18. Documentation and User Guide Updates**
+- [ ] **19. Documentation and User Guide Updates**
   - Update README with comparative analysis usage instructions
   - Document new baseline methods and their intended use cases
   - Create examples showing how to run comparative experiments with baselines

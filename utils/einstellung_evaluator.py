@@ -393,6 +393,75 @@ class EinstellungEvaluator:
 
         self.logger.info(f"Exported Einstellung results to {filepath}")
 
+        # ALSO export CSV format for ERI visualization system
+        csv_filepath = filepath.replace('.json', '_eri_sc_metrics.csv')
+        self.export_csv_for_visualization(csv_filepath)
+
+    def export_csv_for_visualization(self, csv_filepath: str):
+        """
+        Export timeline data in CSV format for ERI visualization system.
+
+        Converts timeline data to the required CSV schema:
+        method,seed,epoch_eff,split,acc
+
+        Args:
+            csv_filepath: Path to save CSV file
+        """
+        if not self.timeline_data:
+            self.logger.warning("No timeline data available for CSV export")
+            return
+
+        try:
+            import pandas as pd
+        except ImportError:
+            self.logger.error("pandas not available for CSV export")
+            return
+
+        # Extract method and seed from args
+        method = getattr(self.args, 'model', 'unknown') if hasattr(self, 'args') else 'unknown'
+        seed = getattr(self.args, 'seed', 42) if hasattr(self, 'args') else 42
+
+        # Convert timeline data to CSV rows
+        csv_rows = []
+
+        for entry in self.timeline_data:
+            epoch = entry.get('epoch', 0)
+            subset_accuracies = entry.get('subset_accuracies', {})
+
+            # Use actual epoch number as epoch_eff (not fractional values)
+            epoch_eff = float(epoch)
+
+            # Add row for each valid subset
+            for split, acc in subset_accuracies.items():
+                # Only include valid splits for ERI visualization
+                if split in ['T1_all', 'T2_shortcut_normal', 'T2_shortcut_masked', 'T2_nonshortcut_normal']:
+                    csv_rows.append({
+                        'method': method,
+                        'seed': seed,
+                        'epoch_eff': epoch_eff,
+                        'split': split,
+                        'acc': float(acc)
+                    })
+
+        if not csv_rows:
+            self.logger.warning("No valid CSV rows generated from timeline data")
+            return
+
+        # Create DataFrame and save
+        df = pd.DataFrame(csv_rows)
+
+        # Sort for deterministic output
+        df = df.sort_values(['method', 'seed', 'epoch_eff', 'split']).reset_index(drop=True)
+
+        # Ensure parent directory exists
+        import os
+        os.makedirs(os.path.dirname(csv_filepath), exist_ok=True)
+
+        # Save CSV
+        df.to_csv(csv_filepath, index=False)
+
+        self.logger.info(f"Exported {len(csv_rows)} timeline entries to CSV: {csv_filepath}")
+
     def get_accuracy_curves(self) -> Dict[str, Tuple[List[int], List[float]]]:
         """
         Get accuracy curves for visualization.

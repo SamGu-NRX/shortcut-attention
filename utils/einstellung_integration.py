@@ -150,6 +150,11 @@ def _patched_train(model, dataset, args):
             results_file = f"{output_path}/einstellung_final_results.json"
             _einstellung_evaluator.export_results(results_file)
             logger.info(f"✓ Exported Einstellung results to: {results_file}")
+
+            # ALSO export CSV in the expected location for visualization
+            csv_file = f"{output_path}/eri_sc_metrics.csv"
+            _einstellung_evaluator.export_csv_for_visualization(csv_file)
+            logger.info(f"✓ Exported Einstellung CSV for visualization: {csv_file}")
         except Exception as e:
             logger.error(f"❌ Error exporting Einstellung results: {e}")
             logger.exception("Full traceback:")
@@ -196,6 +201,7 @@ def _train_with_einstellung_hooks(model, dataset, args):
         logger_mammoth = FakeLogger()
 
     # Move model to device
+    import torch
     model.net.to(model.device)
     torch.cuda.empty_cache()
     logger.info(f"✓ Model moved to device: {model.device}")
@@ -221,7 +227,8 @@ def _train_with_einstellung_hooks(model, dataset, args):
         assert isinstance(model, FutureModel), "Model must be an instance of FutureModel to evaluate on future tasks"
         eval_dataset = get_dataset(args)
         # disable logging for this loop
-        with disable_logging(logging.WARNING):
+        import contextlib
+        with contextlib.nullcontext():  # Simplified - remove disable_logging for now
             for _ in range(dataset.N_TASKS):
                 eval_dataset.get_data_loaders()
                 model.change_transform(eval_dataset)

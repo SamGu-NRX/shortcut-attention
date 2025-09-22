@@ -1,0 +1,16 @@
+{
+  "has_scratch_t2": true,
+  "has_interleaved": false,
+  "missing_baselines": [
+    "interleaved"
+  ],
+  "warnings": [
+    "\u26a0\ufe0f  Missing Interleaved baseline method. Using Scratch_T2 as primary reference for comparative analysis.",
+    "\ud83d\udca1 To run missing baseline methods: python run_einstellung_experiment.py --model interleaved --backbone resnet18"
+  ],
+  "can_compute_pd_t": true,
+  "can_compute_sfr_rel": true,
+  "available_methods": [
+    "scratch_t2"
+  ]
+}

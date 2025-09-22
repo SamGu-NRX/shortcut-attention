@@ -1,0 +1,22 @@
+{
+  "title": "Comparative Einstellung Effect Analysis in Continual Learning",
+  "figures": {
+    "figure_1": {
+      "title": "Comparative Learning Dynamics Across Methods",
+      "description": "Timeline showing accuracy evolution and performance deficits",
+      "files": [
+        "figure_1_comparative_dynamics.pdf",
+        "figure_1_comparative_dynamics.png"
+      ]
+    },
+    "figure_2": {
+      "title": "Adaptation Delay Sensitivity Analysis",
+      "description": "Heatmap showing robustness across threshold values",
+      "files": [
+        "figure_2_adaptation_heatmap.pdf",
+        "figure_2_adaptation_heatmap.png"
+      ]
+    }
+  },
+  "generated": "2025-09-22T04:02:11.071873"
+}

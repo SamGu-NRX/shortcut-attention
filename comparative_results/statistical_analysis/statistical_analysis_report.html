@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Statistical Analysis Report - Comparative Einstellung Analysis</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 40px; line-height: 1.6; }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 10px; margin-bottom: 30px; }
+        .section { background: #f8f9fa; padding: 20px; margin: 20px 0; border-radius: 8px; border-left: 4px solid #007bff; }
+        .significant { color: #28a745; font-weight: bold; }
+        .non-significant { color: #6c757d; }
+        .large-effect { color: #dc3545; font-weight: bold; }
+        .medium-effect { color: #ffc107; font-weight: bold; }
+        .small-effect { color: #17a2b8; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #dee2e6; }
+        th { background-color: #f8f9fa; font-weight: 600; }
+        .metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; margin: 20px 0; }
+        .metric-card { background: white; padding: 15px; border-radius: 8px; border: 1px solid #dee2e6; }
+        pre { background: #f8f9fa; padding: 15px; border-radius: 5px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📊 Statistical Analysis Report</h1>
+        <h2>Comparative Einstellung Effect Analysis</h2>
+        <p><strong>Generated:</strong> 2025-09-22 04:02:11</p>
+        <p><strong>Analysis:</strong> Statistical significance testing and effect size calculations</p>
+    </div>
+
+    <div class="section">
+        <h2>📋 Analysis Overview</h2>
+        <pre>Statistical analysis of 1 continual learning methods across 5 Einstellung metrics.
+Significance level: α = 0.05
+Multiple comparison correction: bonferroni</pre>
+    </div>
+
+    <div class="section">
+        <h2>🏆 Method Performance Ranking</h2>
+        <pre>Final accuracy ranking (highest to lowest):
+1. scratch_t2: 0.16%</pre>
+    </div>
+
+    <div class="section">
+        <h2>🔍 Significant Differences (ANOVA Results)</h2>
+        <pre>No significant differences detected between methods on any metric.</pre>
+
+        <h3>Detailed ANOVA Results</h3>
+        <table>
+            <tr><th>Metric</th><th>F-statistic</th><th>p-value</th><th>Effect Size (η²)</th><th>Interpretation</th></tr>
+            <tr>
+                <td><strong>final_accuracy</strong></td>
+                <td>nan</td>
+                <td class="non-significant">nan</td>
+                <td>N/A</td>
+                <td>Insufficient groups for ANOVA</td>
+            </tr>
+            <tr>
+                <td><strong>performance_deficit</strong></td>
+                <td>nan</td>
+                <td class="non-significant">nan</td>
+                <td>N/A</td>
+                <td>Insufficient groups for ANOVA</td>
+            </tr>
+            <tr>
+                <td><strong>shortcut_reliance</strong></td>
+                <td>nan</td>
+                <td class="non-significant">nan</td>
+                <td>N/A</td>
+                <td>Insufficient groups for ANOVA</td>
+            </tr>
+            <tr>
+                <td><strong>t1_retention</strong></td>
+                <td>nan</td>
+                <td class="non-significant">nan</td>
+                <td>N/A</td>
+                <td>Insufficient groups for ANOVA</td>
+            </tr>
+            <tr>
+                <td><strong>adaptation_speed</strong></td>
+                <td>nan</td>
+                <td class="non-significant">nan</td>
+                <td>N/A</td>
+                <td>Insufficient groups for ANOVA</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>📏 Effect Sizes</h2>
+        <pre>No large effect sizes detected between methods.</pre>
+
+        <h3>Pairwise Comparisons with Large Effects</h3>
+        <table>
+            <tr><th>Comparison</th><th>Metric</th><th>Method 1 Mean</th><th>Method 2 Mean</th><th>Cohen's d</th><th>Interpretation</th></tr>
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>📈 Summary Statistics</h2>
+        <div class="metric-grid">
+            <div class="metric-card">
+                <h4>scratch_t2</h4>
+                <table>
+                    <tr><th>Metric</th><th>Mean ± SEM</th><th>N</th></tr>
+                    <tr>
+                        <td>final_accuracy</td>
+                        <td>0.159 ± 0.000</td>
+                        <td>1</td>
+                    </tr>
+                    <tr>
+                        <td>performance_deficit</td>
+                        <td>0.256 ± 0.000</td>
+                        <td>1</td>
+                    </tr>
+                    <tr>
+                        <td>shortcut_reliance</td>
+                        <td>0.509 ± 0.000</td>
+                        <td>1</td>
+                    </tr>
+                    <tr>
+                        <td>t1_retention</td>
+                        <td>0.027 ± 0.000</td>
+                        <td>1</td>
+                    </tr>
+                    <tr>
+                        <td>adaptation_speed</td>
+                        <td>0.137 ± 0.000</td>
+                        <td>1</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>🔧 Multiple Comparison Corrections</h2>
+        <pre>Correction method: bonferroni</pre>
+    </div>
+
+    <hr>
+    <p><em>Statistical analysis generated by Mammoth Comparative Einstellung Analysis System</em></p>
+</body>
+</html>
