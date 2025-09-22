@@ -1,0 +1,9 @@
+method,seed,epoch_eff,split,acc
+sgd,42,0.0,T1_all,0.23275
+sgd,42,0.0,T1_all,0.0
+sgd,42,0.0,T2_nonshortcut_normal,0.0
+sgd,42,0.0,T2_nonshortcut_normal,0.35
+sgd,42,0.0,T2_shortcut_masked,0.0
+sgd,42,0.0,T2_shortcut_masked,0.178
+sgd,42,0.0,T2_shortcut_normal,0.0
+sgd,42,0.0,T2_shortcut_normal,0.358

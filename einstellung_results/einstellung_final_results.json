@@ -1,0 +1,19 @@
+{
+  "configuration": {
+    "dataset_name": "seq-cifar100-einstellung",
+    "adaptation_threshold": 0.8,
+    "extract_attention": false
+  },
+  "timeline_data": [],
+  "metrics_timeline": [],
+  "final_metrics": {
+    "adaptation_delay": null,
+    "performance_deficit": null,
+    "shortcut_feature_reliance": null,
+    "eri_score": null,
+    "task1_accuracy_final": null,
+    "task2_shortcut_accuracy": null,
+    "task2_masked_accuracy": null,
+    "task2_nonshortcut_accuracy": null
+  }
+}

@@ -129,15 +129,28 @@ class EinstellungEvaluator:
         if not self.evaluation_subsets:
             return
 
-        # OPTIMIZATION: Skip attention-heavy evaluations on most epochs for ViT
+        # OPTIMIZATION: Skip expensive evaluations on most epochs for ALL models
         is_vit_model = self._is_vit_model(model)
-        skip_this_epoch = False
+        total_epochs = dataset.get_epochs()
 
-        if is_vit_model:
-            # For ViT: Only run comprehensive evaluation every 5th epoch + final epoch
-            if epoch % 5 != 0 and epoch != (dataset.get_epochs() - 1):
-                skip_this_epoch = True
-                self.logger.debug(f"Skipping ViT attention analysis for epoch {epoch} (performance optimization)")
+        # Determine evaluation frequency based on total epochs and model type
+        if total_epochs <= 5:
+            # For very short training (debug mode), evaluate every epoch
+            eval_frequency = 1
+        elif total_epochs <= 20:
+            # For short training, evaluate every 5th epoch
+            eval_frequency = 5
+        else:
+            # For long training, evaluate every 10th epoch
+            eval_frequency = 10
+
+        # Always evaluate on the final epoch
+        is_final_epoch = (epoch == total_epochs - 1)
+        should_evaluate = (epoch % eval_frequency == 0) or is_final_epoch
+
+        if not should_evaluate:
+            self.logger.debug(f"Skipping evaluation for epoch {epoch} (performance optimization - evaluating every {eval_frequency} epochs)")
+            return
 
         # Create evaluation subsets
         evaluation_subsets = self._get_evaluation_subsets(dataset)
@@ -162,7 +175,7 @@ class EinstellungEvaluator:
                 subset_losses[subset_name] = loss
 
                 # OPTIMIZATION: Attention analysis with strict controls
-                if self.attention_analyzer and subset_loader and not skip_this_epoch:
+                if self.attention_analyzer and subset_loader:
                     try:
                         self.logger.debug(f"Running attention analysis for {subset_name} (epoch {epoch})")
 
@@ -183,8 +196,6 @@ class EinstellungEvaluator:
 
                     except Exception as e:
                         self.logger.debug(f"Could not extract attention for {subset_name}: {e}")
-                elif skip_this_epoch:
-                    self.logger.debug(f"Skipped attention analysis for {subset_name} (epoch {epoch})")
 
         # Store timeline data
         self.metrics_calculator.add_timeline_data(
@@ -209,12 +220,8 @@ class EinstellungEvaluator:
         }
         self.timeline_data.append(timeline_entry)
 
-        # OPTIMIZATION: Log progress for ViT models
-        if is_vit_model:
-            if not skip_this_epoch:
-                self.logger.info(f"✓ ViT comprehensive evaluation completed for epoch {epoch}")
-            else:
-                self.logger.debug(f"✓ ViT basic evaluation completed for epoch {epoch}")
+        # Log evaluation completion
+        self.logger.info(f"✓ Einstellung evaluation completed for epoch {epoch}")
 
     def _get_evaluation_subsets(self, dataset) -> Dict[str, DataLoader]:
         """
@@ -541,7 +548,7 @@ def create_einstellung_evaluator(args) -> Optional[EinstellungEvaluator]:
         # Log warning that attention extraction is not supported for this backbone
         import logging
         logger = logging.getLogger(__name__)
-        logger.warning(f"⚠️  Attention extraction requested but not supported for backbone '{args.backbone}'")
+        logger.warning(f"⚠️  Attention extraction requested but not supported for backbone '{backbone_type}'")
         logger.warning("   Attention analysis is only available for Vision Transformer (ViT) models")
         logger.warning("   Disabling attention extraction for this experiment")
         extract_attention = False

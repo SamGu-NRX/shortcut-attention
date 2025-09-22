@@ -20,11 +20,13 @@ import logging
 from typing import Any, Callable, Optional
 
 from utils.einstellung_evaluator import EinstellungEvaluator, create_einstellung_evaluator
-from utils.training import train as original_train
 
 
 # Global evaluator instance
 _einstellung_evaluator: Optional[EinstellungEvaluator] = None
+
+# Store original training function before patching
+_original_train: Optional[Callable] = None
 
 
 def enable_einstellung_integration(args) -> bool:
@@ -106,12 +108,18 @@ def enable_einstellung_integration(args) -> bool:
 
 def _patch_training_functions():
     """Apply monkey patches to integrate with Mammoth's training pipeline."""
+    global _original_train
     logger = logging.getLogger(__name__)
 
     logger.info("Applying training function patches...")
 
-    # Replace the main training function
+    # Store original training function before patching
     import utils.training
+    if _original_train is None:
+        _original_train = utils.training.train
+        logger.info("✓ Stored original training function")
+
+    # Replace the main training function
     utils.training.train = _patched_train
     logger.info("✓ Patched utils.training.train")
 
@@ -140,13 +148,13 @@ def _patched_train(model, dataset, args):
     logger.info(f"   - Dataset: {dataset.NAME if hasattr(dataset, 'NAME') else type(dataset).__name__}")
     logger.info(f"   - Evaluator active: {_einstellung_evaluator is not None}")
 
-    # Call original training function with epoch hooks
-    result = _train_with_einstellung_hooks(model, dataset, args)
+    # Call original training function with minimal modifications
+    result = _call_original_train_with_hooks(model, dataset, args)
 
     # Export final results if evaluator is active
     if _einstellung_evaluator is not None:
         try:
-            output_path = getattr(args, 'output_dir', './einstellung_results')
+            output_path = getattr(args, 'results_path', './einstellung_results')
             results_file = f"{output_path}/einstellung_final_results.json"
             _einstellung_evaluator.export_results(results_file)
             logger.info(f"✓ Exported Einstellung results to: {results_file}")
@@ -163,210 +171,53 @@ def _patched_train(model, dataset, args):
     return result
 
 
-def _train_with_einstellung_hooks(model, dataset, args):
-    """
-    Enhanced training function with comprehensive Einstellung evaluation hooks.
-    Based on Mammoth's original training.py but with epoch-by-epoch evaluation.
-    """
-    global _einstellung_evaluator
+def _call_original_train_with_hooks(model, dataset, args):
+    """Call the original training function with Einstellung hooks added."""
+    global _einstellung_evaluator, _original_train
 
     logger = logging.getLogger(__name__)
-    logger.info("🔄 EINSTELLUNG-ENHANCED TRAINING STARTED")
-    logger.info(f"   - Dataset: {dataset.NAME}")
-    logger.info(f"   - Model: {type(model).__name__}")
-    logger.info(f"   - Backbone: {getattr(args, 'backbone', 'unknown')}")
-    logger.info(f"   - N_TASKS: {dataset.N_TASKS}")
-    logger.info(f"   - Evaluator active: {_einstellung_evaluator is not None}")
+    logger.info("🔄 CALLING ORIGINAL TRAINING WITH EINSTELLUNG HOOKS")
 
-    # Import required modules
-    from utils.loggers import Logger, FakeLogger
-    from utils.status import ProgressBar
-    from models.utils.future_model import FutureModel
-    from backbone import warn_once
-    from datasets import get_dataset
-    from tqdm import tqdm
-    import time
+    if _original_train is None:
+        logger.error("❌ Original training function not stored! Cannot call original training.")
+        raise RuntimeError("Original training function not available")
 
-    # Initialize random results
-    random_results_class, random_results_task = [], []
+    # Store original meta_end_epoch method
+    original_meta_end_epoch = model.meta_end_epoch
 
-    # Setup logging
-    if not args.disable_log:
-        logger_mammoth = Logger(args, dataset.SETTING, dataset.NAME, model.NAME)
-        logger.info("✓ Mammoth logger initialized")
-    else:
-        logger_mammoth = FakeLogger()
+    def patched_meta_end_epoch(epoch, dataset_arg):
+        # Call original meta_end_epoch
+        result = original_meta_end_epoch(epoch, dataset_arg)
 
-    # Move model to device
-    import torch
-    model.net.to(model.device)
-    torch.cuda.empty_cache()
-    logger.info(f"✓ Model moved to device: {model.device}")
-
-    # Initialize results storage
-    results, results_mask_classes = [], []
-
-    # Load checkpoint if specified
-    if args.loadcheck is not None:
-        model, past_res = mammoth_load_checkpoint(args, model)
-        if not args.disable_log and past_res is not None:
-            (results, results_mask_classes, csvdump) = past_res
-            logger_mammoth.load(csvdump)
-        logger.info('✓ Checkpoint loaded')
-
-    # Setup task range
-    start_task = 0 if args.start_from is None else args.start_from
-    end_task = dataset.N_TASKS if args.stop_after is None else args.stop_after
-    logger.info(f"✓ Task range: {start_task} to {end_task}")
-
-    # Check if we need eval_dataset for future evaluation
-    if args.eval_future:
-        assert isinstance(model, FutureModel), "Model must be an instance of FutureModel to evaluate on future tasks"
-        eval_dataset = get_dataset(args)
-        # disable logging for this loop
-        import contextlib
-        with contextlib.nullcontext():  # Simplified - remove disable_logging for now
-            for _ in range(dataset.N_TASKS):
-                eval_dataset.get_data_loaders()
-                model.change_transform(eval_dataset)
-                del eval_dataset.train_loader
-        logger.info("✓ Future evaluation dataset prepared")
-    else:
-        eval_dataset = dataset
-
-    logger.info("🚀 Starting task-by-task training...")
-
-    # MAIN TRAINING LOOP
-    for t in range(start_task, end_task):
-        logger.info(f"\n📋 TASK {t} START")
-
-        # Get data loaders for current task
-        train_loader, test_loader = dataset.get_data_loaders()
-        logger.info(f"   - Train samples: {len(train_loader.dataset) if hasattr(train_loader, 'dataset') else 'unknown'}")
-        logger.info(f"   - Test samples: {len(test_loader.dataset) if hasattr(test_loader, 'dataset') else 'unknown'}")
-
-        # Begin task
-        model.meta_begin_task(dataset)
+        # Add Einstellung evaluation hook after the epoch
         if _einstellung_evaluator is not None:
             try:
-                _einstellung_evaluator.meta_begin_task(model, dataset)
-                logger.info("   ✓ Einstellung meta_begin_task hook called")
+                logger.debug(f"Running Einstellung evaluation for epoch {epoch}...")
+                _einstellung_evaluator.after_training_epoch(model, dataset, epoch)
+                logger.debug(f"Einstellung evaluation completed for epoch {epoch}")
             except Exception as e:
-                logger.error(f"   ❌ Einstellung meta_begin_task error: {e}")
+                logger.error(f"❌ Einstellung evaluation error for epoch {epoch}: {e}")
 
-        # Check if we can skip forward pass computation
-        can_compute_fwd_beforetask = True
-        try:
-            if len(results) > 0:
-                random_results_class.append(results[-1])
-                random_results_task.append(results_mask_classes[-1])
-        except:
-            pass
+        return result
 
-        # Setup progress tracking for this task
-        n_epochs = dataset.get_epochs()
-        logger.info(f"   - Epochs per task: {n_epochs}")
+    # Temporarily replace the method
+    model.meta_end_epoch = patched_meta_end_epoch
 
-        epoch_pbar = tqdm(range(n_epochs), desc=f'Task {t}')
-        device = model.device
+    try:
+        # Call the ORIGINAL training function (not the patched version)
+        logger.info("🔄 Calling stored original training function...")
+        result = _original_train(model, dataset, args)
+        logger.info("✓ Original training function completed successfully")
+    finally:
+        # Restore the original method
+        model.meta_end_epoch = original_meta_end_epoch
 
-        logger.info(f"   🏋️ Starting epoch-by-epoch training for Task {t}...")
+    logger.info("🔄 ORIGINAL TRAINING WITH HOOKS COMPLETED")
+    return result
 
-        for epoch in epoch_pbar:
-            # EPOCH TRAINING
-            epoch_start_time = time.time()
-            logger.debug(f"     - Epoch {epoch} starting...")
 
-            # Training epoch
-            train_pbar = tqdm(train_loader, desc=f'Epoch {epoch}', leave=False)
-
-            # Single epoch training
-            epoch_loss = 0.0
-            batch_count = 0
-            for i, data in enumerate(train_pbar):
-                # Forward pass and backward pass (following Mammoth's pattern)
-                if len(data) == 2:
-                    inputs, labels = data
-                    not_aug_inputs = inputs
-                elif len(data) == 3:
-                    inputs, labels, not_aug_inputs = data
-                else:
-                    raise ValueError(f"Unexpected data format: {len(data)} items")
-
-                inputs, labels = inputs.to(device), labels.to(device)
-                not_aug_inputs = not_aug_inputs.to(device)
-
-                # Model observation step
-                loss = model.meta_observe(
-                    inputs=inputs,
-                    labels=labels,
-                    not_aug_inputs=not_aug_inputs,
-                    epoch=epoch
-                )
-
-                epoch_loss += loss
-                batch_count += 1
-
-                # Update progress bar
-                train_pbar.set_postfix({'loss': f'{loss:.4f}'})
-
-                # Log periodically for debugging
-                if i % 100 == 0:
-                    logger.debug(f"     - Batch {i}: loss = {loss:.4f}")
-
-            train_pbar.close()
-            avg_epoch_loss = epoch_loss / max(batch_count, 1)
-
-            epoch_duration = time.time() - epoch_start_time
-            logger.debug(f"     - Epoch {epoch} completed in {epoch_duration:.2f}s, avg_loss = {avg_epoch_loss:.4f}")
-
-            # EINSTELLUNG EVALUATION HOOK AFTER EACH EPOCH
-            if _einstellung_evaluator is not None:
-                try:
-                    eval_start_time = time.time()
-                    logger.debug(f"     - Running Einstellung evaluation for epoch {epoch}...")
-                    _einstellung_evaluator.after_training_epoch(model, dataset, epoch)
-                    eval_duration = time.time() - eval_start_time
-                    logger.debug(f"     - Einstellung evaluation completed in {eval_duration:.2f}s")
-                except Exception as e:
-                    logger.error(f"     ❌ Einstellung evaluation error: {e}")
-                    logger.exception("Full traceback:")
-
-            # Update epoch progress
-            epoch_pbar.set_postfix({'avg_loss': f'{avg_epoch_loss:.4f}'})
-
-        epoch_pbar.close()
-        logger.info(f"   ✓ Task {t} training completed ({n_epochs} epochs)")
-
-        # End of task
-        model.meta_end_task(dataset)
-        if _einstellung_evaluator is not None:
-            try:
-                _einstellung_evaluator.meta_end_task(model, dataset)
-                logger.info("   ✓ Einstellung meta_end_task hook called")
-            except Exception as e:
-                logger.error(f"   ❌ Einstellung meta_end_task error: {e}")
-
-        # Standard Mammoth evaluation
-        logger.info(f"   🧪 Running standard Mammoth evaluation for Task {t}...")
-        eval_start_time = time.time()
-        accs = eval_dataset.evaluate(model, eval_dataset)
-        eval_duration = time.time() - eval_start_time
-        logger.info(f"   ✓ Standard evaluation completed in {eval_duration:.2f}s")
-
-        dataset.log(args, logger_mammoth, accs, t, dataset.SETTING)
-
-        # Store results
-        results.append(accs[0])
-        results_mask_classes.append(accs[1])
-
-        logger.info(f"📋 TASK {t} COMPLETE - Accuracy: {accs[0]:.2f}%")
-
-    logger.info("🏁 ALL TASKS COMPLETED")
-    logger.info(f"   - Final accuracies: {results}")
-    logger.info("🔄 EINSTELLUNG-ENHANCED TRAINING FINISHED")
-
-    return logger_mammoth
+# Removed _train_with_einstellung_hooks function - it was causing issues and is not needed
+# The integration now works by patching the model's meta_end_epoch method in _call_original_train_with_hooks
 
 
 def _patched_meta_begin_task(self, dataset):
@@ -411,11 +262,13 @@ def get_einstellung_evaluator() -> Optional[EinstellungEvaluator]:
 
 def disable_einstellung_integration():
     """Disable Einstellung integration and restore original functions."""
-    global _einstellung_evaluator
+    global _einstellung_evaluator, _original_train
 
     # Restore original functions
     import utils.training
-    utils.training.train = original_train
+    if _original_train is not None:
+        utils.training.train = _original_train
+        _original_train = None
 
     from models.utils.continual_model import ContinualModel
     if hasattr(ContinualModel, '_original_meta_begin_task'):

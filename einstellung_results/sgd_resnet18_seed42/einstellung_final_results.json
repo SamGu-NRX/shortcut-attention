@@ -1,0 +1,121 @@
+{
+  "configuration": {
+    "dataset_name": "seq-cifar100-einstellung",
+    "adaptation_threshold": 0.8,
+    "extract_attention": false
+  },
+  "timeline_data": [
+    {
+      "epoch": 0,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.23275,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 2.7813389949798584,
+        "T2_shortcut_normal": 8.407764099121094,
+        "T2_shortcut_masked": 8.826547653198242,
+        "T2_nonshortcut_normal": 9.302937433878581
+      },
+      "attention_metrics": {},
+      "timestamp": 1758536874.6418188
+    },
+    {
+      "epoch": 0,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.0,
+        "T2_shortcut_normal": 0.358,
+        "T2_shortcut_masked": 0.178,
+        "T2_nonshortcut_normal": 0.35
+      },
+      "subset_losses": {
+        "T1_all": 7.969664070129395,
+        "T2_shortcut_normal": 1.589196340560913,
+        "T2_shortcut_masked": 2.8362527770996095,
+        "T2_nonshortcut_normal": 2.065397670110067
+      },
+      "attention_metrics": {},
+      "timestamp": 1758537056.06521
+    }
+  ],
+  "metrics_timeline": [
+    {
+      "epoch": 0,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.23275,
+      "loss": 2.7813389949798584,
+      "timestamp": 1758536874.640059
+    },
+    {
+      "epoch": 0,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 8.407764099121094,
+      "timestamp": 1758536874.640059
+    },
+    {
+      "epoch": 0,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 8.826547653198242,
+      "timestamp": 1758536874.640059
+    },
+    {
+      "epoch": 0,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 9.302937433878581,
+      "timestamp": 1758536874.640059
+    },
+    {
+      "epoch": 0,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.0,
+      "loss": 7.969664070129395,
+      "timestamp": 1758537056.0638368
+    },
+    {
+      "epoch": 0,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.358,
+      "loss": 1.589196340560913,
+      "timestamp": 1758537056.0638368
+    },
+    {
+      "epoch": 0,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.178,
+      "loss": 2.8362527770996095,
+      "timestamp": 1758537056.0638368
+    },
+    {
+      "epoch": 0,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.35,
+      "loss": 2.065397670110067,
+      "timestamp": 1758537056.0638368
+    }
+  ],
+  "final_metrics": {
+    "adaptation_delay": null,
+    "performance_deficit": 0.0,
+    "shortcut_feature_reliance": 0.5,
+    "eri_score": null,
+    "task1_accuracy_final": 0.23275,
+    "task2_shortcut_accuracy": 0.0,
+    "task2_masked_accuracy": 0.0,
+    "task2_nonshortcut_accuracy": 0.0
+  }
+}
