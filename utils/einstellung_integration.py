@@ -28,6 +28,11 @@ _einstellung_evaluator: Optional[EinstellungEvaluator] = None
 # Store original training function before patching
 _original_train: Optional[Callable] = None
 
+# Global epoch tracking for proper timeline data collection
+_global_epoch_counter: int = 0
+_current_task_id: int = 0
+_last_evaluated_epoch: int = -1
+
 
 def enable_einstellung_integration(args) -> bool:
     """
@@ -96,11 +101,18 @@ def enable_einstellung_integration(args) -> bool:
         logger.exception("Full traceback:")
         return False
 
+    # Reset global epoch counter for new experiment
+    global _global_epoch_counter, _current_task_id, _last_evaluated_epoch
+    _global_epoch_counter = 0
+    _current_task_id = 0
+    _last_evaluated_epoch = -1
+
     logger.info("🧠 EINSTELLUNG EFFECT INTEGRATION ENABLED SUCCESSFULLY")
     logger.info("   - Evaluator: Active")
     logger.info("   - Training hooks: Patched")
     logger.info("   - Subset evaluation: Enabled")
     logger.info("   - Attention extraction: Configured")
+    logger.info("   - Global epoch tracking: Enabled")
     logger.info("=" * 60)
 
     return True
@@ -186,17 +198,29 @@ def _call_original_train_with_hooks(model, dataset, args):
     original_meta_end_epoch = model.meta_end_epoch
 
     def patched_meta_end_epoch(epoch, dataset_arg):
+        global _global_epoch_counter, _current_task_id
+
         # Call original meta_end_epoch
         result = original_meta_end_epoch(epoch, dataset_arg)
 
         # Add Einstellung evaluation hook after the epoch
         if _einstellung_evaluator is not None:
             try:
-                logger.debug(f"Running Einstellung evaluation for epoch {epoch}...")
-                _einstellung_evaluator.after_training_epoch(model, dataset, epoch)
-                logger.debug(f"Einstellung evaluation completed for epoch {epoch}")
+                global _last_evaluated_epoch
+
+                # Prevent duplicate evaluations for the same global epoch
+                if _global_epoch_counter != _last_evaluated_epoch:
+                    logger.info(f"🔍 Running Einstellung evaluation for global epoch {_global_epoch_counter} (task {_current_task_id}, local epoch {epoch})...")
+                    _einstellung_evaluator.after_training_epoch(model, dataset, _global_epoch_counter)
+                    logger.info(f"✓ Einstellung evaluation completed for global epoch {_global_epoch_counter}")
+                    _last_evaluated_epoch = _global_epoch_counter
+                else:
+                    logger.info(f"⏭️  Skipping duplicate evaluation for global epoch {_global_epoch_counter}")
+
+                # Increment global epoch counter
+                _global_epoch_counter += 1
             except Exception as e:
-                logger.error(f"❌ Einstellung evaluation error for epoch {epoch}: {e}")
+                logger.error(f"❌ Einstellung evaluation error for global epoch {_global_epoch_counter}: {e}")
 
         return result
 
@@ -222,10 +246,13 @@ def _call_original_train_with_hooks(model, dataset, args):
 
 def _patched_meta_begin_task(self, dataset):
     """Patched meta_begin_task with Einstellung hook."""
-    global _einstellung_evaluator
+    global _einstellung_evaluator, _current_task_id
 
     # Call original method
     result = self._original_meta_begin_task(dataset)
+
+    # Update current task ID for global epoch tracking
+    _current_task_id = dataset.i if hasattr(dataset, 'i') else 0
 
     # Call Einstellung hook
     if _einstellung_evaluator is not None:
@@ -262,7 +289,7 @@ def get_einstellung_evaluator() -> Optional[EinstellungEvaluator]:
 
 def disable_einstellung_integration():
     """Disable Einstellung integration and restore original functions."""
-    global _einstellung_evaluator, _original_train
+    global _einstellung_evaluator, _original_train, _global_epoch_counter, _current_task_id, _last_evaluated_epoch
 
     # Restore original functions
     import utils.training
@@ -275,7 +302,10 @@ def disable_einstellung_integration():
         ContinualModel.meta_begin_task = ContinualModel._original_meta_begin_task
         ContinualModel.meta_end_task = ContinualModel._original_meta_end_task
 
-    # Clear evaluator
+    # Clear evaluator and reset counters
     _einstellung_evaluator = None
+    _global_epoch_counter = 0
+    _current_task_id = 0
+    _last_evaluated_epoch = -1
 
     logging.getLogger(__name__).info("Disabled Einstellung Effect integration")
