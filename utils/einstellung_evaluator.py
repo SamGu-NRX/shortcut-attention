@@ -131,13 +131,15 @@ class EinstellungEvaluator:
 
         # OPTIMIZATION: Skip expensive evaluations on most epochs for ALL models
         is_vit_model = self._is_vit_model(model)
-        total_epochs = dataset.get_epochs()
 
-        # Determine evaluation frequency based on total epochs and model type
-        if total_epochs <= 5:
+        # Use actual training epochs from args, not dataset default
+        actual_epochs = getattr(self.args, 'n_epochs', dataset.get_epochs())
+
+        # Determine evaluation frequency based on actual epochs being run
+        if actual_epochs <= 5:
             # For very short training (debug mode), evaluate every epoch
             eval_frequency = 1
-        elif total_epochs <= 20:
+        elif actual_epochs <= 20:
             # For short training, evaluate every 5th epoch
             eval_frequency = 5
         else:
@@ -145,8 +147,10 @@ class EinstellungEvaluator:
             eval_frequency = 10
 
         # Always evaluate on the final epoch
-        is_final_epoch = (epoch == total_epochs - 1)
+        is_final_epoch = (epoch == actual_epochs - 1)
         should_evaluate = (epoch % eval_frequency == 0) or is_final_epoch
+
+        self.logger.info(f"🔍 Evaluation frequency check: epoch={epoch}, actual_epochs={actual_epochs}, eval_frequency={eval_frequency}, should_evaluate={should_evaluate}")
 
         if not should_evaluate:
             self.logger.debug(f"Skipping evaluation for epoch {epoch} (performance optimization - evaluating every {eval_frequency} epochs)")
@@ -156,8 +160,12 @@ class EinstellungEvaluator:
         evaluation_subsets = self._get_evaluation_subsets(dataset)
 
         if not evaluation_subsets:
-            self.logger.debug(f"No evaluation subsets available for epoch {epoch}")
+            self.logger.warning(f"❌ No evaluation subsets available for epoch {epoch}")
+            self.logger.warning(f"   Dataset: {dataset.NAME if hasattr(dataset, 'NAME') else type(dataset).__name__}")
+            self.logger.warning(f"   Has get_evaluation_subsets: {hasattr(dataset, 'get_evaluation_subsets')}")
             return
+
+        self.logger.info(f"📊 Found {len(evaluation_subsets)} evaluation subsets: {list(evaluation_subsets.keys())}")
 
         # Evaluate each subset
         subset_accuracies = {}
@@ -220,6 +228,10 @@ class EinstellungEvaluator:
         }
         self.timeline_data.append(timeline_entry)
 
+        # DEBUG: Log timeline data storage
+        self.logger.info(f"📊 Stored timeline entry: task={self.current_task}, epoch={epoch}, subsets={len(subset_accuracies)}")
+        self.logger.info(f"📊 Total timeline entries: {len(self.timeline_data)}")
+
         # Log evaluation completion
         self.logger.info(f"✓ Einstellung evaluation completed for epoch {epoch}")
 
@@ -231,13 +243,32 @@ class EinstellungEvaluator:
             Dictionary mapping subset names to DataLoaders
         """
         if not hasattr(dataset, 'get_evaluation_subsets'):
-            self.logger.warning("Dataset does not support evaluation subsets")
+            self.logger.warning("❌ Dataset does not support evaluation subsets")
+            self.logger.warning(f"   Dataset type: {type(dataset).__name__}")
+            self.logger.warning(f"   Dataset NAME: {getattr(dataset, 'NAME', 'Unknown')}")
             return {}
 
         try:
-            return dataset.get_evaluation_subsets()
+            self.logger.debug(f"🔍 Calling dataset.get_evaluation_subsets() on {type(dataset).__name__}")
+            subsets = dataset.get_evaluation_subsets()
+            self.logger.debug(f"✅ Got {len(subsets)} evaluation subsets: {list(subsets.keys())}")
+
+            # Validate that subsets contain data
+            for subset_name, loader in subsets.items():
+                if loader is None:
+                    self.logger.warning(f"⚠️  Subset '{subset_name}' has None loader")
+                else:
+                    try:
+                        # Try to get the length to validate the loader
+                        subset_len = len(loader.dataset) if hasattr(loader, 'dataset') else 'Unknown'
+                        self.logger.debug(f"   Subset '{subset_name}': {subset_len} samples")
+                    except Exception as e:
+                        self.logger.debug(f"   Subset '{subset_name}': Could not determine size ({e})")
+
+            return subsets
         except Exception as e:
-            self.logger.error(f"Error getting evaluation subsets: {e}")
+            self.logger.error(f"❌ Error getting evaluation subsets: {e}")
+            self.logger.exception("Full traceback:")
             return {}
 
     def _evaluate_subset(self, model, subset_loader: DataLoader) -> Tuple[float, float]:
@@ -414,8 +445,28 @@ class EinstellungEvaluator:
         Args:
             csv_filepath: Path to save CSV file
         """
+        # DEBUG: Log timeline data status
+        self.logger.info(f"📊 CSV Export Debug - Timeline data entries: {len(self.timeline_data)}")
+
         if not self.timeline_data:
-            self.logger.warning("No timeline data available for CSV export")
+            self.logger.warning("❌ No timeline data available for CSV export")
+            self.logger.warning("   This indicates that Einstellung evaluation hooks are not collecting data properly")
+            self.logger.warning("   Check that after_training_epoch is being called and evaluation subsets are working")
+
+            # Create an empty CSV file to prevent synthetic data fallback
+            try:
+                import pandas as pd
+                empty_df = pd.DataFrame(columns=['method', 'seed', 'epoch_eff', 'split', 'acc'])
+
+                # Ensure parent directory exists
+                import os
+                os.makedirs(os.path.dirname(csv_filepath), exist_ok=True)
+
+                empty_df.to_csv(csv_filepath, index=False)
+                self.logger.info(f"📄 Created empty CSV file to prevent synthetic data fallback: {csv_filepath}")
+            except Exception as e:
+                self.logger.error(f"❌ Could not create empty CSV file: {e}")
+
             return
 
         try:
@@ -431,9 +482,14 @@ class EinstellungEvaluator:
         # Convert timeline data to CSV rows
         csv_rows = []
 
-        for entry in self.timeline_data:
+        self.logger.info(f"📊 Processing {len(self.timeline_data)} timeline entries for CSV export...")
+
+        for i, entry in enumerate(self.timeline_data):
             epoch = entry.get('epoch', 0)
             subset_accuracies = entry.get('subset_accuracies', {})
+
+            # DEBUG: Log each entry
+            self.logger.debug(f"   Entry {i}: epoch={epoch}, subsets={list(subset_accuracies.keys())}")
 
             # Use actual epoch number as epoch_eff (not fractional values)
             epoch_eff = float(epoch)
@@ -451,7 +507,15 @@ class EinstellungEvaluator:
                     })
 
         if not csv_rows:
-            self.logger.warning("No valid CSV rows generated from timeline data")
+            self.logger.warning("❌ No valid CSV rows generated from timeline data")
+            self.logger.warning("   Timeline data exists but contains no valid evaluation subsets")
+            self.logger.warning("   Expected subsets: T1_all, T2_shortcut_normal, T2_shortcut_masked, T2_nonshortcut_normal")
+
+            # DEBUG: Show what subsets we actually have
+            all_subsets = set()
+            for entry in self.timeline_data:
+                all_subsets.update(entry.get('subset_accuracies', {}).keys())
+            self.logger.warning(f"   Found subsets: {sorted(all_subsets)}")
             return
 
         # Create DataFrame and save
@@ -467,7 +531,14 @@ class EinstellungEvaluator:
         # Save CSV
         df.to_csv(csv_filepath, index=False)
 
-        self.logger.info(f"Exported {len(csv_rows)} timeline entries to CSV: {csv_filepath}")
+        self.logger.info(f"✅ Exported {len(csv_rows)} timeline entries to CSV: {csv_filepath}")
+
+        # DEBUG: Show sample of exported data
+        if len(csv_rows) > 0:
+            sample_epochs = sorted(df['epoch_eff'].unique())[:5]
+            self.logger.info(f"   Sample epochs: {sample_epochs}")
+            sample_splits = sorted(df['split'].unique())
+            self.logger.info(f"   Splits: {sample_splits}")
 
     def get_accuracy_curves(self) -> Dict[str, Tuple[List[int], List[float]]]:
         """

@@ -3,7 +3,7 @@ This module contains the implementation of the Scratch_T2 baseline method.
 
 The Scratch_T2 model trains only on Task 2 data, providing an optimal baseline
 for measuring performance deficits in continual learning methods. It skips Task 1
-entirely and trains from scratch on Task 2 data at the end of Task 2.
+entirely and trains normally during Task 2 epochs (like SGD).
 
 This baseline is essential for Einstellung Effect analysis as it represents
 the optimal performance achievable on Task 2 without any interference from Task 1.
@@ -23,72 +23,55 @@ class ScratchT2(ContinualModel):
 
     def __init__(self, backbone, loss, args, transform, dataset=None):
         super(ScratchT2, self).__init__(backbone, loss, args, transform, dataset=dataset)
-        self.task2_data = None
-        self.task2_labels = None
 
     def begin_task(self, dataset):
         """
         Prepare for the current task.
-        Skip Task 1 (task 0), only collect Task 2 (task 1) data.
+        Skip Task 1 entirely, train normally on Task 2.
         """
         if self.current_task == 1:  # Task 2 (0-indexed)
-            # Store Task 2 data loader for later training
-            self.task2_data = dataset.train_loader
+            print(f"🎯 ScratchT2: Starting Task 2 training (current_task={self.current_task})")
+            # Restore original number of epochs for Task 2
+            if hasattr(self, '_original_n_epochs'):
+                self.args.n_epochs = self._original_n_epochs
+                print(f"🔄 ScratchT2: Restored n_epochs to {self.args.n_epochs} for Task 2")
+        else:
+            print(f"🚫 ScratchT2: Skipping Task {self.current_task + 1} (current_task={self.current_task})")
+            # Store original n_epochs and set to 1 for skipped tasks to make training faster
+            if not hasattr(self, '_original_n_epochs'):
+                self._original_n_epochs = self.args.n_epochs
+            self.args.n_epochs = 1
+            print(f"⚡ ScratchT2: Set n_epochs to 1 for skipped task (original: {self._original_n_epochs})")
 
     def end_task(self, dataset):
         """
-        Train only when Task 2 ends.
-        This implements the Scratch_T2 baseline: train from scratch on Task 2 data only.
+        End of task processing. No special training needed since we train normally during epochs.
         """
-        # Only train at the end of Task 2
-        if self.current_task == 1 and self.task2_data is not None:
-            # Collect all Task 2 data
-            all_inputs = []
-            all_labels = []
+        print(f"🔚 ScratchT2: End of task {self.current_task + 1} (current_task={self.current_task})")
 
-            for x, l, _ in self.task2_data:
-                all_inputs.append(x)
-                all_labels.append(l)
-
-            if len(all_inputs) == 0:
-                return
-
-            all_inputs = torch.cat(all_inputs)
-            all_labels = torch.cat(all_labels)
-
-            # Create dataset and dataloader for training
-            task2_dataset = torch.utils.data.TensorDataset(all_inputs, all_labels)
-            dataloader = create_seeded_dataloader(
-                self.args, task2_dataset,
-                batch_size=self.args.batch_size,
-                shuffle=True
-            )
-
-            # Get scheduler for training
-            scheduler = get_scheduler(self, self.args, reload_optim=True)
-
-            # Train on Task 2 data only
-            with tqdm(total=self.args.n_epochs * len(dataloader)) as pbar:
-                for e in range(self.args.n_epochs):
-                    pbar.set_description(f"Scratch_T2 - Epoch {e}", refresh=False)
-                    for i, (inputs, labels) in enumerate(dataloader):
-                        if self.args.debug_mode and i > self.get_debug_iters():
-                            break
-                        inputs, labels = inputs.to(self.device), labels.to(self.device)
-                        self.opt.zero_grad()
-                        outputs = self.net(inputs)
-                        loss = self.loss(outputs, labels.long())
-                        loss.backward()
-                        self.opt.step()
-                        pbar.update(self.args.batch_size)
-                        pbar.set_postfix({'loss': loss.item()}, refresh=False)
-
-                if scheduler is not None:
-                    scheduler.step()
-
-    def observe(self, *args, **kwargs):
+    def observe(self, inputs, labels, not_aug_inputs, **kwargs):
         """
-        Skip training during task progression.
-        All training happens in end_task for Task 2 only.
+        Train normally on Task 2, skip Task 1 entirely.
         """
-        return 0
+        if self.should_skip_current_task():
+            # Skip Task 1 entirely
+            return 0.0
+        else:
+            # Train normally on Task 2 like SGD
+            self.opt.zero_grad()
+            outputs = self.net(inputs)
+            loss = self.loss(outputs, labels.long())
+            loss.backward()
+            self.opt.step()
+            return loss.item()
+
+    def should_skip_current_task(self):
+        """
+        Check if this model should skip the current task entirely.
+        Used by integrations like Einstellung evaluator to respect task skipping.
+
+        Returns:
+            bool: True if the current task should be skipped entirely
+        """
+        # ScratchT2 only participates in Task 2 (current_task == 1)
+        return self.current_task != 1

@@ -21,7 +21,7 @@
         "T2_nonshortcut_normal": 9.302937433878581
       },
       "attention_metrics": {},
-      "timestamp": 1758536874.6418188
+      "timestamp": 1758539173.1904562
     },
     {
       "epoch": 0,
@@ -39,7 +39,7 @@
         "T2_nonshortcut_normal": 2.065397670110067
       },
       "attention_metrics": {},
-      "timestamp": 1758537056.06521
+      "timestamp": 1758539350.961102
     }
   ],
   "metrics_timeline": [
@@ -49,7 +49,7 @@
       "subset_name": "T1_all",
       "accuracy": 0.23275,
       "loss": 2.7813389949798584,
-      "timestamp": 1758536874.640059
+      "timestamp": 1758539173.1901262
     },
     {
       "epoch": 0,
@@ -57,7 +57,7 @@
       "subset_name": "T2_shortcut_normal",
       "accuracy": 0.0,
       "loss": 8.407764099121094,
-      "timestamp": 1758536874.640059
+      "timestamp": 1758539173.1901262
     },
     {
       "epoch": 0,
@@ -65,7 +65,7 @@
       "subset_name": "T2_shortcut_masked",
       "accuracy": 0.0,
       "loss": 8.826547653198242,
-      "timestamp": 1758536874.640059
+      "timestamp": 1758539173.1901262
     },
     {
       "epoch": 0,
@@ -73,7 +73,7 @@
       "subset_name": "T2_nonshortcut_normal",
       "accuracy": 0.0,
       "loss": 9.302937433878581,
-      "timestamp": 1758536874.640059
+      "timestamp": 1758539173.1901262
     },
     {
       "epoch": 0,
@@ -81,7 +81,7 @@
       "subset_name": "T1_all",
       "accuracy": 0.0,
       "loss": 7.969664070129395,
-      "timestamp": 1758537056.0638368
+      "timestamp": 1758539350.960321
     },
     {
       "epoch": 0,
@@ -89,7 +89,7 @@
       "subset_name": "T2_shortcut_normal",
       "accuracy": 0.358,
       "loss": 1.589196340560913,
-      "timestamp": 1758537056.0638368
+      "timestamp": 1758539350.960321
     },
     {
       "epoch": 0,
@@ -97,7 +97,7 @@
       "subset_name": "T2_shortcut_masked",
       "accuracy": 0.178,
       "loss": 2.8362527770996095,
-      "timestamp": 1758537056.0638368
+      "timestamp": 1758539350.960321
     },
     {
       "epoch": 0,
@@ -105,7 +105,7 @@
       "subset_name": "T2_nonshortcut_normal",
       "accuracy": 0.35,
       "loss": 2.065397670110067,
-      "timestamp": 1758537056.0638368
+      "timestamp": 1758539350.960321
     }
   ],
   "final_metrics": {

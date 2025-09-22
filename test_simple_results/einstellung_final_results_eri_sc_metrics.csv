@@ -1,0 +1,17 @@
+method,seed,epoch_eff,split,acc
+sgd,99,0.0,T1_all,0.259
+sgd,99,0.0,T1_all,0.0
+sgd,99,0.0,T2_nonshortcut_normal,0.0
+sgd,99,0.0,T2_nonshortcut_normal,0.44066666666666665
+sgd,99,0.0,T2_shortcut_masked,0.0
+sgd,99,0.0,T2_shortcut_masked,0.01
+sgd,99,0.0,T2_shortcut_normal,0.0
+sgd,99,0.0,T2_shortcut_normal,0.372
+sgd,99,1.0,T1_all,0.24125
+sgd,99,1.0,T1_all,0.0
+sgd,99,1.0,T2_nonshortcut_normal,0.0
+sgd,99,1.0,T2_nonshortcut_normal,0.06666666666666667
+sgd,99,1.0,T2_shortcut_masked,0.0
+sgd,99,1.0,T2_shortcut_masked,0.0
+sgd,99,1.0,T2_shortcut_normal,0.0
+sgd,99,1.0,T2_shortcut_normal,0.0

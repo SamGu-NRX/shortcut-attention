@@ -30,8 +30,9 @@ class Interleaved(ContinualModel):
     def begin_task(self, dataset):
         """
         Prepare for the current task.
+        Interleaved participates in all tasks normally.
         """
-        pass
+        print(f"🎯 Interleaved: Starting Task {self.current_task + 1} (current_task={self.current_task})")
 
     def end_task(self, dataset):
         """
@@ -94,3 +95,14 @@ class Interleaved(ContinualModel):
         All training happens in end_task with combined data.
         """
         return 0
+
+    def should_skip_current_task(self):
+        """
+        Check if this model should skip the current task entirely.
+        Used by integrations like Einstellung evaluator to respect task skipping.
+
+        Returns:
+            bool: True if the current task should be skipped entirely
+        """
+        # Interleaved model participates in all tasks
+        return False

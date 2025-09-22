@@ -167,6 +167,11 @@ def _patched_train(model, dataset, args):
     if _einstellung_evaluator is not None:
         try:
             output_path = getattr(args, 'results_path', './einstellung_results')
+
+            # Ensure output directory exists
+            import os
+            os.makedirs(output_path, exist_ok=True)
+
             results_file = f"{output_path}/einstellung_final_results.json"
             _einstellung_evaluator.export_results(results_file)
             logger.info(f"✓ Exported Einstellung results to: {results_file}")
@@ -206,21 +211,40 @@ def _call_original_train_with_hooks(model, dataset, args):
         # Add Einstellung evaluation hook after the epoch
         if _einstellung_evaluator is not None:
             try:
-                global _last_evaluated_epoch
+                # Check if the model wants to skip the current task entirely
+                should_skip_task = False
+                if hasattr(model, 'should_skip_current_task'):
+                    should_skip_task = model.should_skip_current_task()
+                    if should_skip_task:
+                        logger.info(f"⏭️  Model {type(model).__name__} is skipping task {_current_task_id}, skipping Einstellung evaluation")
 
-                # Prevent duplicate evaluations for the same global epoch
-                if _global_epoch_counter != _last_evaluated_epoch:
-                    logger.info(f"🔍 Running Einstellung evaluation for global epoch {_global_epoch_counter} (task {_current_task_id}, local epoch {epoch})...")
-                    _einstellung_evaluator.after_training_epoch(model, dataset, _global_epoch_counter)
-                    logger.info(f"✓ Einstellung evaluation completed for global epoch {_global_epoch_counter}")
-                    _last_evaluated_epoch = _global_epoch_counter
-                else:
-                    logger.info(f"⏭️  Skipping duplicate evaluation for global epoch {_global_epoch_counter}")
+                if not should_skip_task:
+                    global _last_evaluated_epoch
 
-                # Increment global epoch counter
+                    # Use the actual local epoch number instead of global counter for evaluation
+                    # This ensures we get proper epoch numbering (0, 1, 2, ...) instead of fractional values
+                    actual_epoch = epoch
+
+                    # Create a unique evaluation key to prevent duplicates
+                    eval_key = f"{_current_task_id}_{actual_epoch}"
+
+                    # Prevent duplicate evaluations for the same task/epoch combination
+                    if not hasattr(_einstellung_evaluator, '_evaluated_epochs'):
+                        _einstellung_evaluator._evaluated_epochs = set()
+
+                    if eval_key not in _einstellung_evaluator._evaluated_epochs:
+                        logger.info(f"🔍 Running Einstellung evaluation for task {_current_task_id}, epoch {actual_epoch} (global: {_global_epoch_counter})...")
+                        _einstellung_evaluator.after_training_epoch(model, dataset, actual_epoch)
+                        logger.info(f"✓ Einstellung evaluation completed for task {_current_task_id}, epoch {actual_epoch}")
+                        _einstellung_evaluator._evaluated_epochs.add(eval_key)
+                    else:
+                        logger.info(f"⏭️  Skipping duplicate evaluation for task {_current_task_id}, epoch {actual_epoch}")
+
+                # Increment global epoch counter for tracking (even for skipped tasks)
                 _global_epoch_counter += 1
             except Exception as e:
-                logger.error(f"❌ Einstellung evaluation error for global epoch {_global_epoch_counter}: {e}")
+                logger.error(f"❌ Einstellung evaluation error for task {_current_task_id}, epoch {epoch}: {e}")
+                logger.exception("Full traceback:")
 
         return result
 
@@ -252,14 +276,40 @@ def _patched_meta_begin_task(self, dataset):
     result = self._original_meta_begin_task(dataset)
 
     # Update current task ID for global epoch tracking
-    _current_task_id = dataset.i if hasattr(dataset, 'i') else 0
+    new_task_id = dataset.i if hasattr(dataset, 'i') else 0
 
-    # Call Einstellung hook
+    # Log task transition
+    if new_task_id != _current_task_id:
+        logger.info(f"🔄 Task transition: {_current_task_id} → {new_task_id}")
+
+    _current_task_id = new_task_id
+
+    # Reset evaluated epochs tracking for new task
     if _einstellung_evaluator is not None:
+        if not hasattr(_einstellung_evaluator, '_evaluated_epochs'):
+            _einstellung_evaluator._evaluated_epochs = set()
+        # Clear previous task's epoch tracking
+        _einstellung_evaluator._evaluated_epochs.clear()
+
+    logger = logging.getLogger(__name__)
+
+    # Check if the model wants to skip the current task entirely
+    should_skip_task = False
+    if hasattr(self, 'should_skip_current_task'):
+        should_skip_task = self.should_skip_current_task()
+        if should_skip_task:
+            logger.info(f"🎯 Starting task {_current_task_id} - Model {type(self).__name__} will skip this task")
+        else:
+            logger.info(f"🎯 Starting task {_current_task_id} - Einstellung evaluation enabled: {_einstellung_evaluator is not None}")
+    else:
+        logger.info(f"🎯 Starting task {_current_task_id} - Einstellung evaluation enabled: {_einstellung_evaluator is not None}")
+
+    # Call Einstellung hook only if the model is not skipping this task
+    if _einstellung_evaluator is not None and not should_skip_task:
         try:
             _einstellung_evaluator.meta_begin_task(self, dataset)
         except Exception as e:
-            logging.getLogger(__name__).debug(f"Einstellung meta_begin_task error: {e}")
+            logger.debug(f"Einstellung meta_begin_task error: {e}")
 
     return result
 
@@ -271,8 +321,13 @@ def _patched_meta_end_task(self, dataset):
     # Call original method
     result = self._original_meta_end_task(dataset)
 
-    # Call Einstellung hook
-    if _einstellung_evaluator is not None:
+    # Check if the model wants to skip the current task entirely
+    should_skip_task = False
+    if hasattr(self, 'should_skip_current_task'):
+        should_skip_task = self.should_skip_current_task()
+
+    # Call Einstellung hook only if the model is not skipping this task
+    if _einstellung_evaluator is not None and not should_skip_task:
         try:
             _einstellung_evaluator.meta_end_task(self, dataset)
         except Exception as e:

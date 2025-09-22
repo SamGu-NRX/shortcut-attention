@@ -171,7 +171,7 @@ Tasks are organized in dependency order, with each task building on previous wor
   - Verify backward compatibility with existing single-method experiments
   - _Requirements: All requirements validation_
 
-- [-] **17. Fix Einstellung Data Collection and Epoch Calculation Bugs**
+- [x] **17. Fix Einstellung Data Collection and Epoch Calculation Bugs**
 
   - **CRITICAL BUG FIX**: Fix epoch numbering in CSV output - `epoch_eff` shows fractional values (0.1, 0.2, 2.0) instead of actual epoch numbers (1, 2, 3... 50)
   - Fix timeline data collection failure causing "No timeline data found for subset T1_all" warnings
@@ -181,7 +181,17 @@ Tasks are organized in dependency order, with each task building on previous wor
   - Validate that CSV export contains correct epoch progression and subset accuracy data
   - _Requirements: Core data collection functionality_
 
-- [ ] **18. Performance and Scalability Testing**
+- [x] **18. Fix ScratchT2 Task Skipping Integration with Einstellung Evaluator**
+
+  - **CRITICAL BUG FIX**: Fix Einstellung evaluator running during Task 1 when ScratchT2 model is designed to skip Task 1 entirely
+  - Modify Einstellung integration to respect model task skipping behavior and work with Mammoth's native training pipeline
+  - Ensure ScratchT2 model properly skips Task 1 without triggering Einstellung evaluation during skipped tasks
+  - Fix task progression logic to prevent evaluation calls during tasks that models explicitly skip
+  - Validate that ScratchT2 only trains and evaluates on Task 2 as intended by the baseline design
+  - Ensure integration works seamlessly with Mammoth's native `meta_begin_task`, `meta_end_task`, and `observe` methods
+  - _Requirements: 1.1, 1.4 - Baseline method integration with proper task handling_
+
+- [ ] **19. Performance and Scalability Testing**
 
   - Test comparative analysis with multiple seeds and methods for performance
   - Validate memory usage and computational efficiency with large datasets
@@ -190,7 +200,7 @@ Tasks are organized in dependency order, with each task building on previous wor
   - Ensure statistical analysis scales appropriately with number of methods and seeds
   - _Requirements: Performance validation_
 
-- [ ] **19. Documentation and User Guide Updates**
+- [ ] **20. Documentation and User Guide Updates**
   - Update README with comparative analysis usage instructions
   - Document new baseline methods and their intended use cases
   - Create examples showing how to run comparative experiments with baselines
