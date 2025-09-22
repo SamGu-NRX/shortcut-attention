@@ -19,6 +19,10 @@ Key Features:
 
 import logging
 import numpy as np
+import os
+import pickle
+import hashlib
+import errno
 from argparse import Namespace
 from typing import Dict, Tuple
 
@@ -174,17 +178,24 @@ class EinstellungMixin:
 class TEinstellungCIFAR100_224(TCIFAR100, EinstellungMixin):
     """
     Test CIFAR-100 dataset with Einstellung Effect for 224x224 ViT.
-    Inherits from proven TCIFAR100 implementation.
+    Inherits from proven TCIFAR100 implementation with caching support.
     """
 
     def __init__(self, root, train=True, transform=None, target_transform=None,
                  download=False, apply_shortcut=False, mask_shortcut=False,
-                 patch_size=16, patch_color=(255, 0, 255)):
+                 patch_size=16, patch_color=(255, 0, 255), enable_cache=True):
         # CRITICAL: Set root before calling super().__init__()
         self.root = root
 
         # Initialize Einstellung parameters
         self.init_einstellung(apply_shortcut, mask_shortcut, patch_size, patch_color)
+
+        # Caching parameters
+        self.enable_cache = enable_cache
+        self._cached_data = None
+        self._cache_loaded = False
+        self._cache_error_count = 0
+        self._max_cache_errors = 3  # Maximum cache errors before disabling cache permanently
 
         # Call parent constructor with proper download logic
         super().__init__(root, train, transform, target_transform,
@@ -193,8 +204,21 @@ class TEinstellungCIFAR100_224(TCIFAR100, EinstellungMixin):
         # Filter to Einstellung classes after initialization
         self.filter_einstellung_classes()
 
+        # Setup cache if enabled
+        if self.enable_cache:
+            self._setup_cache_with_fallback()
+
     def __getitem__(self, index: int) -> Tuple[torch.Tensor, int]:
         """Retrieve items with Einstellung shortcut processing for evaluation."""
+        # Return cached data if available, with comprehensive error handling
+        if self.enable_cache and self._cache_loaded and self._cached_data is not None:
+            try:
+                return self._get_cached_item(index)
+            except Exception as e:
+                logging.warning(f"Cache retrieval failed for index {index}: {e}. Using original processing.")
+                # Continue to original processing below
+
+        # Original processing (fallback)
         img, target = self.data[index], self.targets[index]
 
         img = Image.fromarray(img, mode='RGB')
@@ -208,21 +232,391 @@ class TEinstellungCIFAR100_224(TCIFAR100, EinstellungMixin):
 
         return img, target
 
+    def _get_cache_key(self) -> str:
+        """Generate a secure hash key based on Einstellung parameters for cache identification."""
+        params = {
+            'apply_shortcut': self.apply_shortcut,
+            'mask_shortcut': self.mask_shortcut,
+            'patch_size': self.patch_size,
+            'patch_color': tuple(self.patch_color),
+            'train': self.train,
+            'resolution': '224x224'  # Distinguish from 32x32 cache
+        }
+        param_str = str(sorted(params.items()))
+        return hashlib.sha256(param_str.encode()).hexdigest()[:16]
+
+    def _get_cache_path(self) -> str:
+        """Get the cache file path using Mammoth's base_path structure."""
+        cache_key = self._get_cache_key()
+        cache_dir = os.path.join(base_path(), 'CIFAR100', 'einstellung_cache_224')
+        os.makedirs(cache_dir, exist_ok=True)
+        split_name = 'train' if self.train else 'test'
+        cache_filename = f'{split_name}_{cache_key}.pkl'
+        return os.path.join(cache_dir, cache_filename)
+
+    def _setup_cache_with_fallback(self) -> None:
+        """Setup cache with comprehensive error handling and automatic fallback."""
+        if self._cache_error_count >= self._max_cache_errors:
+            logging.warning(f"Cache disabled due to {self._cache_error_count} consecutive errors. Using original processing.")
+            self.enable_cache = False
+            return
+
+        try:
+            cache_path = self._get_cache_path()
+            cache_dir = os.path.dirname(cache_path)
+
+            if not self._check_disk_space(cache_dir):
+                logging.error("Insufficient disk space for cache operations. Falling back to original processing.")
+                self._disable_cache_with_fallback("Insufficient disk space")
+                return
+
+            if os.path.exists(cache_path):
+                logging.info(f"Loading Einstellung 224x224 cache from {cache_path}")
+                self._load_cache_with_validation(cache_path)
+            else:
+                logging.info(f"Building Einstellung 224x224 cache at {cache_path}")
+                self._build_cache_with_validation(cache_path)
+
+        except (OSError, IOError) as e:
+            if e.errno == errno.ENOSPC:
+                logging.error(f"No space left on device for cache operations: {e}. Falling back to original processing.")
+            elif e.errno == errno.EACCES:
+                logging.error(f"Permission denied for cache operations: {e}. Falling back to original processing.")
+            else:
+                logging.error(f"I/O error during cache operations: {e}. Falling back to original processing.")
+            self._disable_cache_with_fallback(f"I/O error: {e}")
+        except MemoryError as e:
+            logging.error(f"Insufficient memory for cache operations: {e}. Falling back to original processing.")
+            self._disable_cache_with_fallback(f"Memory error: {e}")
+        except Exception as e:
+            logging.error(f"Unexpected error during cache setup: {e}. Falling back to original processing.")
+            self._disable_cache_with_fallback(f"Unexpected error: {e}")
+
+    def _disable_cache_with_fallback(self, reason: str) -> None:
+        """Disable cache and ensure fallback to original implementation."""
+        self._cache_error_count += 1
+        self._cache_loaded = False
+        self._cached_data = None
+
+        if self._cache_error_count >= self._max_cache_errors:
+            logging.warning(f"Disabling cache permanently after {self._cache_error_count} errors. Reason: {reason}")
+            self.enable_cache = False
+        else:
+            logging.warning(f"Cache error #{self._cache_error_count}: {reason}. Will retry on next initialization.")
+
+    def _check_disk_space(self, path: str, required_mb: int = 2048) -> bool:
+        """Check if sufficient disk space is available for cache operations (224x224 needs more space)."""
+        try:
+            os.makedirs(path, exist_ok=True)
+            statvfs = os.statvfs(path)
+            available_bytes = statvfs.f_frsize * statvfs.f_bavail
+            available_mb = available_bytes / (1024 * 1024)
+
+            if available_mb < required_mb:
+                logging.warning(f"Insufficient disk space: {available_mb:.1f}MB available, {required_mb}MB required")
+                return False
+            return True
+        except (OSError, AttributeError) as e:
+            logging.warning(f"Could not check disk space: {e}. Proceeding with cache operations.")
+            return True
+
+    def _build_cache_with_validation(self, cache_path: str) -> None:
+        """Build cache with comprehensive error handling and validation."""
+        temp_path = cache_path + '.tmp'
+
+        try:
+            cache_dir = os.path.dirname(cache_path)
+            if not self._check_disk_space(cache_dir, required_mb=4096):  # 224x224 needs more space
+                raise OSError(errno.ENOSPC, "Insufficient disk space for cache building")
+
+            logging.info("Preprocessing 224x224 images for cache...")
+
+            cached_images = []
+            cached_targets = []
+
+            # Process all images using existing methods with error handling
+            for i in range(len(self.data)):
+                try:
+                    img, target = self.data[i], self.targets[i]
+
+                    # Convert to PIL Image
+                    img = Image.fromarray(img, mode='RGB')
+
+                    # Apply Einstellung Effect modifications
+                    img = self.apply_einstellung_effect(img, i)
+
+                    # Validate processed image (224x224 after resize)
+                    img_array = np.array(img)
+                    if img_array.shape != (32, 32, 3):  # Still CIFAR size before transform
+                        raise ValueError(f"Invalid processed image shape: {img_array.shape}")
+
+                    # Store processed images as numpy arrays for caching
+                    cached_images.append(img_array)
+                    cached_targets.append(target)
+
+                    # Progress logging and periodic disk space check
+                    if (i + 1) % 1000 == 0:
+                        logging.info(f"Processed {i + 1}/{len(self.data)} images for 224x224 cache")
+                        if not self._check_disk_space(cache_dir, required_mb=2048):
+                            raise OSError(errno.ENOSPC, "Disk space exhausted during cache building")
+
+                except Exception as e:
+                    logging.error(f"Error processing image {i}: {e}")
+                    raise
+
+            # Validate processed data before saving
+            if len(cached_images) != len(self.data):
+                raise ValueError(f"Cache size mismatch: processed {len(cached_images)}, expected {len(self.data)}")
+
+            # Create cache data structure
+            cache_data = {
+                'processed_images': np.array(cached_images),
+                'targets': np.array(cached_targets),
+                'params_hash': self._get_cache_key(),
+                'version': '1.0',
+                'dataset_size': len(self.data),
+                'resolution': '224x224'
+            }
+
+            # Validate cache data structure
+            self._validate_cache_data(cache_data)
+
+            # Save cache atomically with error handling
+            try:
+                with open(temp_path, 'wb') as f:
+                    pickle.dump(cache_data, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+                if not os.path.exists(temp_path):
+                    raise IOError("Temporary cache file was not created")
+
+                file_size = os.path.getsize(temp_path)
+                if file_size < 1024:
+                    raise IOError(f"Cache file too small: {file_size} bytes")
+
+                os.rename(temp_path, cache_path)
+
+            except (OSError, IOError) as e:
+                if e.errno == errno.ENOSPC:
+                    logging.error("No space left on device while saving cache")
+                elif e.errno == errno.EACCES:
+                    logging.error("Permission denied while saving cache")
+                else:
+                    logging.error(f"I/O error while saving cache: {e}")
+                raise
+
+            # Load and validate the cache we just built
+            self._cached_data = cache_data
+            self._cache_loaded = True
+
+            logging.info(f"224x224 cache built successfully with {len(cached_images)} images")
+
+        except (OSError, IOError) as e:
+            logging.error(f"I/O error building cache: {e}")
+            self._cleanup_failed_cache(temp_path, cache_path)
+            self._disable_cache_with_fallback(f"I/O error during cache building: {e}")
+        except MemoryError as e:
+            logging.error(f"Memory error building cache: {e}")
+            self._cleanup_failed_cache(temp_path, cache_path)
+            self._disable_cache_with_fallback(f"Memory error during cache building: {e}")
+        except Exception as e:
+            logging.error(f"Unexpected error building cache: {e}")
+            self._cleanup_failed_cache(temp_path, cache_path)
+            self._disable_cache_with_fallback(f"Unexpected error during cache building: {e}")
+
+    def _cleanup_failed_cache(self, temp_path: str, cache_path: str) -> None:
+        """Clean up failed cache files safely."""
+        try:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+                logging.info(f"Cleaned up temporary cache file: {temp_path}")
+        except OSError as e:
+            logging.warning(f"Could not clean up temporary cache file {temp_path}: {e}")
+
+        try:
+            if os.path.exists(cache_path):
+                os.remove(cache_path)
+                logging.info(f"Cleaned up corrupted cache file: {cache_path}")
+        except OSError as e:
+            logging.warning(f"Could not clean up corrupted cache file {cache_path}: {e}")
+
+    def _validate_cache_data(self, cache_data: dict) -> None:
+        """Validate cache data structure before saving."""
+        required_keys = ['processed_images', 'targets', 'params_hash']
+        for key in required_keys:
+            if key not in cache_data:
+                raise ValueError(f"Cache data missing required key: {key}")
+
+        processed_images = cache_data['processed_images']
+        targets = cache_data['targets']
+
+        if not isinstance(processed_images, np.ndarray):
+            raise ValueError(f"Invalid processed_images type: {type(processed_images)}")
+
+        if processed_images.ndim != 4 or processed_images.shape[1:] != (32, 32, 3):
+            raise ValueError(f"Invalid processed_images shape: {processed_images.shape}")
+
+        if len(targets) != len(processed_images):
+            raise ValueError("Cache data arrays have mismatched lengths")
+
+    def _load_cache_with_validation(self, cache_path: str) -> None:
+        """Load preprocessed images from cache file with comprehensive validation."""
+        try:
+            if not os.path.exists(cache_path):
+                logging.warning(f"Cache file does not exist: {cache_path}")
+                self._build_cache_with_validation(cache_path)
+                return
+
+            file_size = os.path.getsize(cache_path)
+            if file_size < 1024:
+                logging.warning(f"Cache file too small ({file_size} bytes), rebuilding cache.")
+                os.remove(cache_path)
+                self._build_cache_with_validation(cache_path)
+                return
+
+            try:
+                with open(cache_path, 'rb') as f:
+                    cache_data = pickle.load(f)
+            except (pickle.PickleError, EOFError, UnicodeDecodeError) as e:
+                logging.warning(f"Cache file corrupted (pickle error): {e}. Rebuilding cache.")
+                self._handle_corrupted_cache(cache_path)
+                return
+            except (OSError, IOError) as e:
+                logging.error(f"I/O error reading cache file: {e}. Rebuilding cache.")
+                self._handle_corrupted_cache(cache_path)
+                return
+
+            # Validate cache structure
+            if not isinstance(cache_data, dict):
+                logging.warning(f"Invalid cache data type: {type(cache_data)}. Expected dict. Rebuilding cache.")
+                self._handle_corrupted_cache(cache_path)
+                return
+
+            required_keys = ['processed_images', 'targets', 'params_hash']
+            for key in required_keys:
+                if key not in cache_data:
+                    logging.warning(f"Cache missing required key '{key}'. Rebuilding cache.")
+                    self._handle_corrupted_cache(cache_path)
+                    return
+
+            # Validate cache parameters using hash comparison
+            current_hash = self._get_cache_key()
+            cached_hash = cache_data.get('params_hash')
+            if cached_hash != current_hash:
+                logging.info(f"Cache parameter mismatch: cached={cached_hash}, current={current_hash}. Rebuilding cache for new parameters.")
+                os.remove(cache_path)
+                self._build_cache_with_validation(cache_path)
+                return
+
+            # Comprehensive integrity checking
+            expected_size = len(self.data)
+            cached_images = cache_data['processed_images']
+            cached_targets = cache_data['targets']
+
+            if len(cached_images) != expected_size:
+                logging.warning(f"Cache size mismatch: expected {expected_size}, got {len(cached_images)}. Rebuilding cache.")
+                self._handle_corrupted_cache(cache_path)
+                return
+
+            if len(cached_targets) != expected_size:
+                logging.warning(f"Cache data inconsistency: images={len(cached_images)}, targets={len(cached_targets)}. Rebuilding cache.")
+                self._handle_corrupted_cache(cache_path)
+                return
+
+            # Validate data types and shapes
+            if not isinstance(cached_images, np.ndarray) or cached_images.ndim != 4:
+                logging.warning(f"Invalid cached images format: type={type(cached_images)}, shape={getattr(cached_images, 'shape', 'N/A')}. Rebuilding cache.")
+                self._handle_corrupted_cache(cache_path)
+                return
+
+            if cached_images.shape[1:] != (32, 32, 3):
+                logging.warning(f"Invalid cached image shape: {cached_images.shape}. Expected (N, 32, 32, 3). Rebuilding cache.")
+                self._handle_corrupted_cache(cache_path)
+                return
+
+            # All validations passed
+            self._cached_data = cache_data
+            self._cache_loaded = True
+            logging.info(f"224x224 cache loaded successfully with {len(cached_images)} images")
+
+        except MemoryError as e:
+            logging.error(f"Memory error loading cache: {e}. Falling back to original processing.")
+            self._disable_cache_with_fallback(f"Memory error loading cache: {e}")
+        except Exception as e:
+            logging.error(f"Unexpected error loading cache: {e}. Rebuilding cache.")
+            self._handle_corrupted_cache(cache_path)
+
+    def _handle_corrupted_cache(self, cache_path: str) -> None:
+        """Handle corrupted cache by removing it and rebuilding."""
+        try:
+            if os.path.exists(cache_path):
+                os.remove(cache_path)
+                logging.info(f"Removed corrupted cache file: {cache_path}")
+        except OSError as e:
+            logging.warning(f"Could not remove corrupted cache file {cache_path}: {e}")
+
+        try:
+            self._build_cache_with_validation(cache_path)
+        except Exception as e:
+            logging.error(f"Failed to rebuild cache after corruption: {e}")
+            self._disable_cache_with_fallback(f"Cache rebuild failed: {e}")
+
+    def _get_cached_item(self, index: int) -> Tuple[torch.Tensor, int]:
+        """Get cached item with proper error handling."""
+        try:
+            if self._cached_data is None:
+                raise ValueError("Cache data is None")
+
+            cached_images = self._cached_data['processed_images']
+            cached_targets = self._cached_data['targets']
+
+            if index >= len(cached_images):
+                raise IndexError(f"Index {index} out of range for cached data (size: {len(cached_images)})")
+
+            # Get cached data
+            img_array = cached_images[index]
+            target = cached_targets[index]
+
+            # Convert to PIL Image
+            img = Image.fromarray(img_array, mode='RGB')
+
+            # Apply transforms
+            if self.transform is not None:
+                img = self.transform(img)
+
+            if self.target_transform is not None:
+                target = self.target_transform(target)
+
+            return img, target
+
+        except Exception as e:
+            logging.error(f"Error retrieving cached item {index}: {e}")
+            raise
+
 
 class MyEinstellungCIFAR100_224(MyCIFAR100, EinstellungMixin):
     """
     Training CIFAR-100 dataset with Einstellung Effect for 224x224 ViT.
-    Inherits from proven MyCIFAR100 implementation.
+    Inherits from proven MyCIFAR100 implementation with caching support.
     """
 
     def __init__(self, root, train=True, transform=None, target_transform=None,
                  download=False, apply_shortcut=False, mask_shortcut=False,
-                 patch_size=16, patch_color=(255, 0, 255)):
+                 patch_size=16, patch_color=(255, 0, 255), enable_cache=True):
         # CRITICAL: Set root before calling super().__init__()
         self.root = root
 
+        # Initialize not_aug_transform before other initialization
+        self.not_aug_transform = transforms.Compose([transforms.ToTensor()])
+
         # Initialize Einstellung parameters
         self.init_einstellung(apply_shortcut, mask_shortcut, patch_size, patch_color)
+
+        # Caching parameters
+        self.enable_cache = enable_cache
+        self._cached_data = None
+        self._cache_loaded = False
+        self._cache_error_count = 0
+        self._max_cache_errors = 3  # Maximum cache errors before disabling cache permanently
 
         # Call parent constructor with proper download logic
         super().__init__(root, train, transform, target_transform,
@@ -231,8 +625,21 @@ class MyEinstellungCIFAR100_224(MyCIFAR100, EinstellungMixin):
         # Filter to Einstellung classes after initialization
         self.filter_einstellung_classes()
 
+        # Setup cache if enabled
+        if self.enable_cache:
+            self._setup_cache_with_fallback()
+
     def __getitem__(self, index: int) -> Tuple[torch.Tensor, int, torch.Tensor]:
         """Get item with Einstellung Effect processing."""
+        # Return cached data if available, with comprehensive error handling
+        if self.enable_cache and self._cache_loaded and self._cached_data is not None:
+            try:
+                return self._get_cached_item(index)
+            except Exception as e:
+                logging.warning(f"Cache retrieval failed for index {index}: {e}. Using original processing.")
+                # Continue to original processing below
+
+        # Original processing (fallback)
         img, target = self.data[index], self.targets[index]
 
         # Convert to PIL Image
@@ -252,6 +659,375 @@ class MyEinstellungCIFAR100_224(MyCIFAR100, EinstellungMixin):
             target = self.target_transform(target)
 
         return img, target, not_aug_img
+
+    def _get_cache_key(self) -> str:
+        """Generate a secure hash key based on Einstellung parameters for cache identification."""
+        params = {
+            'apply_shortcut': self.apply_shortcut,
+            'mask_shortcut': self.mask_shortcut,
+            'patch_size': self.patch_size,
+            'patch_color': tuple(self.patch_color),
+            'train': self.train,
+            'resolution': '224x224'  # Distinguish from 32x32 cache
+        }
+        param_str = str(sorted(params.items()))
+        return hashlib.sha256(param_str.encode()).hexdigest()[:16]
+
+    def _get_cache_path(self) -> str:
+        """Get the cache file path using Mammoth's base_path structure."""
+        cache_key = self._get_cache_key()
+        cache_dir = os.path.join(base_path(), 'CIFAR100', 'einstellung_cache_224')
+        os.makedirs(cache_dir, exist_ok=True)
+        split_name = 'train' if self.train else 'test'
+        cache_filename = f'{split_name}_{cache_key}.pkl'
+        return os.path.join(cache_dir, cache_filename)
+
+    def _setup_cache_with_fallback(self) -> None:
+        """Setup cache with comprehensive error handling and automatic fallback."""
+        if self._cache_error_count >= self._max_cache_errors:
+            logging.warning(f"Cache disabled due to {self._cache_error_count} consecutive errors. Using original processing.")
+            self.enable_cache = False
+            return
+
+        try:
+            cache_path = self._get_cache_path()
+            cache_dir = os.path.dirname(cache_path)
+
+            if not self._check_disk_space(cache_dir):
+                logging.error("Insufficient disk space for cache operations. Falling back to original processing.")
+                self._disable_cache_with_fallback("Insufficient disk space")
+                return
+
+            if os.path.exists(cache_path):
+                logging.info(f"Loading Einstellung 224x224 cache from {cache_path}")
+                self._load_cache_with_validation(cache_path)
+            else:
+                logging.info(f"Building Einstellung 224x224 cache at {cache_path}")
+                self._build_cache_with_validation(cache_path)
+
+        except (OSError, IOError) as e:
+            if e.errno == errno.ENOSPC:
+                logging.error(f"No space left on device for cache operations: {e}. Falling back to original processing.")
+            elif e.errno == errno.EACCES:
+                logging.error(f"Permission denied for cache operations: {e}. Falling back to original processing.")
+            else:
+                logging.error(f"I/O error during cache operations: {e}. Falling back to original processing.")
+            self._disable_cache_with_fallback(f"I/O error: {e}")
+        except MemoryError as e:
+            logging.error(f"Insufficient memory for cache operations: {e}. Falling back to original processing.")
+            self._disable_cache_with_fallback(f"Memory error: {e}")
+        except Exception as e:
+            logging.error(f"Unexpected error during cache setup: {e}. Falling back to original processing.")
+            self._disable_cache_with_fallback(f"Unexpected error: {e}")
+
+    def _disable_cache_with_fallback(self, reason: str) -> None:
+        """Disable cache and ensure fallback to original implementation."""
+        self._cache_error_count += 1
+        self._cache_loaded = False
+        self._cached_data = None
+
+        if self._cache_error_count >= self._max_cache_errors:
+            logging.warning(f"Disabling cache permanently after {self._cache_error_count} errors. Reason: {reason}")
+            self.enable_cache = False
+        else:
+            logging.warning(f"Cache error #{self._cache_error_count}: {reason}. Will retry on next initialization.")
+
+    def _check_disk_space(self, path: str, required_mb: int = 2048) -> bool:
+        """Check if sufficient disk space is available for cache operations (224x224 needs more space)."""
+        try:
+            os.makedirs(path, exist_ok=True)
+            statvfs = os.statvfs(path)
+            available_bytes = statvfs.f_frsize * statvfs.f_bavail
+            available_mb = available_bytes / (1024 * 1024)
+
+            if available_mb < required_mb:
+                logging.warning(f"Insufficient disk space: {available_mb:.1f}MB available, {required_mb}MB required")
+                return False
+            return True
+        except (OSError, AttributeError) as e:
+            logging.warning(f"Could not check disk space: {e}. Proceeding with cache operations.")
+            return True
+
+    def _build_cache_with_validation(self, cache_path: str) -> None:
+        """Build cache with comprehensive error handling and validation."""
+        temp_path = cache_path + '.tmp'
+
+        try:
+            cache_dir = os.path.dirname(cache_path)
+            if not self._check_disk_space(cache_dir, required_mb=4096):  # 224x224 needs more space
+                raise OSError(errno.ENOSPC, "Insufficient disk space for cache building")
+
+            logging.info("Preprocessing 224x224 images for cache...")
+
+            cached_images = []
+            cached_targets = []
+            cached_not_aug_images = []
+
+            # Process all images using existing methods with error handling
+            for i in range(len(self.data)):
+                try:
+                    img, target = self.data[i], self.targets[i]
+
+                    # Convert to PIL Image
+                    img = Image.fromarray(img, mode='RGB')
+                    original_img = img.copy()
+
+                    # Apply Einstellung Effect modifications
+                    img = self.apply_einstellung_effect(img, i)
+
+                    # Validate processed image (224x224 after resize)
+                    img_array = np.array(img)
+                    if img_array.shape != (32, 32, 3):  # Still CIFAR size before transform
+                        raise ValueError(f"Invalid processed image shape: {img_array.shape}")
+
+                    # Store processed images as numpy arrays for caching
+                    cached_images.append(img_array)
+                    cached_targets.append(target)
+                    cached_not_aug_images.append(np.array(original_img))
+
+                    # Progress logging and periodic disk space check
+                    if (i + 1) % 1000 == 0:
+                        logging.info(f"Processed {i + 1}/{len(self.data)} images for 224x224 cache")
+                        if not self._check_disk_space(cache_dir, required_mb=2048):
+                            raise OSError(errno.ENOSPC, "Disk space exhausted during cache building")
+
+                except Exception as e:
+                    logging.error(f"Error processing image {i}: {e}")
+                    raise
+
+            # Validate processed data before saving
+            if len(cached_images) != len(self.data):
+                raise ValueError(f"Cache size mismatch: processed {len(cached_images)}, expected {len(self.data)}")
+
+            # Create cache data structure
+            cache_data = {
+                'processed_images': np.array(cached_images),
+                'targets': np.array(cached_targets),
+                'not_aug_images': np.array(cached_not_aug_images),
+                'params_hash': self._get_cache_key(),
+                'version': '1.0',
+                'dataset_size': len(self.data),
+                'resolution': '224x224'
+            }
+
+            # Validate cache data structure
+            self._validate_cache_data(cache_data)
+
+            # Save cache atomically with error handling
+            try:
+                with open(temp_path, 'wb') as f:
+                    pickle.dump(cache_data, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+                if not os.path.exists(temp_path):
+                    raise IOError("Temporary cache file was not created")
+
+                file_size = os.path.getsize(temp_path)
+                if file_size < 1024:
+                    raise IOError(f"Cache file too small: {file_size} bytes")
+
+                os.rename(temp_path, cache_path)
+
+            except (OSError, IOError) as e:
+                if e.errno == errno.ENOSPC:
+                    logging.error("No space left on device while saving cache")
+                elif e.errno == errno.EACCES:
+                    logging.error("Permission denied while saving cache")
+                else:
+                    logging.error(f"I/O error while saving cache: {e}")
+                raise
+
+            # Load and validate the cache we just built
+            self._cached_data = cache_data
+            self._cache_loaded = True
+
+            logging.info(f"224x224 cache built successfully with {len(cached_images)} images")
+
+        except (OSError, IOError) as e:
+            logging.error(f"I/O error building cache: {e}")
+            self._cleanup_failed_cache(temp_path, cache_path)
+            self._disable_cache_with_fallback(f"I/O error during cache building: {e}")
+        except MemoryError as e:
+            logging.error(f"Memory error building cache: {e}")
+            self._cleanup_failed_cache(temp_path, cache_path)
+            self._disable_cache_with_fallback(f"Memory error during cache building: {e}")
+        except Exception as e:
+            logging.error(f"Unexpected error building cache: {e}")
+            self._cleanup_failed_cache(temp_path, cache_path)
+            self._disable_cache_with_fallback(f"Unexpected error during cache building: {e}")
+
+    def _cleanup_failed_cache(self, temp_path: str, cache_path: str) -> None:
+        """Clean up failed cache files safely."""
+        try:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+                logging.info(f"Cleaned up temporary cache file: {temp_path}")
+        except OSError as e:
+            logging.warning(f"Could not clean up temporary cache file {temp_path}: {e}")
+
+        try:
+            if os.path.exists(cache_path):
+                os.remove(cache_path)
+                logging.info(f"Cleaned up corrupted cache file: {cache_path}")
+        except OSError as e:
+            logging.warning(f"Could not clean up corrupted cache file {cache_path}: {e}")
+
+    def _validate_cache_data(self, cache_data: dict) -> None:
+        """Validate cache data structure before saving."""
+        required_keys = ['processed_images', 'targets', 'not_aug_images', 'params_hash']
+        for key in required_keys:
+            if key not in cache_data:
+                raise ValueError(f"Cache data missing required key: {key}")
+
+        processed_images = cache_data['processed_images']
+        targets = cache_data['targets']
+        not_aug_images = cache_data['not_aug_images']
+
+        if not isinstance(processed_images, np.ndarray):
+            raise ValueError(f"Invalid processed_images type: {type(processed_images)}")
+
+        if processed_images.ndim != 4 or processed_images.shape[1:] != (32, 32, 3):
+            raise ValueError(f"Invalid processed_images shape: {processed_images.shape}")
+
+        if len(targets) != len(processed_images) or len(not_aug_images) != len(processed_images):
+            raise ValueError("Cache data arrays have mismatched lengths")
+
+    def _load_cache_with_validation(self, cache_path: str) -> None:
+        """Load preprocessed images from cache file with comprehensive validation."""
+        try:
+            if not os.path.exists(cache_path):
+                logging.warning(f"Cache file does not exist: {cache_path}")
+                self._build_cache_with_validation(cache_path)
+                return
+
+            file_size = os.path.getsize(cache_path)
+            if file_size < 1024:
+                logging.warning(f"Cache file too small ({file_size} bytes), rebuilding cache.")
+                os.remove(cache_path)
+                self._build_cache_with_validation(cache_path)
+                return
+
+            try:
+                with open(cache_path, 'rb') as f:
+                    cache_data = pickle.load(f)
+            except (pickle.PickleError, EOFError, UnicodeDecodeError) as e:
+                logging.warning(f"Cache file corrupted (pickle error): {e}. Rebuilding cache.")
+                self._handle_corrupted_cache(cache_path)
+                return
+            except (OSError, IOError) as e:
+                logging.error(f"I/O error reading cache file: {e}. Rebuilding cache.")
+                self._handle_corrupted_cache(cache_path)
+                return
+
+            # Validate cache structure
+            if not isinstance(cache_data, dict):
+                logging.warning(f"Invalid cache data type: {type(cache_data)}. Expected dict. Rebuilding cache.")
+                self._handle_corrupted_cache(cache_path)
+                return
+
+            required_keys = ['processed_images', 'targets', 'not_aug_images', 'params_hash']
+            for key in required_keys:
+                if key not in cache_data:
+                    logging.warning(f"Cache missing required key '{key}'. Rebuilding cache.")
+                    self._handle_corrupted_cache(cache_path)
+                    return
+
+            # Validate cache parameters using hash comparison
+            current_hash = self._get_cache_key()
+            cached_hash = cache_data.get('params_hash')
+            if cached_hash != current_hash:
+                logging.info(f"Cache parameter mismatch: cached={cached_hash}, current={current_hash}. Rebuilding cache for new parameters.")
+                os.remove(cache_path)
+                self._build_cache_with_validation(cache_path)
+                return
+
+            # Comprehensive integrity checking
+            expected_size = len(self.data)
+            cached_images = cache_data['processed_images']
+            cached_targets = cache_data['targets']
+            cached_not_aug = cache_data['not_aug_images']
+
+            if len(cached_images) != expected_size:
+                logging.warning(f"Cache size mismatch: expected {expected_size}, got {len(cached_images)}. Rebuilding cache.")
+                self._handle_corrupted_cache(cache_path)
+                return
+
+            if len(cached_targets) != expected_size or len(cached_not_aug) != expected_size:
+                logging.warning(f"Cache data inconsistency: images={len(cached_images)}, targets={len(cached_targets)}, not_aug={len(cached_not_aug)}. Rebuilding cache.")
+                self._handle_corrupted_cache(cache_path)
+                return
+
+            # Validate data types and shapes
+            if not isinstance(cached_images, np.ndarray) or cached_images.ndim != 4:
+                logging.warning(f"Invalid cached images format: type={type(cached_images)}, shape={getattr(cached_images, 'shape', 'N/A')}. Rebuilding cache.")
+                self._handle_corrupted_cache(cache_path)
+                return
+
+            if cached_images.shape[1:] != (32, 32, 3):
+                logging.warning(f"Invalid cached image shape: {cached_images.shape}. Expected (N, 32, 32, 3). Rebuilding cache.")
+                self._handle_corrupted_cache(cache_path)
+                return
+
+            # All validations passed
+            self._cached_data = cache_data
+            self._cache_loaded = True
+            logging.info(f"224x224 cache loaded successfully with {len(cached_images)} images")
+
+        except MemoryError as e:
+            logging.error(f"Memory error loading cache: {e}. Falling back to original processing.")
+            self._disable_cache_with_fallback(f"Memory error loading cache: {e}")
+        except Exception as e:
+            logging.error(f"Unexpected error loading cache: {e}. Rebuilding cache.")
+            self._handle_corrupted_cache(cache_path)
+
+    def _handle_corrupted_cache(self, cache_path: str) -> None:
+        """Handle corrupted cache by removing it and rebuilding."""
+        try:
+            if os.path.exists(cache_path):
+                os.remove(cache_path)
+                logging.info(f"Removed corrupted cache file: {cache_path}")
+        except OSError as e:
+            logging.warning(f"Could not remove corrupted cache file {cache_path}: {e}")
+
+        try:
+            self._build_cache_with_validation(cache_path)
+        except Exception as e:
+            logging.error(f"Failed to rebuild cache after corruption: {e}")
+            self._disable_cache_with_fallback(f"Cache rebuild failed: {e}")
+
+    def _get_cached_item(self, index: int) -> Tuple[torch.Tensor, int, torch.Tensor]:
+        """Get cached item with proper error handling."""
+        try:
+            if self._cached_data is None:
+                raise ValueError("Cache data is None")
+
+            cached_images = self._cached_data['processed_images']
+            cached_targets = self._cached_data['targets']
+            cached_not_aug = self._cached_data['not_aug_images']
+
+            if index >= len(cached_images):
+                raise IndexError(f"Index {index} out of range for cached data (size: {len(cached_images)})")
+
+            # Get cached data
+            img_array = cached_images[index]
+            target = cached_targets[index]
+            not_aug_array = cached_not_aug[index]
+
+            # Convert to PIL Image
+            img = Image.fromarray(img_array, mode='RGB')
+            not_aug_img = self.not_aug_transform(Image.fromarray(not_aug_array, mode='RGB'))
+
+            # Apply transforms
+            if self.transform is not None:
+                img = self.transform(img)
+
+            if self.target_transform is not None:
+                target = self.target_transform(target)
+
+            return img, target, not_aug_img
+
+        except Exception as e:
+            logging.error(f"Error retrieving cached item {index}: {e}")
+            raise
 
 
 class SequentialCIFAR100Einstellung224(SequentialCIFAR100224):
@@ -283,12 +1059,14 @@ class SequentialCIFAR100Einstellung224(SequentialCIFAR100224):
         self.mask_shortcut = getattr(args, 'einstellung_mask_shortcut', False)
         self.patch_size = getattr(args, 'einstellung_patch_size', 16)  # Larger for 224x224
         self.patch_color = getattr(args, 'einstellung_patch_color', [255, 0, 255])
+        self.enable_cache = getattr(args, 'einstellung_enable_cache', True)
 
         logging.info(f"Initialized {self.NAME} with Einstellung parameters:")
         logging.info(f"  - Apply shortcut: {self.apply_shortcut}")
         logging.info(f"  - Mask shortcut: {self.mask_shortcut}")
         logging.info(f"  - Patch size: {self.patch_size}")
         logging.info(f"  - Patch color: {self.patch_color}")
+        logging.info(f"  - Enable cache: {self.enable_cache}")
 
     def get_data_loaders(self) -> Tuple[torch.utils.data.DataLoader, torch.utils.data.DataLoader]:
         """Get train and test data loaders using Einstellung datasets."""
@@ -296,17 +1074,19 @@ class SequentialCIFAR100Einstellung224(SequentialCIFAR100224):
         transform = self.TRANSFORM
         test_transform = self.TEST_TRANSFORM
 
-        # Create Einstellung datasets using the working base classes
+        # Create Einstellung datasets using the working base classes with caching
         train_dataset = MyEinstellungCIFAR100_224(
             base_path() + 'CIFAR100', train=True, download=True, transform=transform,
             apply_shortcut=self.apply_shortcut, mask_shortcut=self.mask_shortcut,
-            patch_size=self.patch_size, patch_color=self.patch_color
+            patch_size=self.patch_size, patch_color=self.patch_color,
+            enable_cache=self.enable_cache
         )
 
         test_dataset = TEinstellungCIFAR100_224(
             base_path() + 'CIFAR100', train=False, download=True, transform=test_transform,
             apply_shortcut=self.apply_shortcut, mask_shortcut=self.mask_shortcut,
-            patch_size=self.patch_size, patch_color=self.patch_color
+            patch_size=self.patch_size, patch_color=self.patch_color,
+            enable_cache=self.enable_cache
         )
 
         # Use parent's proven loader creation
@@ -327,7 +1107,7 @@ class SequentialCIFAR100Einstellung224(SequentialCIFAR100224):
         t1_dataset = TEinstellungCIFAR100_224(
             base_path() + 'CIFAR100', train=False, download=True, transform=test_transform,
             apply_shortcut=False, mask_shortcut=False, patch_size=self.patch_size,
-            patch_color=self.patch_color
+            patch_color=self.patch_color, enable_cache=self.enable_cache
         )
         t1_indices = [i for i, target in enumerate(t1_dataset.targets)
                      if ALL_USED_FINE_LABELS[target] in T1_FINE_LABELS]
@@ -340,7 +1120,7 @@ class SequentialCIFAR100Einstellung224(SequentialCIFAR100224):
         t2_shortcut_normal = TEinstellungCIFAR100_224(
             base_path() + 'CIFAR100', train=False, download=True, transform=test_transform,
             apply_shortcut=True, mask_shortcut=False, patch_size=self.patch_size,
-            patch_color=self.patch_color
+            patch_color=self.patch_color, enable_cache=self.enable_cache
         )
         shortcut_indices = [i for i, target in enumerate(t2_shortcut_normal.targets)
                            if ALL_USED_FINE_LABELS[target] in SHORTCUT_FINE_LABELS]
@@ -353,7 +1133,7 @@ class SequentialCIFAR100Einstellung224(SequentialCIFAR100224):
         t2_shortcut_masked = TEinstellungCIFAR100_224(
             base_path() + 'CIFAR100', train=False, download=True, transform=test_transform,
             apply_shortcut=False, mask_shortcut=True, patch_size=self.patch_size,
-            patch_color=self.patch_color
+            patch_color=self.patch_color, enable_cache=self.enable_cache
         )
         subsets['T2_shortcut_masked'] = torch.utils.data.DataLoader(
             torch.utils.data.Subset(t2_shortcut_masked, shortcut_indices),

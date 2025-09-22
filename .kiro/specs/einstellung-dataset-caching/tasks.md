@@ -41,26 +41,26 @@
   - _Requirements: 1.2, 2.4, 6.2, 6.3_
 
 - [x] 5. Add robust error handling and fallback mechanisms
-
-
-
-
-
-
   - Implement automatic fallback to original `MyCIFAR100Einstellung` on any cache error
   - Add comprehensive error logging for cache failures using Mammoth's logging system
   - Handle cache corruption, parameter mismatches, and disk space issues gracefully
   - Ensure fallback maintains identical behavior to original implementation
   - _Requirements: 1.5, 2.4, 4.4, 6.3_
 
-- [ ] 6. Add caching to all Einstellung dataset variants
+- [x] 6. Add caching to all Einstellung dataset variants
   - Modify `datasets/seq_cifar100_einstellung_224.py` to add caching to ViT dataset classes
   - Update `MyEinstellungCIFAR100_224` and `TEinstellungCIFAR100_224` with caching functionality
   - Ensure 224x224 resolution caching works with larger patch sizes for ViT models
   - Maintain separate cache files for different resolutions and configurations
   - _Requirements: 4.1, 4.2, 5.1, 5.2_
 
-- [ ] 7. Integrate cached datasets with Mammoth's data loading pipeline
+- [x] 7. Integrate cached datasets with Mammoth's data loading pipeline
+
+
+
+
+
+
   - Modify `get_data_loaders()` methods to use cached dataset classes
   - Ensure compatibility with `store_masked_loaders` function
   - Verify integration with `MammothDatasetWrapper` and task splitting logic
