@@ -28,7 +28,10 @@ import uuid
 import argparse
 import torch
 
-torch.set_num_threads(2)
+# Auto-optimize thread count for maximum performance
+# torch.set_num_threads(2)  # This was limiting performance!
+# Let PyTorch automatically determine optimal thread count based on hardware
+# Don't manually limit threads - let it use all available cores
 
 # if file is launched inside the `utils` folder
 if os.path.dirname(__file__) == 'utils':
@@ -372,6 +375,23 @@ def main(args=None):
 
     device = get_device(avail_devices=args.device)
     args.device = device
+
+    # Apply minimal, proven CUDA optimizations
+    if args.code_optimization >= 1:
+        try:
+            from utils.minimal_cuda_optimization import apply_minimal_cuda_optimizations
+            optimizations = apply_minimal_cuda_optimizations(args.code_optimization)
+            logging.info(f"🚀 Applied minimal CUDA optimizations (level {args.code_optimization})")
+        except ImportError:
+            # Fallback to essential optimizations only
+            if torch.cuda.is_available():
+                torch.backends.cuda.matmul.allow_tf32 = True
+                torch.backends.cudnn.benchmark = True
+                torch.backends.cudnn.deterministic = False
+                torch.cuda.empty_cache()
+                logging.info("Applied fallback CUDA optimizations")
+    else:
+        logging.info("CUDA optimizations disabled (use --code_optimization 1+ to enable)")
 
     # set base path
     base_path(args.base_path)

@@ -350,6 +350,8 @@ def add_experiment_args(parser: ArgumentParser) -> None:
                                   help='Enable multi-subset evaluation.')
     einstellung_group.add_argument('--einstellung_extract_attention', type=binary_to_boolean_type, default=True,
                                   help='Extract attention maps for analysis.')
+    einstellung_group.add_argument('--einstellung_enable_cache', type=binary_to_boolean_type, default=True,
+                                  help='Enable dataset caching for improved performance. Set to False for debugging or comparison purposes.')
 
 
 def add_management_args(parser: ArgumentParser) -> None:
