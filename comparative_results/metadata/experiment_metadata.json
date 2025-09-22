@@ -1,0 +1,91 @@
+{
+  "experiment_info": {
+    "title": "Comparative Einstellung Effect Analysis",
+    "description": "Cross-method assessment of cognitive rigidity in continual learning",
+    "generated": "2025-09-22T04:02:11.071952",
+    "total_methods": 7,
+    "baseline_methods": 7,
+    "continual_learning_methods": 0
+  },
+  "dataset_config": {
+    "name": "CIFAR-100 Einstellung",
+    "task_structure": "2 tasks (T1: base classes, T2: shortcut classes)",
+    "evaluation_protocol": [
+      "T1_all",
+      "T2_shortcut_normal",
+      "T2_shortcut_masked",
+      "T2_nonshortcut_normal"
+    ],
+    "shortcut_type": "Visual shortcuts in Task 2 classes"
+  },
+  "method_configurations": {
+    "scratch_t2": {
+      "backbone": "resnet18",
+      "seed": 42,
+      "final_accuracy": 70.0,
+      "used_checkpoint": false,
+      "training_time": 0,
+      "evaluation_time": 0,
+      "output_directory": "/var/folders/rq/cbyhqh497_b9xwgmxw3qlq680000gn/T/tmp8aijdh_m/results/scratch_t2_resnet18_seed42"
+    }
+  },
+  "comparative_metrics_summary": {},
+  "statistical_analysis_summary": {
+    "summary_statistics": {
+      "scratch_t2": {
+        "final_accuracy": {
+          "mean": 0.158521,
+          "std": NaN,
+          "median": 0.158521,
+          "min": 0.158521,
+          "max": 0.158521,
+          "n": 1,
+          "sem": 0.0
+        },
+        "performance_deficit": {
+          "mean": 0.2557200623261271,
+          "std": NaN,
+          "median": 0.2557200623261271,
+          "min": 0.2557200623261271,
+          "max": 0.2557200623261271,
+          "n": 1,
+          "sem": 0.0
+        },
+        "shortcut_reliance": {
+          "mean": 0.509412437657463,
+          "std": NaN,
+          "median": 0.509412437657463,
+          "min": 0.509412437657463,
+          "max": 0.509412437657463,
+          "n": 1,
+          "sem": 0.0
+        },
+        "t1_retention": {
+          "mean": 0.027211,
+          "std": NaN,
+          "median": 0.027211,
+          "min": 0.027211,
+          "max": 0.027211,
+          "n": 1,
+          "sem": 0.0
+        },
+        "adaptation_speed": {
+          "mean": 0.137025,
+          "std": NaN,
+          "median": 0.137025,
+          "min": 0.137025,
+          "max": 0.137025,
+          "n": 1,
+          "sem": 0.0
+        }
+      }
+    },
+    "pairwise_comparisons": {
+      "final_accuracy": [],
+      "performance_deficit": [],
+      "shortcut_reliance": [],
+      "t1_retention": [],
+      "adaptation_speed": []
+    },
+    "anova_results": {
+      "final_accuracy": 
