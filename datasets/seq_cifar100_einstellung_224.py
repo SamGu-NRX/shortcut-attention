@@ -24,10 +24,11 @@ import pickle
 import hashlib
 import errno
 from argparse import Namespace
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Optional
 
 import torch
 import torch.nn.functional as F
+import torch.utils.data
 import torchvision.transforms as transforms
 from torchvision.transforms.functional import InterpolationMode
 from torchvision.datasets import CIFAR100
@@ -1096,10 +1097,22 @@ class SequentialCIFAR100Einstellung224(SequentialCIFAR100224):
     def get_evaluation_subsets(self) -> Dict[str, torch.utils.data.DataLoader]:
         """
         Create evaluation subsets for comprehensive Einstellung metrics.
+        Uses cached evaluation subsets when available for improved performance.
 
         Returns:
             Dictionary mapping subset names to DataLoaders
         """
+        # Try to load cached evaluation subsets first
+        if self.enable_cache:
+            try:
+                cached_subsets = self._get_cached_evaluation_subsets()
+                if cached_subsets is not None:
+                    logging.info("Using cached evaluation subsets (224x224)")
+                    return cached_subsets
+            except Exception as e:
+                logging.warning(f"Failed to load cached evaluation subsets (224x224): {e}. Creating fresh subsets.")
+
+        # Create fresh evaluation subsets (original implementation)
         test_transform = self.TEST_TRANSFORM
         subsets = {}
 
@@ -1150,6 +1163,14 @@ class SequentialCIFAR100Einstellung224(SequentialCIFAR100224):
             batch_size=self.args.batch_size, shuffle=False, num_workers=4
         )
 
+        # Cache the evaluation subsets for future use
+        if self.enable_cache:
+            try:
+                self._cache_evaluation_subsets(subsets)
+                logging.info("Cached evaluation subsets for future use (224x224)")
+            except Exception as e:
+                logging.warning(f"Failed to cache evaluation subsets (224x224): {e}")
+
         return subsets
 
     def get_class_names(self):
@@ -1162,5 +1183,294 @@ class SequentialCIFAR100Einstellung224(SequentialCIFAR100224):
         self.class_names = classes
         return self.class_names
 
+    def _get_evaluation_subset_cache_key(self) -> str:
+        """
+        Generate cache key for evaluation subsets based on parameters (224x224 version).
+
+        Returns:
+            Secure hash string for evaluat subset cache key
+        """
+        # Include batch_size and other relevant parameters for evaluation subsets
+        params = {
+            'patch_size': self.patch_size,
+            'patch_color': tuple(self.patch_color),
+            'batch_size': getattr(self.args, 'batch_size', 32) if hasattr(self, 'args') else 32,
+            'evaluation_subsets': True,  # Distinguish from regular cache
+            'resolution': '224x224'  # Distinguish from 32x32 version
+        }
+
+        param_str = str(sorted(params.items()))
+        return hashlib.sha256(param_str.encode()).hexdigest()[:16]
+
+    def _get_evaluation_subset_cache_path(self) -> str:
+        """
+        Get cache file path for evaluation subsets (224x224 version).
+
+        Returns:
+            Full path to evaluation subset cache file
+        """
+        cache_key = self._get_evaluation_subset_cache_key()
+        cache_dir = os.path.join(base_path(), 'CIFAR100', 'einstellung_cache')
+        os.makedirs(cache_dir, exist_ok=True)
+
+        cache_filename = f'eval_subsets_224_{cache_key}.pkl'
+        return os.path.join(cache_dir, cache_filename)
+
+    def _cache_evaluation_subsets(self, subsets: Dict[str, torch.utils.data.DataLoader]) -> None:
+        """
+        Cache evaluation subsets for future use (224x224 version).
+
+        Args:
+            subsets: Dictionary of evaluation subset DataLoaders to cache
+        """
+        try:
+            cache_path = self._get_evaluation_subset_cache_path()
+            temp_path = cache_path + '.tmp'
+
+            # Extract data from DataLoaders for caching
+            cached_subsets = {}
+
+            for subset_name, dataloader in subsets.items():
+                logging.info(f"Caching evaluation subset (224x224): {subset_name}")
+
+                # Extract all data by directly accessing the underlying dataset
+                subset_data = []
+                subset_targets = []
+
+                # Get the underlying dataset (handle Subset wrapper)
+                dataset = dataloader.dataset
+                if hasattr(dataset, 'dataset'):
+                    # This is a Subset, get the underlying dataset and indices
+                    underlying_dataset = dataset.dataset
+                    indices = dataset.indices
+                else:
+                    underlying_dataset = dataset
+                    indices = range(len(dataset))
+
+                # Temporarily disable transforms to get raw data
+                original_transform = underlying_dataset.transform
+                underlying_dataset.transform = None
+
+                try:
+                    # Extract raw data without transforms
+                    for idx in indices:
+                        try:
+                            item = underlying_dataset[idx]
+                            if len(item) == 3:  # (img, target, not_aug_img)
+                                img, target, _ = item
+                            elif len(item) == 2:  # (img, target)
+                                img, target = item
+                            else:
+                                logging.warning(f"Unexpected item format in {subset_name}: {len(item)} elements")
+                                continue
+
+                            # Convert PIL Image to numpy array
+                            if isinstance(img, Image.Image):
+                                img_array = np.array(img)
+                            elif isinstance(img, torch.Tensor):
+                                img_array = img.numpy()
+                                if img_array.ndim == 3 and img_array.shape[0] == 3:  # CHW to HWC
+                                    img_array = img_array.transpose(1, 2, 0)
+                            else:
+                                img_array = np.array(img)
+
+                            subset_data.append(img_array)
+                            subset_targets.append(target)
+
+                        except Exception as e:
+                            logging.warning(f"Error processing item {idx} in {subset_name}: {e}")
+                            continue
+
+                        # Progress logging for large subsets
+                        if len(subset_data) % 1000 == 0:
+                            logging.debug(f"Cached {len(subset_data)} items for {subset_name} (224x224)")
+
+                finally:
+                    # Restore original transform
+                    underlying_dataset.transform = original_transform
+
+                if not subset_data:
+                    raise ValueError(f"No data extracted for subset {subset_name}")
+
+                cached_subsets[subset_name] = {
+                    'data': np.array(subset_data),
+                    'targets': np.array(subset_targets),
+                    'batch_size': dataloader.batch_size,
+                    'num_workers': dataloader.num_workers,
+                    'pin_memory': getattr(dataloader, 'pin_memory', False)
+                }
+
+                logging.info(f"Cached {len(subset_data)} samples for {subset_name} (224x224)")
+
+            # Create cache data structure
+            cache_data = {
+                'subsets': cached_subsets,
+                'params_hash': self._get_evaluation_subset_cache_key(),
+                'version': '1.0',
+                'resolution': '224x224',
+                'creation_time': os.path.getmtime(cache_path) if os.path.exists(cache_path) else None
+            }
+
+            # Save cache atomically
+            with open(temp_path, 'wb') as f:
+                pickle.dump(cache_data, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+            # Verify and rename
+            if os.path.exists(temp_path) and os.path.getsize(temp_path) > 1024:
+                os.rename(temp_path, cache_path)
+                logging.info(f"Evaluation subsets cached successfully at {cache_path} (224x224)")
+            else:
+                raise IOError("Cache file verification failed")
+
+        except Exception as e:
+            logging.error(f"Failed to cache evaluation subsets (224x224): {e}")
+            # Clean up failed cache
+            try:
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+            except OSError:
+                pass
+            raise
+
+    def _get_cached_evaluation_subsets(self) -> Optional[Dict[str, torch.utils.data.DataLoader]]:
+        """
+        Load cached evaluation subsets if available and valid (224x224 version).
+
+        Returns:
+            Dictionary of cached evaluation subset DataLoaders, or None if not available
+        """
+        try:
+            cache_path = self._get_evaluation_subset_cache_path()
+
+            if not os.path.exists(cache_path):
+                return None
+
+            # Check file size
+            if os.path.getsize(cache_path) < 1024:
+                logging.warning("Evaluation subset cache file too small (224x224), rebuilding")
+                os.remove(cache_path)
+                return None
+
+            # Load cache data
+            with open(cache_path, 'rb') as f:
+                cache_data = pickle.load(f)
+
+            # Validate cache structure
+            if not isinstance(cache_data, dict) or 'subsets' not in cache_data:
+                logging.warning("Invalid evaluation subset cache structure (224x224), rebuilding")
+                os.remove(cache_path)
+                return None
+
+            # Validate parameters
+            current_hash = self._get_evaluation_subset_cache_key()
+            cached_hash = cache_data.get('params_hash')
+            if cached_hash != current_hash:
+                logging.info(f"Evaluation subset cache parameter mismatch (224x224): {cached_hash} vs {current_hash}, rebuilding")
+                os.remove(cache_path)
+                return None
+
+            # Reconstruct DataLoaders from cached data
+            test_transform = self.TEST_TRANSFORM
+
+            subsets = {}
+            cached_subsets = cache_data['subsets']
+
+            for subset_name, subset_cache in cached_subsets.items():
+                try:
+                    # Create dataset from cached data
+                    cached_dataset = CachedEvaluationDataset224(
+                        subset_cache['data'],
+                        subset_cache['targets'],
+                        transform=test_transform
+                    )
+
+                    # Create DataLoader with original parameters (single-threaded for cached data)
+                    subsets[subset_name] = torch.utils.data.DataLoader(
+                        cached_dataset,
+                        batch_size=subset_cache.get('batch_size', 32),
+                        shuffle=False,
+                        num_workers=0,  # Use single-threaded for cached data
+                        pin_memory=False  # Disable pin_memory for cached data to avoid issues
+                    )
+
+                    logging.debug(f"Loaded cached evaluation subset (224x224): {subset_name} with {len(cached_dataset)} samples")
+
+                except Exception as e:
+                    logging.error(f"Failed to reconstruct DataLoader for {subset_name} (224x224): {e}")
+                    return None
+
+            # Validate that all expected subsets are present
+            expected_subsets = {'T1_all', 'T2_shortcut_normal', 'T2_shortcut_masked', 'T2_nonshortcut_normal'}
+            if not expected_subsets.issubset(set(subsets.keys())):
+                logging.warning(f"Missing evaluation subsets in cache (224x224). Expected: {expected_subsets}, Got: {set(subsets.keys())}")
+                return None
+
+            return subsets
+
+        except Exception as e:
+            logging.error(f"Failed to load cached evaluation subsets (224x224): {e}")
+            # Clean up corrupted cache
+            try:
+                if os.path.exists(cache_path):
+                    os.remove(cache_path)
+            except OSError:
+                pass
+            return None
+
     # Inherit all the proven ViT-specific methods from parent
     # No need to override: get_transform, get_backbone, get_epochs, get_batch_size, etc.
+
+
+class CachedEvaluationDataset224(torch.utils.data.Dataset):
+    """
+    Dataset wrapper for cached evaluation subset data (224x224 version).
+    Maintains compatibility with original dataset interface.
+    """
+
+    def __init__(self, data: np.ndarray, targets: np.ndarray, transform=None):
+        """
+        Initialize cached evaluation dataset for 224x224 images.
+
+        Args:
+            data: Cached image data as numpy array
+            targets: Cached targets as numpy array
+            transform: Transform to apply to images
+        """
+        self.data = data
+        self.targets = targets
+        self.transform = transform
+
+    def __len__(self) -> int:
+        return len(self.data)
+
+    def __getitem__(self, index: int) -> Tuple[torch.Tensor, int]:
+        """
+        Get item from cached evaluation dataset (224x224 version).
+
+        Args:
+            index: Index of item to retrieve
+
+        Returns:
+            Tuple of (transformed_image, target)
+        """
+        img = self.data[index]
+        target = self.targets[index]
+
+        # Convert numpy array to PIL Image for transform compatibility
+        if isinstance(img, np.ndarray):
+            if img.dtype != np.uint8:
+                img = (img * 255).astype(np.uint8)
+            # Handle different image shapes (224x224 vs 32x32)
+            if img.shape == (224, 224, 3):
+                img = Image.fromarray(img, mode='RGB')
+            elif img.shape == (32, 32, 3):
+                # Resize 32x32 to 224x224 for ViT compatibility
+                img = Image.fromarray(img, mode='RGB')
+                img = img.resize((224, 224), Image.BILINEAR)
+            else:
+                raise ValueError(f"Unexpected image shape: {img.shape}")
+
+        if self.transform is not None:
+            img = self.transform(img)
+
+        return img, target

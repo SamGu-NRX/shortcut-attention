@@ -55,19 +55,19 @@
   - _Requirements: 4.1, 4.2, 5.1, 5.2_
 
 - [x] 7. Integrate cached datasets with Mammoth's data loading pipeline
-
-
-
-
-
-
   - Modify `get_data_loaders()` methods to use cached dataset classes
   - Ensure compatibility with `store_masked_loaders` function
   - Verify integration with `MammothDatasetWrapper` and task splitting logic
   - Test compatibility with class ordering and permutation systems
   - _Requirements: 4.1, 4.3, 4.7_
 
-- [ ] 8. Implement evaluation subset caching
+- [x] 8. Implement evaluation subset caching
+
+
+
+
+
+
   - Extend caching to `get_evaluation_subsets()` method for comprehensive Einstellung metrics
   - Cache T1_all, T2_shortcut_normal, T2_shortcut_masked, and T2_nonshortcut_normal subsets
   - Ensure cached evaluation subsets produce identical results to original implementation
