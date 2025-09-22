@@ -408,8 +408,8 @@ def main(args=None):
         logger.error(f"   ❌ Error during Einstellung integration: {e}")
         logger.exception("Full traceback:")
 
-    # Import train function AFTER integration is enabled (so we get the patched version)
-    from utils.training import train
+    # Import training module AFTER integration is enabled (so we get the patched version)
+    import utils.training
 
     if args.code_optimization == 3:
         # check if the model is compatible with torch.compile
@@ -463,7 +463,7 @@ def main(args=None):
     except Exception:
         pass
 
-    train(model, dataset, args)
+    utils.training.train(model, dataset, args)
 
 
 if __name__ == '__main__':

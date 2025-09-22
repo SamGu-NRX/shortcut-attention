@@ -171,7 +171,7 @@ Tasks are organized in dependency order, with each task building on previous wor
   - Verify backward compatibility with existing single-method experiments
   - _Requirements: All requirements validation_
 
-- [ ] **17. Fix Einstellung Data Collection and Epoch Calculation Bugs**
+- [-] **17. Fix Einstellung Data Collection and Epoch Calculation Bugs**
 
   - **CRITICAL BUG FIX**: Fix epoch numbering in CSV output - `epoch_eff` shows fractional values (0.1, 0.2, 2.0) instead of actual epoch numbers (1, 2, 3... 50)
   - Fix timeline data collection failure causing "No timeline data found for subset T1_all" warnings

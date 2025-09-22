@@ -59,8 +59,7 @@ except ImportError:
 # Ensure Mammoth modules are importable
 sys.path.append(str(Path(__file__).parent))
 
-# Import Mammoth's main training function
-from main import main as mammoth_main
+# Import utilities (but delay main import until after integration is enabled)
 from utils.args import add_experiment_args, add_management_args
 from utils.einstellung_integration import enable_einstellung_integration, get_einstellung_evaluator
 
