@@ -42,6 +42,55 @@ from utils.conf import base_path
 from datasets.utils import set_default_from_args
 
 
+def apply_deterministic_transform(transform, img, index):
+    """
+    Apply transform with deterministic seed based on index for consistency across method instances.
+
+    This ensures that different continual learning methods get identical transformed images
+    when using datasets, which is critical for fair comparative experiments.
+
+    Args:
+        transform: Transform function to apply
+        img: PIL Image to transform
+        index: Sample index used to generate deterministic seed
+
+    Returns:
+        Transformed image
+    """
+    if transform is None:
+        return img
+
+    import torch
+    import random
+    import numpy as np
+
+    # Save current random states
+    torch_state = torch.get_rng_state()
+    np_state = np.random.get_state()
+    py_state = random.getstate()
+
+    try:
+        # Create deterministic seed based on index and transform hash
+        # This ensures different transforms get different but deterministic seeds
+        transform_hash = hash(str(transform)) % (2**16)
+        deterministic_seed = (index + transform_hash + 12345) % (2**32)
+
+        torch.manual_seed(deterministic_seed)
+        np.random.seed(deterministic_seed)
+        random.seed(deterministic_seed)
+
+        # Apply transform with deterministic seed
+        transformed_img = transform(img)
+
+        return transformed_img
+
+    finally:
+        # Always restore original random states
+        torch.set_rng_state(torch_state)
+        np.random.set_state(np_state)
+        random.setstate(py_state)
+
+
 # CIFAR-100 Superclass to Fine-class mapping
 CIFAR100_SUPERCLASS_MAPPING = {
     0: [4, 30, 55, 72, 95],      # aquatic mammals
@@ -142,7 +191,7 @@ class EinstellungMixin:
         logging.info(f"Filtered Einstellung dataset: {len(self.data)} samples from {len(ALL_USED_FINE_LABELS)} classes")
 
     def apply_einstellung_effect(self, img: Image.Image, index: int) -> Image.Image:
-        """Apply Einstellung Effect (magenta patch injection or masking)."""
+        """Apply Einstellung Effect (magenta patch injection or masking) deterministically."""
         if not hasattr(self, 'apply_shortcut'):
             return img
 
@@ -161,12 +210,15 @@ class EinstellungMixin:
         if self.patch_size > min(h, w):
             return img
 
-        # Deterministic patch placement based on index
-        rng = np.random.RandomState(index + 42)  # Add offset for determinism
+        # Use deterministic random state for reproducible patch placement
+        # Include dataset parameters in seed to ensure consistency across method instances
+        patch_seed = hash((index, self.patch_size, getattr(self, 'apply_shortcut', False),
+                          getattr(self, 'mask_shortcut', False))) % (2**32)
+        rng = np.random.RandomState(patch_seed)
         x = rng.randint(0, w - self.patch_size + 1)
         y = rng.randint(0, h - self.patch_size + 1)
 
-        if self.mask_shortcut:
+        if getattr(self, 'mask_shortcut', False):
             # Mask the shortcut area (set to black)
             arr[y:y+self.patch_size, x:x+self.patch_size] = 0
         elif self.apply_shortcut:
@@ -210,23 +262,14 @@ class TEinstellungCIFAR100_224(TCIFAR100, EinstellungMixin):
             self._setup_cache_with_fallback()
 
     def __getitem__(self, index: int) -> Tuple[torch.Tensor, int]:
-        """Retrieve items with Einstellung shortcut processing for evaluation."""
-        # Return cached data if available, with comprehensive error handling
-        if self.enable_cache and self._cache_loaded and self._cached_data is not None:
-            try:
-                return self._get_cached_item(index)
-            except Exception as e:
-                logging.warning(f"Cache retrieval failed for index {index}: {e}. Using original processing.")
-                # Continue to original processing below
-
-        # Original processing (fallback)
+        """Retrieve items with Einstellung shortcut processing using deterministic transforms."""
         img, target = self.data[index], self.targets[index]
 
         img = Image.fromarray(img, mode='RGB')
         img = self.apply_einstellung_effect(img, index)
 
-        if self.transform is not None:
-            img = self.transform(img)
+        # Apply transforms deterministically for cross-method consistency
+        img = apply_deterministic_transform(self.transform, img, index)
 
         if self.target_transform is not None:
             target = self.target_transform(target)
@@ -580,9 +623,8 @@ class TEinstellungCIFAR100_224(TCIFAR100, EinstellungMixin):
             # Convert to PIL Image
             img = Image.fromarray(img_array, mode='RGB')
 
-            # Apply transforms
-            if self.transform is not None:
-                img = self.transform(img)
+            # Apply transforms with deterministic seed for consistency across method instances
+            img = apply_deterministic_transform(self.transform, img, index)
 
             if self.target_transform is not None:
                 target = self.target_transform(target)
@@ -631,30 +673,19 @@ class MyEinstellungCIFAR100_224(MyCIFAR100, EinstellungMixin):
             self._setup_cache_with_fallback()
 
     def __getitem__(self, index: int) -> Tuple[torch.Tensor, int, torch.Tensor]:
-        """Get item with Einstellung Effect processing."""
-        # Return cached data if available, with comprehensive error handling
-        if self.enable_cache and self._cache_loaded and self._cached_data is not None:
-            try:
-                return self._get_cached_item(index)
-            except Exception as e:
-                logging.warning(f"Cache retrieval failed for index {index}: {e}. Using original processing.")
-                # Continue to original processing below
-
-        # Original processing (fallback)
+        """Get item with Einstellung Effect processing using deterministic transforms."""
         img, target = self.data[index], self.targets[index]
 
         # Convert to PIL Image
         img = Image.fromarray(img, mode='RGB')
         original_img = img.copy()
 
-        # Apply Einstellung Effect before other transforms
+        # Apply Einstellung Effect deterministically
         img = self.apply_einstellung_effect(img, index)
 
-        # Apply transforms (following parent class pattern)
-        not_aug_img = self.not_aug_transform(original_img)
-
-        if self.transform is not None:
-            img = self.transform(img)
+        # Apply transforms deterministically for cross-method consistency
+        not_aug_img = apply_deterministic_transform(self.not_aug_transform, original_img, index)
+        img = apply_deterministic_transform(self.transform, img, index)
 
         if self.target_transform is not None:
             target = self.target_transform(target)
@@ -1017,9 +1048,8 @@ class MyEinstellungCIFAR100_224(MyCIFAR100, EinstellungMixin):
             img = Image.fromarray(img_array, mode='RGB')
             not_aug_img = self.not_aug_transform(Image.fromarray(not_aug_array, mode='RGB'))
 
-            # Apply transforms
-            if self.transform is not None:
-                img = self.transform(img)
+            # Apply transforms with deterministic seed for consistency across method instances
+            img = apply_deterministic_transform(self.transform, img, index)
 
             if self.target_transform is not None:
                 target = self.target_transform(target)
@@ -1471,6 +1501,8 @@ class CachedEvaluationDataset224(torch.utils.data.Dataset):
                 raise ValueError(f"Unexpected image shape: {img.shape}")
 
         if self.transform is not None:
-            img = self.transform(img)
+
+
+            img = apply_deterministic_transform(self.transform, img, index)
 
         return img, target

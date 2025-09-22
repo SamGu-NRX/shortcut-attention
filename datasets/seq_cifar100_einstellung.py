@@ -31,6 +31,7 @@ from PIL import Image
 from torchvision.datasets import CIFAR100
 import errno
 import shutil
+import random
 
 from backbone.ResNetBlock import resnet18
 from datasets.transforms.denormalization import DeNormalize
@@ -38,6 +39,232 @@ from datasets.utils.continual_dataset import (ContinualDataset, fix_class_names_
                                               store_masked_loaders)
 from utils.conf import base_path
 from datasets.utils import set_default_from_args
+
+
+class RobustEinstellungCache:
+    """
+    Robust caching system that stores only raw data and applies all processing
+    deterministically during retrieval to ensure cross-method consistency.
+    """
+
+    def __init__(self, dataset_name: str, train: bool, resolution: str = "32x32"):
+        self.dataset_name = dataset_name
+        self.train = train
+        self.resolution = resolution
+        self._cache_loaded = False
+        self._raw_cache_data = None
+
+        # Generate cache key based only on raw data parameters
+        self._cache_key = self._generate_cache_key()
+        self._cache_path = self._get_cache_path()
+
+        self.logger = logging.getLogger(__name__)
+
+    def _generate_cache_key(self) -> str:
+        """Generate cache key based only on raw data parameters."""
+        params = {
+            'dataset_name': self.dataset_name,
+            'train': self.train,
+            'resolution': self.resolution
+        }
+        param_str = str(sorted(params.items()))
+        return hashlib.sha256(param_str.encode()).hexdigest()[:16]
+
+    def _get_cache_path(self) -> str:
+        """Get cache file path."""
+        cache_dir = os.path.join(base_path(), 'CIFAR100', 'robust_einstellung_cache')
+        os.makedirs(cache_dir, exist_ok=True)
+
+        split_name = 'train' if self.train else 'test'
+        cache_filename = f'{split_name}_{self.resolution}_{self._cache_key}.pkl'
+
+        return os.path.join(cache_dir, cache_filename)
+
+    def load_or_build_cache(self, raw_data: np.ndarray, raw_targets: list) -> bool:
+        """Load existing cache or build new one from raw data."""
+        try:
+            if os.path.exists(self._cache_path):
+                return self._load_cache()
+            else:
+                return self._build_cache(raw_data, raw_targets)
+        except Exception as e:
+            self.logger.error(f"Robust cache operation failed: {e}")
+            return False
+
+    def _load_cache(self) -> bool:
+        """Load cache from disk."""
+        try:
+            with open(self._cache_path, 'rb') as f:
+                cache_data = pickle.load(f)
+
+            # Validate cache structure
+            required_keys = ['raw_images', 'raw_targets', 'cache_key', 'version']
+            for key in required_keys:
+                if key not in cache_data:
+                    self.logger.warning(f"Cache missing key {key}, rebuilding...")
+                    return False
+
+            # Validate cache key matches
+            if cache_data['cache_key'] != self._cache_key:
+                self.logger.info("Cache key mismatch, rebuilding...")
+                return False
+
+            self._raw_cache_data = cache_data
+            self._cache_loaded = True
+
+            self.logger.info(f"Loaded robust cache with {len(cache_data['raw_images'])} samples")
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Failed to load robust cache: {e}")
+            return False
+
+    def _build_cache(self, raw_data: np.ndarray, raw_targets: list) -> bool:
+        """Build cache from raw data."""
+        try:
+            self.logger.info(f"Building robust cache with {len(raw_data)} samples...")
+
+            # Store only raw data - no processing applied
+            cache_data = {
+                'raw_images': raw_data.copy(),
+                'raw_targets': list(raw_targets),
+                'cache_key': self._cache_key,
+                'version': '2.0',
+                'dataset_name': self.dataset_name,
+                'train': self.train,
+                'resolution': self.resolution,
+                'sample_count': len(raw_data)
+            }
+
+            # Save cache atomically
+            temp_path = self._cache_path + '.tmp'
+            with open(temp_path, 'wb') as f:
+                pickle.dump(cache_data, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+            os.rename(temp_path, self._cache_path)
+
+            self._raw_cache_data = cache_data
+            self._cache_loaded = True
+
+            self.logger.info(f"Built robust cache successfully with {len(raw_data)} samples")
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Failed to build robust cache: {e}")
+            return False
+
+    def get_processed_item(self, index: int, apply_shortcut: bool, mask_shortcut: bool,
+                          patch_size: int, patch_color: np.ndarray, shortcut_labels: set,
+                          transform=None, target_transform=None, not_aug_transform=None):
+        """Get processed item with deterministic Einstellung effects and transforms."""
+        if not self._cache_loaded or self._raw_cache_data is None:
+            raise RuntimeError("Robust cache not loaded")
+
+        raw_images = self._raw_cache_data['raw_images']
+        raw_targets = self._raw_cache_data['raw_targets']
+
+        if index >= len(raw_images):
+            raise IndexError(f"Index {index} out of bounds for cache size {len(raw_images)}")
+
+        raw_img_array = raw_images[index]
+        target = raw_targets[index]
+
+        # Convert to PIL Image
+        img = Image.fromarray(raw_img_array, mode='RGB')
+        original_img = img.copy()
+
+        # Apply Einstellung effects deterministically
+        if target in shortcut_labels:
+            img = self._apply_deterministic_einstellung_effect(
+                img, index, apply_shortcut, mask_shortcut, patch_size, patch_color
+            )
+
+        # Apply transforms deterministically
+        processed_img = apply_deterministic_transform(transform, img, index)
+        not_aug_img = apply_deterministic_transform(not_aug_transform, original_img, index)
+
+        # Apply target transform
+        if target_transform is not None:
+            target = target_transform(target)
+
+        return processed_img, target, not_aug_img
+
+    def _apply_deterministic_einstellung_effect(self, img: Image.Image, index: int,
+                                              apply_shortcut: bool, mask_shortcut: bool,
+                                              patch_size: int, patch_color: np.ndarray) -> Image.Image:
+        """Apply Einstellung effect deterministically based on index."""
+        if patch_size <= 0:
+            return img
+
+        # Convert to numpy for manipulation
+        arr = np.array(img.convert("RGB"))
+        h, w = arr.shape[:2]
+
+        if patch_size > min(h, w):
+            return img
+
+        # Use deterministic random state based on index
+        rng = np.random.RandomState(index + 42)  # Fixed seed offset
+        x = rng.randint(0, w - patch_size + 1)
+        y = rng.randint(0, h - patch_size + 1)
+
+        if mask_shortcut:
+            # Mask the shortcut area (set to black)
+            arr[y:y+patch_size, x:x+patch_size] = 0
+        elif apply_shortcut:
+            # Apply magenta shortcut patch
+            arr[y:y+patch_size, x:x+patch_size] = patch_color
+
+        return Image.fromarray(arr)
+
+    def is_loaded(self) -> bool:
+        """Check if cache is loaded."""
+        return self._cache_loaded and self._raw_cache_data is not None
+
+
+def apply_deterministic_transform(transform, img, index):
+    """
+    Apply transform with deterministic seed based on index for consistency across method instances.
+
+    This ensures that different continual learning methods get identical transformed images
+    when using datasets, which is critical for fair comparative experiments.
+
+    Args:
+        transform: Transform function to apply
+        img: PIL Image to transform
+        index: Sample index used to generate deterministic seed
+
+    Returns:
+        Transformed image
+    """
+    if transform is None:
+        return img
+
+    # Save current random states
+    torch_state = torch.get_rng_state()
+    np_state = np.random.get_state()
+    py_state = random.getstate()
+
+    try:
+        # Create deterministic seed based on index and transform hash
+        # This ensures different transforms get different but deterministic seeds
+        transform_hash = hash(str(transform)) % (2**16)
+        deterministic_seed = (index + transform_hash + 12345) % (2**32)
+
+        torch.manual_seed(deterministic_seed)
+        np.random.seed(deterministic_seed)
+        random.seed(deterministic_seed)
+
+        # Apply transform with deterministic seed
+        transformed_img = transform(img)
+
+        return transformed_img
+
+    finally:
+        # Always restore original random states
+        torch.set_rng_state(torch_state)
+        np.random.set_state(np_state)
+        random.setstate(py_state)
 
 
 # CIFAR-100 superclass to fine class mapping (based on official CIFAR-100 structure)
@@ -117,22 +344,11 @@ class MyCIFAR100Einstellung(CIFAR100):
         self.patch_color = np.array(patch_color, dtype=np.uint8)
         self.shortcut_labels = set(SHORTCUT_FINE_LABELS)
 
-        # Caching parameters
-        self.enable_cache = enable_cache
-        self._cached_data = None
-        self._cache_loaded = False
-        self._cache_error_count = 0
-        self._max_cache_errors = 3  # Maximum cache errors before disabling cache permanently
-
         super(MyCIFAR100Einstellung, self).__init__(root, train, transform, target_transform,
                                                     not self._check_integrity())
 
         # Filter to only keep used labels and remap
         self._filter_and_remap_labels()
-
-        # Setup cache if enabled
-        if self.enable_cache:
-            self._setup_cache_with_fallback()
 
     def _filter_and_remap_labels(self):
         """Filter dataset to only include T1 and T2 classes, and remap labels to be contiguous."""
@@ -161,7 +377,7 @@ class MyCIFAR100Einstellung(CIFAR100):
     def __getitem__(self, index: int) -> Tuple[Image.Image, int, Image.Image]:
         """
         Gets the requested element from the dataset with Einstellung modifications.
-        Implements robust error handling with automatic fallback to original processing.
+        Uses deterministic processing to ensure cross-method consistency.
 
         Args:
             index: index of the element to be returned
@@ -169,15 +385,6 @@ class MyCIFAR100Einstellung(CIFAR100):
         Returns:
             tuple: (image, target, not_aug_image) where target is the remapped class index
         """
-        # Return cached data if available, with comprehensive error handling
-        if self.enable_cache and self._cache_loaded and self._cached_data is not None:
-            try:
-                return self._get_cached_item(index)
-            except Exception as e:
-                logging.warning(f"Cache retrieval failed for index {index}: {e}. Using original processing.")
-                # Continue to original processing below
-
-        # Original processing (fallback) - ensures identical behavior to original implementation
         try:
             img, target = self.data[index], self.targets[index]
 
@@ -185,15 +392,16 @@ class MyCIFAR100Einstellung(CIFAR100):
             img = Image.fromarray(img, mode='RGB')
             original_img = img.copy()
 
-            # Apply Einstellung Effect modifications
+            # Apply Einstellung Effect modifications deterministically
             original_target_in_cifar100 = ALL_USED_FINE_LABELS[target]
             if original_target_in_cifar100 in self.shortcut_labels:
                 img = self._apply_einstellung_effect(img, index)
 
-            not_aug_img = self.not_aug_transform(original_img)
+            # Apply not_aug_transform deterministically
+            not_aug_img = apply_deterministic_transform(self.not_aug_transform, original_img, index)
 
-            if self.transform is not None:
-                img = self.transform(img)
+            # Apply main transform deterministically for cross-method consistency
+            img = apply_deterministic_transform(self.transform, img, index)
 
             if self.target_transform is not None:
                 target = self.target_transform(target)
@@ -205,12 +413,12 @@ class MyCIFAR100Einstellung(CIFAR100):
 
         except Exception as e:
             logging.error(f"Critical error in __getitem__ for index {index}: {e}")
-            # If original processing fails, this is a serious error
             raise
 
     def _apply_einstellung_effect(self, img: Image.Image, index: int) -> Image.Image:
         """
         Apply shortcut patches or masking for Einstellung Effect testing.
+        Uses deterministic patch placement for cross-method consistency.
 
         Args:
             img: PIL Image to modify
@@ -229,8 +437,10 @@ class MyCIFAR100Einstellung(CIFAR100):
         if self.patch_size > min(h, w):
             return img  # Skip if patch is too large
 
-        # Use fixed random state for reproducible patch placement
-        rng = np.random.RandomState(index)
+        # Use deterministic random state for reproducible patch placement
+        # Include dataset parameters in seed to ensure consistency across method instances
+        patch_seed = hash((index, self.patch_size, tuple(self.patch_color), self.apply_shortcut, self.mask_shortcut)) % (2**32)
+        rng = np.random.RandomState(patch_seed)
         x = rng.randint(0, w - self.patch_size + 1)
         y = rng.randint(0, h - self.patch_size + 1)
 
@@ -756,10 +966,9 @@ class MyCIFAR100Einstellung(CIFAR100):
             except Exception as e:
                 raise ValueError(f"PIL Image conversion error: {e}")
 
-            # Apply transforms (identical to original __getitem__)
+            # Apply transforms with deterministic seed for consistency across method instances
             try:
-                if self.transform is not None:
-                    img = self.transform(img)
+                img = apply_deterministic_transform(self.transform, img, index)
 
                 if self.target_transform is not None:
                     target = self.target_transform(target)
@@ -819,7 +1028,7 @@ class MyCIFAR100Einstellung(CIFAR100):
             not_aug_img = self.not_aug_transform(original_img)
 
             if self.transform is not None:
-                img = self.transform(img)
+                img = apply_deterministic_transform(self.transform, img, index)
 
             if self.target_transform is not None:
                 target = self.target_transform(target)
@@ -1102,7 +1311,9 @@ class CachedEvaluationDataset(torch.utils.data.Dataset):
             img = Image.fromarray(img, mode='RGB')
 
         if self.transform is not None:
-            img = self.transform(img)
+
+
+            img = apply_deterministic_transform(self.transform, img, index)
 
         return img, target
 
@@ -1595,6 +1806,8 @@ class CachedEvaluationDataset(torch.utils.data.Dataset):
             img = Image.fromarray(img, mode='RGB')
 
         if self.transform is not None:
-            img = self.transform(img)
+
+
+            img = apply_deterministic_transform(self.transform, img, index)
 
         return img, target
