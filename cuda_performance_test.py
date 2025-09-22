@@ -58,7 +58,7 @@ def test_dataloader_performance():
     logger.info("\n=== DataLoader Performance Test ===")
 
     device = torch.device('cuda:0')
-    batch_size = 128
+    batch_size = 256
     num_samples = 10000
 
     # Create dummy data
@@ -72,6 +72,7 @@ def test_dataloader_performance():
         {"num_workers": 4, "pin_memory": False, "name": "4 workers, no pin_memory"},
         {"num_workers": 4, "pin_memory": True, "name": "4 workers, pin_memory"},
         {"num_workers": 8, "pin_memory": True, "name": "8 workers, pin_memory"},
+        {"num_workers": 16, "pin_memory": True, "name": "16 pin"}
     ]
 
     for config in configs:
@@ -96,7 +97,7 @@ def test_dataloader_performance():
             _ = torch.sum(batch_data)
             total_batches += 1
 
-            if total_batches >= 50:  # Test first 50 batches
+            if total_batches >= 500:  # Test first 50 batches
                 break
 
         torch.cuda.synchronize()

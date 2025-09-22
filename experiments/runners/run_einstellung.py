@@ -125,6 +125,7 @@ class ERIExperimentRunner:
         args.einstellung_adaptation_threshold = einstellung_config.get('adaptation_threshold', 0.6)
         args.einstellung_evaluation_subsets = True
         args.einstellung_extract_attention = einstellung_config.get('extract_attention', True)
+        args.einstellung_enable_cache = einstellung_config.get('enable_cache', True)  # Default True for backward compatibility
 
         # Method-specific parameters
         method_config = self.config.get('methods', {}).get(method, {})
@@ -251,6 +252,8 @@ class ERIExperimentRunner:
             cmd_args.extend(['--einstellung_extract_attention', '1'])
         if hasattr(args, 'einstellung_apply_shortcut') and args.einstellung_apply_shortcut:
             cmd_args.extend(['--einstellung_apply_shortcut', '1'])
+        if hasattr(args, 'einstellung_enable_cache'):
+            cmd_args.extend(['--einstellung_enable_cache', '1' if args.einstellung_enable_cache else '0'])
 
         # Patch color (special handling for list)
         if hasattr(args, 'einstellung_patch_color') and args.einstellung_patch_color:

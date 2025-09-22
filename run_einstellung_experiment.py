@@ -729,7 +729,7 @@ def prompt_checkpoint_action(checkpoints: List[str], strategy: str, backbone: st
 
 def create_einstellung_args(strategy='derpp', backbone='resnet18', seed=42,
                           evaluation_only=False, checkpoint_path=None,
-                          debug=False):
+                          debug=False, enable_cache=True, code_optimization=1):
     """
     Create arguments namespace for Einstellung experiments.
 
@@ -739,6 +739,9 @@ def create_einstellung_args(strategy='derpp', backbone='resnet18', seed=42,
         seed: Random seed
         evaluation_only: If True, add --inference_only flag
         checkpoint_path: Path to checkpoint for loading
+        debug: If True, use shorter training epochs for faster testing
+        enable_cache: If True, enable dataset caching for improved performance
+        code_optimization: CUDA optimization level (0-3, default 1)
 
     Returns:
         List of command line arguments
@@ -754,7 +757,7 @@ def create_einstellung_args(strategy='derpp', backbone='resnet18', seed=42,
     else:
         dataset_name = 'seq-cifar100-einstellung'
         patch_size = 4   # Smaller for 32x32 images
-        batch_size = 32
+        batch_size = 128
         n_epochs = 10 if debug else 50  # Shorter epochs in debug mode
 
     # Base arguments
@@ -765,7 +768,8 @@ def create_einstellung_args(strategy='derpp', backbone='resnet18', seed=42,
         '--n_epochs', str(n_epochs),
         '--batch_size', str(batch_size),
         '--lr', '0.01',
-        '--seed', str(seed)
+        '--seed', str(seed),
+        '--device', '0'  # Force GPU usage
     ]
 
     # Add evaluation-only mode
@@ -808,6 +812,11 @@ def create_einstellung_args(strategy='derpp', backbone='resnet18', seed=42,
             '--dgr-temperature', '2.0'
         ])
 
+    # Performance optimization
+    cmd_args.extend([
+        '--code_optimization', str(code_optimization)
+    ])
+
     # Einstellung parameters
     cmd_args.extend([
         '--einstellung_patch_size', str(patch_size),
@@ -815,7 +824,8 @@ def create_einstellung_args(strategy='derpp', backbone='resnet18', seed=42,
         '--einstellung_adaptation_threshold', '0.8',
         '--einstellung_apply_shortcut', '1',
         '--einstellung_evaluation_subsets', '1',
-        '--einstellung_extract_attention', '1'
+        '--einstellung_extract_attention', '1',
+        '--einstellung_enable_cache', '1' if enable_cache else '0'
     ])
 
     return cmd_args
@@ -2223,7 +2233,13 @@ def run_experiment(model: str, backbone: str, seed: int,
         if '--einstellung_adaptation_threshold' not in cmd_args:
             cmd_args.extend(['--einstellung_adaptation_threshold', '0.8'])
 
+        # Add cache enable/disable parameter
+        enable_cache = kwargs.get('enable_cache', True)
+        if '--einstellung_enable_cache' not in cmd_args:
+            cmd_args.extend(['--einstellung_enable_cache', '1' if enable_cache else '0'])
+
         logger.log("   ✓ Einstellung flags added to command")
+        logger.log(f"   ✓ Dataset caching: {'enabled' if enable_cache else 'disabled'}")
     else:
         logger.log("⚠️  Skipping Einstellung flags due to evaluation-only mode")
 
@@ -2400,7 +2416,7 @@ def run_experiment(model: str, backbone: str, seed: int,
 
 def run_einstellung_experiment(strategy='derpp', backbone='resnet18', seed=42,
                              skip_training=False, force_retrain=False, auto_checkpoint=True,
-                             debug=False):
+                             debug=False, enable_cache=True, code_optimization=1):
     """
     Run a single Einstellung Effect experiment with enhanced checkpoint management.
 
@@ -2411,6 +2427,9 @@ def run_einstellung_experiment(strategy='derpp', backbone='resnet18', seed=42,
         skip_training: Skip training, only evaluate existing checkpoints
         force_retrain: Force retraining even if checkpoints exist
         auto_checkpoint: Automatically use existing checkpoints if found
+        debug: If True, use shorter training epochs for faster testing
+        enable_cache: If True, enable dataset caching for improved performance
+        code_optimization: CUDA optimization level (0-3, default 1)
 
     Returns:
         Dictionary with experiment results
@@ -2483,7 +2502,7 @@ def run_einstellung_experiment(strategy='derpp', backbone='resnet18', seed=42,
     # Create experiment arguments
     cmd_args = create_einstellung_args(
         strategy, backbone, seed, evaluation_only, checkpoint_to_load,
-        debug=debug
+        debug=debug, enable_cache=enable_cache, code_optimization=code_optimization
     )
 
     # Create output directory
@@ -2576,7 +2595,7 @@ def run_einstellung_experiment(strategy='derpp', backbone='resnet18', seed=42,
 
 
 def run_comparative_experiment(skip_training=False, force_retrain=False, auto_checkpoint=True,
-                              debug=False):
+                              debug=False, enable_cache=True, code_optimization=1):
     """Run comparative experiments across different strategies."""
 
     print("🔬 Running Comparative Einstellung Effect Experiments")
@@ -2614,7 +2633,9 @@ def run_comparative_experiment(skip_training=False, force_retrain=False, auto_ch
             skip_training=skip_training,
             force_retrain=force_retrain,
             auto_checkpoint=auto_checkpoint,
-            debug=debug
+            debug=debug,
+            enable_cache=enable_cache,
+            code_optimization=code_optimization
         )
 
         if result:
@@ -2882,6 +2903,12 @@ def main():
     parser.add_argument('--code_optimization', type=int, default=1, choices=[0, 1, 2, 3],
                        help='CUDA performance optimization level (0=none, 1=TF32+cuDNN, 2=+BF16, 3=+torch.compile)')
 
+    # Dataset caching
+    parser.add_argument('--enable_cache', action='store_true', default=True,
+                       help='Enable dataset caching for improved performance (default: True)')
+    parser.add_argument('--disable_cache', action='store_true',
+                       help='Disable dataset caching for debugging or comparison purposes')
+
     # Logging
     parser.add_argument('--verbose', action='store_true',
                        help='Enable verbose logging')
@@ -2889,6 +2916,9 @@ def main():
                        help='Enable debug mode (shorter training epochs for faster testing)')
 
     args = parser.parse_args()
+
+    # Handle cache enable/disable logic
+    enable_cache = args.enable_cache and not args.disable_cache
 
     # Setup logging
     log_level = logging.DEBUG if args.verbose else logging.INFO
@@ -2914,8 +2944,9 @@ def main():
             skip_training=args.skip_training,
             force_retrain=args.force_retrain,
             auto_checkpoint=args.auto_checkpoint,
-                code_optimization=args.code_optimization,
-            debug=args.debug
+            debug=args.debug,
+            enable_cache=enable_cache,
+            code_optimization=args.code_optimization
         )
 
         successful_results = [r for r in results if r and r.get('success', False)]
@@ -2934,7 +2965,8 @@ def main():
             execution_mode=execution_mode,
             epochs=args.epochs,
             code_optimization=args.code_optimization,
-            debug=args.debug
+            debug=args.debug,
+            enable_cache=enable_cache
         )
 
         if result and result.get('success', False):

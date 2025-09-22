@@ -262,7 +262,12 @@ class TEinstellungCIFAR100_224(TCIFAR100, EinstellungMixin):
             self._setup_cache_with_fallback()
 
     def __getitem__(self, index: int) -> Tuple[torch.Tensor, int]:
-        """Retrieve items with Einstellung shortcut processing using deterministic transforms."""
+        """Retrieve items with Einstellung shortcut processing using caching when available."""
+        # Use cached data if available and caching is enabled
+        if self.enable_cache and hasattr(self, '_cache_loaded') and self._cache_loaded:
+            return self._get_cached_item(index)
+
+        # Fallback to original on-the-fly processing
         img, target = self.data[index], self.targets[index]
 
         img = Image.fromarray(img, mode='RGB')
@@ -673,7 +678,12 @@ class MyEinstellungCIFAR100_224(MyCIFAR100, EinstellungMixin):
             self._setup_cache_with_fallback()
 
     def __getitem__(self, index: int) -> Tuple[torch.Tensor, int, torch.Tensor]:
-        """Get item with Einstellung Effect processing using deterministic transforms."""
+        """Get item with Einstellung Effect processing using caching when available."""
+        # Use cached data if available and caching is enabled
+        if self.enable_cache and hasattr(self, '_cache_loaded') and self._cache_loaded:
+            return self._get_cached_item(index)
+
+        # Fallback to original on-the-fly processing
         img, target = self.data[index], self.targets[index]
 
         # Convert to PIL Image

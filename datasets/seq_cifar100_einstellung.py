@@ -344,11 +344,24 @@ class MyCIFAR100Einstellung(CIFAR100):
         self.patch_color = np.array(patch_color, dtype=np.uint8)
         self.shortcut_labels = set(SHORTCUT_FINE_LABELS)
 
+        # Caching parameters
+        self.enable_cache = enable_cache
+
+        # Initialize cache state
+        self._cache_loaded = False
+        self._cached_data = None
+        self._cache_error_count = 0
+        self._max_cache_errors = 3
+
         super(MyCIFAR100Einstellung, self).__init__(root, train, transform, target_transform,
                                                     not self._check_integrity())
 
         # Filter to only keep used labels and remap
         self._filter_and_remap_labels()
+
+        # Setup cache if enabled (after data is loaded and filtered)
+        if self.enable_cache:
+            self._setup_cache_with_fallback()
 
     def _filter_and_remap_labels(self):
         """Filter dataset to only include T1 and T2 classes, and remap labels to be contiguous."""
@@ -377,7 +390,7 @@ class MyCIFAR100Einstellung(CIFAR100):
     def __getitem__(self, index: int) -> Tuple[Image.Image, int, Image.Image]:
         """
         Gets the requested element from the dataset with Einstellung modifications.
-        Uses deterministic processing to ensure cross-method consistency.
+        Uses caching when available for performance, falls back to on-the-fly processing.
 
         Args:
             index: index of the element to be returned
@@ -386,6 +399,11 @@ class MyCIFAR100Einstellung(CIFAR100):
             tuple: (image, target, not_aug_image) where target is the remapped class index
         """
         try:
+            # Use cached data if available and caching is enabled
+            if self.enable_cache and hasattr(self, '_cache_loaded') and self._cache_loaded:
+                return self._get_cached_item(index)
+
+            # Fallback to original on-the-fly processing
             img, target = self.data[index], self.targets[index]
 
             # Convert to PIL Image
