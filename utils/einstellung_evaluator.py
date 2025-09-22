@@ -136,15 +136,8 @@ class EinstellungEvaluator:
         actual_epochs = getattr(self.args, 'n_epochs', dataset.get_epochs())
 
         # Determine evaluation frequency based on actual epochs being run
-        if actual_epochs <= 5:
-            # For very short training (debug mode), evaluate every epoch
-            eval_frequency = 1
-        elif actual_epochs <= 20:
-            # For short training, evaluate every 5th epoch
-            eval_frequency = 5
-        else:
-            # For long training, evaluate every 10th epoch
-            eval_frequency = 10
+        # Always evaluate every single epoch for comprehensive data collection
+        eval_frequency = 1
 
         # Always evaluate on the final epoch
         is_final_epoch = (epoch == actual_epochs - 1)
