@@ -21,6 +21,7 @@ import pickle
 import logging
 import numpy as np
 import random
+import time
 from typing import Tuple, Dict, Any, Optional
 from PIL import Image
 
@@ -31,6 +32,7 @@ import torchvision.transforms as transforms
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils.conf import base_path
+from utils.einstellung_performance_monitor import get_performance_monitor, OptimizedCacheLoader
 
 
 class RobustEinstellungCache:
@@ -81,6 +83,10 @@ class RobustEinstellungCache:
         # Setup logging
         self.logger = logging.getLogger(__name__)
 
+        # Performance monitoring
+        self.performance_monitor = get_performance_monitor(f"{dataset_name}_{resolution}")
+        self.optimized_loader = OptimizedCacheLoader(self.performance_monitor)
+
     def _generate_cache_key(self) -> str:
         """Generate cache key based on dataset parameters (excluding processing parameters)."""
         # Only include parameters that affect the RAW data selection
@@ -124,21 +130,34 @@ class RobustEinstellungCache:
             return False
 
     def _load_cache(self) -> bool:
-        """Load cache from disk."""
+        """Load cache from disk with performance monitoring."""
+        start_time = time.time()
+
         try:
-            with open(self._cache_path, 'rb') as f:
-                cache_data = pickle.load(f)
+            # Check if we should use optimized loading
+            file_size_mb = os.path.getsize(self._cache_path) / (1024 * 1024)
+            use_memory_mapping = self.performance_monitor.should_use_memory_mapping(file_size_mb)
+
+            # Load cache with optimization
+            cache_data = self.optimized_loader.load_cache_optimized(
+                self._cache_path, use_memory_mapping
+            )
+
+            if cache_data is None:
+                return False
 
             # Validate cache structure
             required_keys = ['raw_images', 'raw_targets', 'cache_key', 'version']
             for key in required_keys:
                 if key not in cache_data:
                     self.logger.warning(f"Cache missing key {key}, rebuilding...")
+                    self.performance_monitor.record_cache_error("missing_key", f"Missing key: {key}")
                     return False
 
             # Validate cache key matches
             if cache_data['cache_key'] != self._cache_key:
                 self.logger.info("Cache key mismatch, rebuilding...")
+                self.performance_monitor.record_cache_error("key_mismatch", "Cache key mismatch")
                 return False
 
             # Validate data integrity
@@ -147,37 +166,84 @@ class RobustEinstellungCache:
 
             if not isinstance(raw_images, np.ndarray) or raw_images.ndim != 4:
                 self.logger.warning("Invalid cache image format, rebuilding...")
+                self.performance_monitor.record_cache_error("invalid_format", "Invalid image format")
                 return False
 
             if len(raw_images) != len(raw_targets):
                 self.logger.warning("Cache data length mismatch, rebuilding...")
+                self.performance_monitor.record_cache_error("length_mismatch", "Data length mismatch")
                 return False
 
             self._raw_cache_data = cache_data
             self._cache_loaded = True
+
+            # Record successful cache load
+            load_time = time.time() - start_time
+            self.performance_monitor.record_cache_load(load_time, file_size_mb)
 
             self.logger.info(f"Loaded cache with {len(raw_images)} samples")
             return True
 
         except Exception as e:
             self.logger.error(f"Failed to load cache: {e}")
+            self.performance_monitor.record_cache_error("load_exception", str(e))
             return False
 
     def _build_cache(self, raw_data: np.ndarray, raw_targets: list) -> bool:
-        """Build cache from raw data."""
+        """Build cache from raw data with performance monitoring and batch processing."""
+        start_time = time.time()
+
         try:
             self.logger.info(f"Building robust cache with {len(raw_data)} samples...")
 
+            # Optimize batch size for processing
+            import psutil
+            available_memory = psutil.virtual_memory().available / (1024 * 1024)
+            batch_size = self.performance_monitor.optimize_batch_size(len(raw_data), available_memory)
+
+            # Process data in batches to minimize memory usage
+            processed_data = []
+            processed_targets = []
+
+            total_batches = (len(raw_data) + batch_size - 1) // batch_size
+
+            for batch_idx in range(total_batches):
+                batch_start_time = time.time()
+
+                start_idx = batch_idx * batch_size
+                end_idx = min(start_idx + batch_size, len(raw_data))
+
+                # Process batch
+                batch_data = raw_data[start_idx:end_idx].copy()
+                batch_targets = raw_targets[start_idx:end_idx]
+
+                processed_data.append(batch_data)
+                processed_targets.extend(batch_targets)
+
+                # Record batch processing
+                batch_time = time.time() - batch_start_time
+                actual_batch_size = end_idx - start_idx
+                self.performance_monitor.record_batch_operation(actual_batch_size, batch_time)
+
+                # Progress logging and memory monitoring
+                if batch_idx % 10 == 0 or batch_idx == total_batches - 1:
+                    progress = ((batch_idx + 1) / total_batches) * 100
+                    self.logger.info(f"Cache build progress: {progress:.1f}% ({batch_idx + 1}/{total_batches} batches)")
+                    self.performance_monitor.take_memory_snapshot()
+
+            # Combine processed batches
+            final_data = np.concatenate(processed_data, axis=0) if processed_data else np.array([])
+
             # Store only raw data - no processing applied
             cache_data = {
-                'raw_images': raw_data.copy(),  # Raw CIFAR-100 images
-                'raw_targets': list(raw_targets),  # Raw targets
+                'raw_images': final_data,  # Raw CIFAR-100 images
+                'raw_targets': processed_targets,  # Raw targets
                 'cache_key': self._cache_key,
                 'version': '2.0',  # New robust version
                 'dataset_name': self.dataset_name,
                 'train': self.train,
                 'resolution': self.resolution,
-                'sample_count': len(raw_data)
+                'sample_count': len(final_data)
             }
 
             # Save cache atomically
@@ -190,11 +256,17 @@ class RobustEinstellungCache:
             self._raw_cache_data = cache_data
             self._cache_loaded = True
 
-            self.logger.info(f"Built cache successfully with {len(raw_data)} samples")
+            # Record successful cache build
+            build_time = time.time() - start_time
+            cache_size_mb = os.path.getsize(self._cache_path) / (1024 * 1024)
+            self.performance_monitor.record_cache_build(build_time, cache_size_mb)
+
+            self.logger.info(f"Built cache successfully with {len(final_data)} samples in {build_time:.2f}s")
             return True
 
         except Exception as e:
             self.logger.error(f"Failed to build cache: {e}")
+            self.performance_monitor.record_cache_error("build_exception", str(e))
             return False
 
     def get_processed_item(self,
@@ -219,36 +291,50 @@ class RobustEinstellungCache:
         Returns:
             Tuple of (processed_image, target, not_aug_image)
         """
-        if not self._cache_loaded or self._raw_cache_data is None:
-            raise RuntimeError("Cache not loaded")
+        start_time = time.time()
 
-        # Get raw data
-        raw_images = self._raw_cache_data['raw_images']
-        raw_targets = self._raw_cache_data['raw_targets']
+        try:
+            if not self._cache_loaded or self._raw_cache_data is None:
+                self.performance_monitor.record_cache_miss()
+                raise RuntimeError("Cache not loaded")
 
-        if index >= len(raw_images):
-            raise IndexError(f"Index {index} out of bounds for cache size {len(raw_images)}")
+            # Get raw data
+            raw_images = self._raw_cache_data['raw_images']
+            raw_targets = self._raw_cache_data['raw_targets']
 
-        raw_img_array = raw_images[index]
-        target = raw_targets[index]
+            if index >= len(raw_images):
+                raise IndexError(f"Index {index} out of bounds for cache size {len(raw_images)}")
 
-        # Convert to PIL Image
-        img = Image.fromarray(raw_img_array, mode='RGB')
-        original_img = img.copy()
+            raw_img_array = raw_images[index]
+            target = raw_targets[index]
 
-        # Apply Einstellung effects deterministically
-        if shortcut_labels and target in shortcut_labels:
-            img = self._apply_deterministic_einstellung_effect(img, index)
+            # Convert to PIL Image
+            img = Image.fromarray(raw_img_array, mode='RGB')
+            original_img = img.copy()
 
-        # Apply transforms deterministically
-        processed_img = self._apply_deterministic_transform(transform, img, index)
-        not_aug_img = self._apply_deterministic_transform(not_aug_transform, original_img, index)
+            # Apply Einstellung effects deterministically
+            if shortcut_labels and target in shortcut_labels:
+                img = self._apply_deterministic_einstellung_effect(img, index)
 
-        # Apply target transform
-        if target_transform is not None:
-            target = target_transform(target)
+            # Apply transforms deterministically
+            processed_img = self._apply_deterministic_transform(transform, img, index)
+            not_aug_img = self._apply_deterministic_transform(not_aug_transform, original_img, index)
 
-        return processed_img, target, not_aug_img
+            # Apply target transform
+            if target_transform is not None:
+                target = target_transform(target)
+
+            # Record successful cache hit
+            access_time = time.time() - start_time
+            self.performance_monitor.record_cache_hit(access_time)
+
+            return processed_img, target, not_aug_img
+
+        except Exception as e:
+            # Record cache miss on error
+            access_time = time.time() - start_time
+            self.performance_monitor.record_cache_miss(access_time)
+            raise
 
     def _apply_deterministic_einstellung_effect(self, img: Image.Image, index: int) -> Image.Image:
         """Apply Einstellung effect deterministically based on index."""
@@ -307,20 +393,38 @@ class RobustEinstellungCache:
             random.setstate(py_state)
 
     def get_cache_info(self) -> Dict[str, Any]:
-        """Get information about the cache."""
-        if not self._cache_loaded:
-            return {"loaded": False}
-
-        return {
-            "loaded": True,
+        """Get information about the cache including performance metrics."""
+        base_info = {
+            "loaded": self._cache_loaded,
             "cache_key": self._cache_key,
             "cache_path": self._cache_path,
+        }
+
+        if not self._cache_loaded:
+            return base_info
+
+        cache_info = {
+            **base_info,
             "sample_count": len(self._raw_cache_data['raw_images']),
             "version": self._raw_cache_data.get('version', 'unknown'),
             "dataset_name": self._raw_cache_data.get('dataset_name'),
             "train": self._raw_cache_data.get('train'),
             "resolution": self._raw_cache_data.get('resolution')
         }
+
+        # Add performance metrics
+        performance_report = self.performance_monitor.get_performance_report()
+        cache_info["performance_metrics"] = performance_report
+
+        return cache_info
+
+    def get_performance_summary(self) -> Dict[str, Any]:
+        """Get performance summary for this cache instance."""
+        return self.performance_monitor.get_performance_report()
+
+    def print_performance_summary(self):
+        """Print human-readable performance summary."""
+        self.performance_monitor.print_performance_summary()
 
     def is_loaded(self) -> bool:
         """Check if cache is loaded."""
@@ -336,7 +440,7 @@ class RobustEinstellungDatasetMixin:
     """
 
     def init_robust_cache(self):
-        """Initialize robust cache system."""
+        """Initialize robust cache system with performance monitoring."""
         self._robust_cache = RobustEinstellungCache(
             dataset_name=getattr(self, 'dataset_name', 'seq-cifar100-einstellung'),
             train=self.train,
@@ -346,6 +450,9 @@ class RobustEinstellungDatasetMixin:
             patch_color=tuple(self.patch_color),
             resolution=getattr(self, 'resolution', '32x32')
         )
+
+        # Initialize performance monitoring for this dataset instance
+        self._performance_monitor = self._robust_cache.performance_monitor
 
     def setup_robust_cache(self, raw_data: np.ndarray, raw_targets: list) -> bool:
         """Setup robust cache with raw data."""
@@ -368,13 +475,49 @@ class RobustEinstellungDatasetMixin:
         )
 
     def get_robust_cache_info(self) -> Dict[str, Any]:
-        """Get robust cache information."""
+        """Get robust cache information including performance metrics."""
         if not hasattr(self, '_robust_cache'):
             return {"initialized": False}
 
         info = self._robust_cache.get_cache_info()
         info["initialized"] = True
         return info
+
+    def get_cache_performance_summary(self) -> Dict[str, Any]:
+        """Get cache performance summary."""
+        if not hasattr(self, '_robust_cache'):
+            return {"error": "Cache not initialized"}
+
+        return self._robust_cache.get_performance_summary()
+
+    def print_cache_performance_summary(self):
+        """Print human-readable cache performance summary."""
+        if hasattr(self, '_robust_cache'):
+            self._robust_cache.print_performance_summary()
+        else:
+            print("Cache not initialized - no performance data available")
+
+    def optimize_cache_settings(self):
+        """Optimize cache settings based on current performance metrics."""
+        if not hasattr(self, '_performance_monitor'):
+            return
+
+        # Get current performance metrics
+        report = self._performance_monitor.get_performance_report()
+
+        # Optimize batch size based on memory usage
+        if hasattr(self, '_robust_cache'):
+            import psutil
+            available_memory = psutil.virtual_memory().available / (1024 * 1024)
+            dataset_size = len(getattr(self, 'data', []))
+
+            optimal_batch_size = self._performance_monitor.optimize_batch_size(
+                dataset_size, available_memory
+            )
+
+            self._performance_monitor.logger.info(
+                f"Optimized settings - batch size: {optimal_batch_size}"
+            )
 
 
 def validate_robust_cache_consistency(dataset_class,
