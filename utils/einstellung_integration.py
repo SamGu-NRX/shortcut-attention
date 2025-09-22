@@ -179,11 +179,8 @@ def _train_with_einstellung_hooks(model, dataset, args):
     logger.info(f"   - Evaluator active: {_einstellung_evaluator is not None}")
 
     # Import required modules
-    from utils.loggers import Logger, CsvLogger, EarlyStoppingMonitor, set_default_from_args
-    from utils.loggers import FakeLogger
-    from utils.training import train_single_epoch, LearningRateScheduler
+    from utils.loggers import Logger, FakeLogger
     from utils.status import ProgressBar
-    from utils.training import mammoth_load_checkpoint
     from models.utils.future_model import FutureModel
     from backbone import warn_once
     from datasets import get_dataset

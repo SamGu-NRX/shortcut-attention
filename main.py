@@ -350,7 +350,6 @@ def main(args=None):
     from utils.conf import base_path, get_device
     from models import get_model
     from datasets import get_dataset
-    from utils.training import train
     from models.utils.future_model import FutureModel
     from backbone import get_backbone
 
@@ -396,7 +395,7 @@ def main(args=None):
     backbone = get_backbone(args)
     logging.info(f"Using backbone: {args.backbone}")
 
-    # EINSTELLUNG INTEGRATION: Attempt to enable integration
+    # EINSTELLUNG INTEGRATION: Attempt to enable integration BEFORE importing train
     logger.info("🧠 ATTEMPTING EINSTELLUNG INTEGRATION...")
     try:
         from utils.einstellung_integration import enable_einstellung_integration
@@ -408,6 +407,9 @@ def main(args=None):
     except Exception as e:
         logger.error(f"   ❌ Error during Einstellung integration: {e}")
         logger.exception("Full traceback:")
+
+    # Import train function AFTER integration is enabled (so we get the patched version)
+    from utils.training import train
 
     if args.code_optimization == 3:
         # check if the model is compatible with torch.compile
