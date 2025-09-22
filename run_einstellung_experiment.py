@@ -41,6 +41,7 @@ import subprocess
 import sys
 import json
 import time
+import numpy as np
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -844,6 +845,8 @@ def generate_eri_visualizations(results_path: str, experiment_results: Dict[str,
     The function loads timeline CSV data (or generates a synthetic fallback),
     computes accuracy/metric curves with the ERI timeline processor, and renders
     dynamics plots plus optional robustness heatmaps.
+
+    Includes baseline method detection and warnings for incomplete comparative analysis.
     """
     try:
         from eri_vis.styles import PlotStyleConfig
@@ -852,6 +855,8 @@ def generate_eri_visualizations(results_path: str, experiment_results: Dict[str,
         from eri_vis.plot_dynamics import ERIDynamicsPlotter
         from eri_vis.plot_heatmap import ERIHeatmapPlotter
         import matplotlib.pyplot as plt
+        import pandas as pd
+        import json
     except ImportError as e:
         print(f"ERI visualization components not available: {e}")
         return
@@ -861,6 +866,26 @@ def generate_eri_visualizations(results_path: str, experiment_results: Dict[str,
 
     output_dir = Path(results_path)
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Check for baseline validation results from aggregation step
+    validation_path = output_dir / "baseline_validation.json"
+    baseline_validation = None
+    if validation_path.exists():
+        try:
+            with open(validation_path, 'r') as f:
+                baseline_validation = json.load(f)
+        except Exception as e:
+            print(f"⚠️  Could not load baseline validation results: {e}")
+
+    # Print baseline status for visualization context
+    if baseline_validation:
+        if baseline_validation.get('missing_baselines'):
+            print(f"📊 Visualization Note: Missing baseline methods {baseline_validation['missing_baselines']}")
+            print(f"   • PD_t calculations: {'Available' if baseline_validation.get('can_compute_pd_t') else 'Unavailable'}")
+            print(f"   • SFR_rel calculations: {'Available' if baseline_validation.get('can_compute_sfr_rel') else 'Unavailable'}")
+            print(f"   • Visualizations will continue with available data")
+        else:
+            print(f"✅ All baseline methods present - generating full comparative visualizations")
 
     style_config = PlotStyleConfig()
     data_loader = ERIDataLoader()
@@ -884,6 +909,24 @@ def generate_eri_visualizations(results_path: str, experiment_results: Dict[str,
             print(f"Unable to compute ERI curves: {exc}")
             return
 
+        # Check for baseline methods in the dataset
+        available_methods = set()
+        for curve in curves.values():
+            if hasattr(curve, 'method'):
+                available_methods.add(curve.method)
+
+        has_scratch_t2 = 'scratch_t2' in available_methods
+        has_interleaved = 'interleaved' in available_methods
+
+        # Provide warnings if baseline methods are missing during visualization
+        if not has_scratch_t2 and not has_interleaved:
+            print("⚠️  Visualization Warning: No baseline methods (scratch_t2, interleaved) found in dataset")
+            print("   • Performance deficit and relative metrics may not be meaningful")
+            print("   • Consider running baseline methods for complete comparative analysis")
+        elif not has_scratch_t2:
+            print("⚠️  Visualization Warning: Scratch_T2 baseline not found in dataset")
+            print("   • PD_t and SFR_rel calculations will use alternative reference or be unavailable")
+
         patched_curves = {k: curve for k, curve in curves.items()
                           if getattr(curve, 'split', '') == 'T2_shortcut_normal'}
         masked_curves = {k: curve for k, curve in curves.items()
@@ -894,8 +937,17 @@ def generate_eri_visualizations(results_path: str, experiment_results: Dict[str,
         if patched_curves and masked_curves:
             try:
                 ad_values = processor.compute_adaptation_delays(curves)
-                pd_series = processor.compute_performance_deficits(curves)
-                sfr_series = processor.compute_sfr_relative(curves)
+
+                # Attempt to compute PD and SFR with baseline detection
+                try:
+                    pd_series = processor.compute_performance_deficits(curves)
+                    sfr_series = processor.compute_sfr_relative(curves)
+                except Exception as baseline_exc:
+                    print(f"⚠️  Could not compute PD_t/SFR_rel metrics: {baseline_exc}")
+                    print("   • This may be due to missing baseline methods")
+                    print("   • Continuing with available metrics...")
+                    pd_series = {}
+                    sfr_series = {}
 
                 fig = dynamics_plotter.create_dynamics_figure(
                     patched_curves=patched_curves,
@@ -913,6 +965,9 @@ def generate_eri_visualizations(results_path: str, experiment_results: Dict[str,
                 generated_any = True
             except Exception as exc:
                 print(f"Failed to generate dynamics plot: {exc}")
+                if "baseline" in str(exc).lower() or "scratch_t2" in str(exc).lower():
+                    print("   • This error may be related to missing baseline methods")
+                    print("   • Run 'scratch_t2' and 'interleaved' methods for complete analysis")
         else:
             print("Not enough subset coverage to plot dynamics (need shortcut_normal and shortcut_masked curves).")
 
@@ -972,6 +1027,435 @@ def generate_eri_visualizations(results_path: str, experiment_results: Dict[str,
             return
 
     render_visualizations(dataset)
+
+
+def get_significance_indicator(method: str, statistical_results: Dict[str, Any]) -> str:
+    """
+    Get statistical significance indicator for a method.
+
+    Args:
+        method: Method name
+        statistical_results: Results from statistical analysis
+
+    Returns:
+        String indicator: '***' (p<0.001), '**' (p<0.01), '*' (p<0.05), '' (n.s.)
+    """
+    if not statistical_results or 'pairwise_comparisons' not in statistical_results:
+        return ""
+
+    # Check if this method has any significant comparisons
+    pairwise_results = statistical_results.get('pairwise_comparisons', {})
+
+    min_p_value = 1.0
+    for metric, comparisons in pairwise_results.items():
+        for comp in comparisons:
+            if (comp.method1 == method or comp.method2 == method) and comp.test_result.p_value is not None:
+                if not np.isnan(comp.test_result.p_value):
+                    min_p_value = min(min_p_value, comp.test_result.p_value)
+
+    # Return significance indicators
+    if min_p_value < 0.001:
+        return "***"
+    elif min_p_value < 0.01:
+        return "**"
+    elif min_p_value < 0.05:
+        return "*"
+    else:
+        return ""
+
+
+def compute_comparative_metrics_from_aggregated_data(output_dir: str, results_list: List[Dict]) -> Dict[str, Dict]:
+    """
+    Compute comparative metrics (PD_t, SFR_rel, AD) from aggregated CSV data.
+
+    Args:
+        output_dir: Directory containing aggregated CSV
+        results_list: List of experiment results for context
+
+    Returns:
+        Dictionary mapping method names to their comparative metrics
+    """
+    try:
+        from eri_vis.data_loader import ERIDataLoader
+        from eri_vis.processing import ERITimelineProcessor
+        import pandas as pd
+    except ImportError as e:
+        print(f"⚠️  ERI visualization components not available: {e}")
+        return {}
+
+    # Load aggregated CSV
+    aggregated_csv_path = os.path.join(output_dir, "comparative_eri_metrics.csv")
+    if not os.path.exists(aggregated_csv_path):
+        print(f"⚠️  Aggregated CSV not found: {aggregated_csv_path}")
+        return {}
+
+    try:
+        # Load dataset using ERI system
+        loader = ERIDataLoader()
+        dataset = loader.load_csv(aggregated_csv_path)
+
+        # Initialize processor with default parameters
+        processor = ERITimelineProcessor(smoothing_window=3, tau=0.6)
+
+        # Compute accuracy curves for all method-split combinations
+        curves = processor.compute_accuracy_curves(dataset)
+
+        # Compute comparative metrics
+        adaptation_delays = processor.compute_adaptation_delays(curves)
+        performance_deficits = processor.compute_performance_deficits(curves)
+        sfr_relatives = processor.compute_sfr_relative(curves)
+
+        # Organize results by method
+        comparative_metrics = {}
+
+        # Get all unique methods from results
+        methods = set(r.get('strategy') for r in results_list if r and r.get('success', False))
+
+        for method in methods:
+            if method in ['scratch_t2', 'interleaved']:
+                continue  # Skip baseline methods in comparative metrics
+
+            method_metrics = {}
+
+            # Adaptation Delay
+            if method in adaptation_delays:
+                method_metrics['adaptation_delay'] = adaptation_delays[method]
+
+            # Performance Deficit (final epoch value)
+            if method in performance_deficits:
+                pd_series = performance_deficits[method]
+                if len(pd_series.values) > 0:
+                    method_metrics['pd_t_final'] = pd_series.values[-1]  # Final epoch value
+
+            # SFR relative (final epoch value)
+            if method in sfr_relatives:
+                sfr_series = sfr_relatives[method]
+                if len(sfr_series.values) > 0:
+                    method_metrics['sfr_rel_final'] = sfr_series.values[-1]  # Final epoch value
+
+            if method_metrics:  # Only add if we have some metrics
+                comparative_metrics[method] = method_metrics
+
+        print(f"✅ Computed comparative metrics for {len(comparative_metrics)} methods")
+        return comparative_metrics
+
+    except Exception as e:
+        print(f"⚠️  Failed to compute comparative metrics: {e}")
+        return {}
+
+
+def validate_baseline_methods_in_dataset(dataset_path: str) -> Dict[str, Any]:
+    """
+    Validate baseline methods in a CSV dataset file.
+
+    Args:
+        dataset_path: Path to CSV file containing experiment results
+
+    Returns:
+        Dictionary with validation results and warnings
+    """
+    try:
+        import pandas as pd
+
+        if not os.path.exists(dataset_path):
+            return {
+                'error': f"Dataset file not found: {dataset_path}",
+                'has_scratch_t2': False,
+                'has_interleaved': False,
+                'missing_baselines': ['scratch_t2', 'interleaved'],
+                'warnings': [f"❌ Dataset file not found: {dataset_path}"],
+                'can_compute_pd_t': False,
+                'can_compute_sfr_rel': False,
+                'available_methods': []
+            }
+
+        # Load the CSV file
+        try:
+            data = pd.read_csv(dataset_path)
+        except Exception as e:
+            return {
+                'error': f"Failed to load CSV: {e}",
+                'has_scratch_t2': False,
+                'has_interleaved': False,
+                'missing_baselines': ['scratch_t2', 'interleaved'],
+                'warnings': [f"❌ Failed to load CSV file: {e}"],
+                'can_compute_pd_t': False,
+                'can_compute_sfr_rel': False,
+                'available_methods': []
+            }
+
+        return validate_baseline_methods(data)
+
+    except ImportError:
+        return {
+            'error': "pandas not available for CSV validation",
+            'has_scratch_t2': False,
+            'has_interleaved': False,
+            'missing_baselines': ['scratch_t2', 'interleaved'],
+            'warnings': ["❌ pandas not available for baseline validation"],
+            'can_compute_pd_t': False,
+            'can_compute_sfr_rel': False,
+            'available_methods': []
+        }
+
+
+def validate_baseline_methods(merged_data) -> Dict[str, Any]:
+    """
+    Validate that required baseline methods are present for comparative analysis.
+
+    Args:
+        merged_data: Pandas DataFrame with aggregated experiment results
+
+    Returns:
+        Dictionary with validation results and warnings
+    """
+    validation_result = {
+        'has_scratch_t2': False,
+        'has_interleaved': False,
+        'missing_baselines': [],
+        'warnings': [],
+        'can_compute_pd_t': False,
+        'can_compute_sfr_rel': False,
+        'available_methods': []
+    }
+
+    # Get unique methods from the dataset
+    available_methods = sorted(merged_data['method'].unique()) if 'method' in merged_data.columns else []
+    validation_result['available_methods'] = available_methods
+
+    # Check for baseline methods
+    validation_result['has_scratch_t2'] = 'scratch_t2' in available_methods
+    validation_result['has_interleaved'] = 'interleaved' in available_methods
+
+    # Identify missing baselines
+    if not validation_result['has_scratch_t2']:
+        validation_result['missing_baselines'].append('scratch_t2')
+    if not validation_result['has_interleaved']:
+        validation_result['missing_baselines'].append('interleaved')
+
+    # Determine what comparative metrics can be computed
+    validation_result['can_compute_pd_t'] = validation_result['has_scratch_t2']
+    validation_result['can_compute_sfr_rel'] = validation_result['has_scratch_t2']
+
+    # Generate warnings based on missing baselines
+    if validation_result['missing_baselines']:
+        if len(validation_result['missing_baselines']) == 2:
+            validation_result['warnings'].append(
+                "⚠️  Missing all baseline methods (scratch_t2, interleaved). "
+                "Performance deficit (PD_t) and shortcut forgetting rate (SFR_rel) calculations will be unavailable."
+            )
+        elif 'scratch_t2' in validation_result['missing_baselines']:
+            validation_result['warnings'].append(
+                "⚠️  Missing Scratch_T2 baseline method. "
+                "PD_t and SFR_rel calculations require Scratch_T2 as reference baseline."
+            )
+        elif 'interleaved' in validation_result['missing_baselines']:
+            validation_result['warnings'].append(
+                "⚠️  Missing Interleaved baseline method. "
+                "Using Scratch_T2 as primary reference for comparative analysis."
+            )
+
+        # Add guidance on how to run missing baselines
+        missing_str = ', '.join(validation_result['missing_baselines'])
+        validation_result['warnings'].append(
+            f"💡 To run missing baseline methods: "
+            f"python run_einstellung_experiment.py --model {validation_result['missing_baselines'][0]} --backbone resnet18"
+        )
+
+    return validation_result
+
+
+def aggregate_comparative_results(results_list: List[Dict], output_dir: str) -> str:
+    """
+    Aggregate CSV results from multiple experiments into single comparative dataset.
+
+    Args:
+        results_list: List of experiment result dictionaries
+        output_dir: Directory to save aggregated results
+
+    Returns:
+        Path to aggregated CSV file
+
+    Raises:
+        ValueError: If no valid CSV files found
+        IOError: If aggregation fails
+    """
+    try:
+        from eri_vis.data_loader import ERIDataLoader
+        import pandas as pd
+    except ImportError as e:
+        raise ImportError(f"ERI visualization components not available: {e}")
+
+    # Collect all CSV files from individual experiments
+    csv_files = []
+    for result in results_list:
+        if result and result.get('success', False):
+            csv_path = find_csv_file(result['output_dir'])
+            if csv_path:
+                csv_files.append(csv_path)
+
+    if not csv_files:
+        raise ValueError("No valid CSV files found in experiment results")
+
+    print(f"🔄 Aggregating {len(csv_files)} CSV files for comparative analysis...")
+
+    # Use existing ERIDataLoader to load and validate datasets
+    loader = ERIDataLoader()
+    datasets = []
+
+    for csv_file in csv_files:
+        try:
+            dataset = loader.load_csv(csv_file)
+            datasets.append(dataset)
+            print(f"   ✅ Loaded {len(dataset)} rows from {os.path.basename(csv_file)}")
+        except Exception as e:
+            print(f"   ⚠️  Failed to load {os.path.basename(csv_file)}: {e}")
+            continue
+
+    if not datasets:
+        raise ValueError("No datasets could be loaded successfully")
+
+    # Merge all datasets into single DataFrame
+    merged_data = pd.concat([dataset.data for dataset in datasets], ignore_index=True)
+
+    # Remove duplicates (in case same experiment was run multiple times)
+    merged_data = merged_data.drop_duplicates(
+        subset=['method', 'seed', 'epoch_eff', 'split'],
+        keep='last'
+    ).reset_index(drop=True)
+
+    # Validate baseline methods and provide warnings
+    validation_result = validate_baseline_methods(merged_data)
+
+    # Print validation warnings using existing logging system
+    for warning in validation_result['warnings']:
+        print(warning)
+
+    # Log available methods and baseline status
+    print(f"📊 Available methods: {validation_result['available_methods']}")
+    if validation_result['missing_baselines']:
+        print(f"❌ Missing baseline methods: {validation_result['missing_baselines']}")
+        print(f"📈 Comparative metrics available: PD_t={validation_result['can_compute_pd_t']}, SFR_rel={validation_result['can_compute_sfr_rel']}")
+    else:
+        print(f"✅ All baseline methods present - full comparative analysis available")
+
+    # Create output directory
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    # Export aggregated CSV
+    aggregated_csv_path = output_path / "comparative_eri_metrics.csv"
+    merged_data.to_csv(aggregated_csv_path, index=False, float_format='%.6f')
+
+    # Save validation results for later use
+    validation_path = output_path / "baseline_validation.json"
+    import json
+    with open(validation_path, 'w') as f:
+        json.dump(validation_result, f, indent=2)
+
+    print(f"📊 Aggregated {len(merged_data)} rows from {len(datasets)} experiments")
+    print(f"   Methods: {sorted(merged_data['method'].unique())}")
+    print(f"   Seeds: {sorted(merged_data['seed'].unique())}")
+    print(f"   Splits: {sorted(merged_data['split'].unique())}")
+    print(f"💾 Saved aggregated results to: {aggregated_csv_path}")
+    print(f"💾 Saved baseline validation to: {validation_path}")
+
+    return str(aggregated_csv_path)
+
+
+def find_csv_file(output_dir: str) -> Optional[str]:
+    """
+    Find and validate ERI CSV file in experiment output directory.
+
+    Uses existing file path patterns and naming conventions from current experiment system.
+    Implements validation to ensure CSV files contain required columns and valid data.
+
+    Args:
+        output_dir: Directory to search for CSV files
+
+    Returns:
+        Path to valid CSV file if found, None otherwise
+    """
+    if not output_dir or not os.path.exists(output_dir):
+        return None
+
+    # Look for ERI-specific CSV files first (following existing naming conventions)
+    eri_patterns = [
+        "**/eri_sc_metrics.csv",
+        "**/eri_metrics.csv",
+        "**/einstellung_metrics.csv",
+        "**/comparative_eri_metrics.csv"  # For aggregated results
+    ]
+
+    for pattern in eri_patterns:
+        csv_files = list(Path(output_dir).glob(pattern))
+        if csv_files:
+            # Validate and return the most recent valid file
+            for csv_file in sorted(csv_files, key=lambda p: p.stat().st_mtime, reverse=True):
+                if validate_csv_file(str(csv_file)):
+                    return str(csv_file)
+
+    # Fallback to any CSV file with validation
+    csv_files = list(Path(output_dir).glob("**/*.csv"))
+    if csv_files:
+        # Filter out obviously unrelated files
+        relevant_files = [
+            f for f in csv_files
+            if not any(exclude in f.name.lower()
+                      for exclude in ['log', 'debug', 'temp', 'backup', 'checkpoint'])
+        ]
+
+        # Validate files and return first valid one
+        for csv_file in sorted(relevant_files, key=lambda p: p.stat().st_mtime, reverse=True):
+            if validate_csv_file(str(csv_file)):
+                return str(csv_file)
+
+    return None
+
+
+def validate_csv_file(csv_path: str) -> bool:
+    """
+    Validate CSV file contains required columns and valid ERI data.
+
+    Args:
+        csv_path: Path to CSV file to validate
+
+    Returns:
+        True if file is valid ERI CSV, False otherwise
+    """
+    try:
+        import pandas as pd
+
+        # Check file exists and is readable
+        if not os.path.exists(csv_path) or os.path.getsize(csv_path) == 0:
+            return False
+
+        # Try to load CSV
+        df = pd.read_csv(csv_path)
+
+        # Check required columns for ERI format
+        required_cols = ["method", "seed", "epoch_eff", "split", "acc"]
+        if not all(col in df.columns for col in required_cols):
+            return False
+
+        # Check for minimum data
+        if len(df) == 0:
+            return False
+
+        # Check valid split names
+        valid_splits = {"T1_all", "T2_shortcut_normal", "T2_shortcut_masked", "T2_nonshortcut_normal"}
+        if not any(split in valid_splits for split in df['split'].unique()):
+            return False
+
+        # Check accuracy values are in valid range
+        if df['acc'].min() < 0 or df['acc'].max() > 1:
+            return False
+
+        return True
+
+    except Exception:
+        # Any error during validation means invalid file
+        return False
 
 
 def generate_synthetic_eri_data(csv_path: Path, experiment_results: Dict[str, Any]) -> None:
@@ -1555,11 +2039,18 @@ def run_comparative_experiment(skip_training=False, force_retrain=False, auto_ch
                               debug=False):
     """Run comparative experiments across different strategies."""
 
-    print("Running Comparative Einstellung Effect Experiments")
+    print("🔬 Running Comparative Einstellung Effect Experiments")
     print("Testing cognitive rigidity across different continual learning strategies")
 
     # Experiment configurations
-    configs = [
+    # Baseline methods first for proper dependency management
+    baseline_configs = [
+        ('scratch_t2', 'resnet18'),
+        ('interleaved', 'resnet18'),
+    ]
+
+    # Continual learning methods
+    cl_configs = [
         ('sgd', 'resnet18'),
         ('derpp', 'resnet18'),
         ('ewc_on', 'resnet18'),
@@ -1567,15 +2058,17 @@ def run_comparative_experiment(skip_training=False, force_retrain=False, auto_ch
         ('dgr', 'resnet18'),
     ]
 
-    # Add ViT experiments if available
-    # try:
-    #     configs.append(('derpp', 'vit'))
-    # except:
-    #     print("ViT backbone not available, skipping attention analysis")
+    # Combine baseline and CL methods (baselines first for dependency management)
+    configs = baseline_configs + cl_configs
+
+    print(f"📋 Running {len(configs)} experiments: {len(baseline_configs)} baselines + {len(cl_configs)} continual learning methods")
 
     results = []
 
-    for strategy, backbone in configs:
+    # Run individual experiments
+    for i, (strategy, backbone) in enumerate(configs, 1):
+        print(f"\n[{i}/{len(configs)}] Running {strategy} with {backbone}...")
+
         result = run_einstellung_experiment(
             strategy, backbone, seed=42,
             skip_training=skip_training,
@@ -1583,41 +2076,171 @@ def run_comparative_experiment(skip_training=False, force_retrain=False, auto_ch
             auto_checkpoint=auto_checkpoint,
             debug=debug
         )
+
         if result:
             results.append(result)
+            status = "✅" if result.get('success', False) else "❌"
+            acc = f"{result.get('final_accuracy', 0):.2f}%" if result.get('success', False) else "FAILED"
+            source = "Checkpoint" if result.get('used_checkpoint', False) else "Training"
+            print(f"   {status} {strategy}/{backbone}: {acc} ({source})")
+        else:
+            print(f"   ❌ {strategy}/{backbone}: FAILED (no result)")
 
-    # Summary comparison
-    print(f"\n{'='*106}")
-    print("COMPARATIVE ANALYSIS")
-    print(f"{'='*106}")
-    print(f"{'Strategy':<15} {'Backbone':<20} {'ERI Score':<12} {'Perf. Deficit':<15} {'Ad. Delay':<12} {'Final Acc':<12} {'Source':<10}")
-    print(f"{'-'*106}")
+    # Aggregate results for comparative visualization (Task 8)
+    successful_results = [r for r in results if r and r.get('success', False)]
+
+    if len(successful_results) > 1:
+        print(f"\n🔄 Aggregating results from {len(successful_results)} successful experiments...")
+
+        try:
+            # Create comparative output directory
+            comparative_output_dir = "./comparative_results"
+            os.makedirs(comparative_output_dir, exist_ok=True)
+
+            # Aggregate CSV results using existing function
+            aggregated_csv = aggregate_comparative_results(successful_results, comparative_output_dir)
+
+            # Generate comparative visualizations using existing ERI system
+            print("📊 Generating comparative visualizations...")
+            generate_eri_visualizations(comparative_output_dir, {
+                'config': {'csv_path': aggregated_csv},
+                'model': 'comparative_analysis'
+            })
+
+            # Generate statistical analysis report (Task 13 & 14)
+            print("📈 Performing statistical significance testing...")
+            try:
+                from utils.statistical_analysis import generate_statistical_report
+                statistical_report_path = generate_statistical_report(aggregated_csv, comparative_output_dir)
+                print(f"📊 Statistical analysis report: {statistical_report_path}")
+            except Exception as e:
+                print(f"⚠️  Statistical analysis failed: {e}")
+                print("Comparative visualizations are still available")
+
+            print(f"✅ Comparative analysis complete!")
+            print(f"📁 Results saved to: {comparative_output_dir}")
+            print(f"📊 Aggregated data: {aggregated_csv}")
+
+        except Exception as e:
+            print(f"⚠️  Comparative aggregation failed: {e}")
+            print("Individual experiment results are still available in their respective directories")
+    else:
+        print(f"\n⚠️  Only {len(successful_results)} successful experiment(s) - skipping comparative analysis")
+        print("Need at least 2 successful experiments for comparative visualization")
+
+    # Enhanced summary comparison with comparative metrics
+    print(f"\n{'='*120}")
+    print("COMPARATIVE ANALYSIS SUMMARY")
+    print(f"{'='*120}")
+
+    # Check if we have baseline data for comparative metrics
+    has_scratch_t2 = any(r.get('strategy') == 'scratch_t2' and r.get('success', False) for r in results)
+    has_interleaved = any(r.get('strategy') == 'interleaved' and r.get('success', False) for r in results)
+
+    # Compute comparative metrics if we have aggregated data and baselines
+    comparative_metrics = {}
+    statistical_results = {}
+    if (has_scratch_t2 or has_interleaved) and len(successful_results) > 1:
+        try:
+            comparative_metrics = compute_comparative_metrics_from_aggregated_data(
+                comparative_output_dir, successful_results
+            )
+
+            # Compute statistical significance for enhanced reporting (Task 14)
+            try:
+                from utils.statistical_analysis import StatisticalAnalyzer
+                analyzer = StatisticalAnalyzer(alpha=0.05, correction_method='bonferroni')
+                statistical_results = analyzer.analyze_comparative_metrics(aggregated_csv)
+            except Exception as e:
+                print(f"⚠️  Statistical analysis for reporting failed: {e}")
+                statistical_results = {}
+
+        except Exception as e:
+            print(f"⚠️  Failed to compute comparative metrics: {e}")
+
+    # Enhanced table headers with statistical significance indicators
+    if has_scratch_t2 or has_interleaved:
+        print(f"{'Strategy':<15} {'Backbone':<12} {'PD_t':<10} {'SFR_rel':<10} {'AD':<8} {'Final Acc':<12} {'Sig.':<5} {'Source':<12}")
+        print(f"{'-'*125}")
+    else:
+        print(f"{'Strategy':<15} {'Backbone':<12} {'Final Acc':<12} {'Source':<12} {'Status':<20}")
+        print(f"{'-'*80}")
 
     for result in results:
         if result and result.get('success', False):
-            # Check if metrics are available
-            if 'metrics' in result:
-                metrics = result['metrics']
-                eri = f"{metrics.eri_score:.4f}" if hasattr(metrics, 'eri_score') and metrics.eri_score else "N/A"
-                pd = f"{metrics.performance_deficit:.4f}" if hasattr(metrics, 'performance_deficit') and metrics.performance_deficit else "N/A"
-                ad = f"{metrics.adaptation_delay:.1f}" if hasattr(metrics, 'adaptation_delay') and metrics.adaptation_delay else "N/A"
-            else:
-                # Fallback to basic accuracy if metrics not available
-                eri = "N/A"
-                pd = "N/A"
-                ad = "N/A"
-
+            strategy = result.get('strategy', 'Unknown')
+            backbone = result.get('backbone', 'Unknown')
             final_acc = f"{result.get('final_accuracy', 0):.2f}%"
             source = "Checkpoint" if result.get('used_checkpoint', False) else "Training"
-            print(f"{result['strategy']:<15} {result['backbone']:<20} {eri:<12} {pd:<15} {ad:<12} {final_acc:<12} {source:<10}")
-        else:
-            strategy = result['strategy'] if result else 'Unknown'
-            backbone = result['backbone'] if result else 'Unknown'
-            print(f"{strategy:<15} {backbone:<20} {'FAILED':<12} {'FAILED':<15} {'FAILED':<12} {'FAILED':<12} {'FAILED':<10}")
 
-    print(f"\nHigher ERI scores indicate more cognitive rigidity (worse adaptation)")
-    print(f"Performance Deficit: accuracy drop when shortcuts are removed")
-    print(f"Adaptation Delay: epochs required to reach 80% accuracy")
+            if has_scratch_t2 or has_interleaved:
+                # Enhanced reporting with comparative metrics when baselines available
+                method_metrics = comparative_metrics.get(strategy, {})
+
+                # Format PD_t (Performance Deficit at final epoch)
+                pd_t = method_metrics.get('pd_t_final', None)
+                pd_str = f"{pd_t:.3f}" if pd_t is not None else "N/A"
+
+                # Format SFR_rel (Shortcut Forgetting Rate relative at final epoch)
+                sfr_rel = method_metrics.get('sfr_rel_final', None)
+                sfr_str = f"{sfr_rel:.3f}" if sfr_rel is not None else "N/A"
+
+                # Format AD (Adaptation Delay)
+                ad = method_metrics.get('adaptation_delay', None)
+                ad_str = f"{ad:.1f}" if ad is not None else "N/A"
+
+                # Statistical significance indicators (Task 14)
+                sig_indicator = get_significance_indicator(strategy, statistical_results)
+
+                print(f"{strategy:<15} {backbone:<12} {pd_str:<10} {sfr_str:<10} {ad_str:<8} {final_acc:<12} {sig_indicator:<5} {source:<12}")
+            else:
+                # Basic reporting when baselines not available
+                print(f"{strategy:<15} {backbone:<12} {final_acc:<12} {source:<12} {'Success':<20}")
+        else:
+            strategy = result.get('strategy', 'Unknown') if result else 'Unknown'
+            backbone = result.get('backbone', 'Unknown') if result else 'Unknown'
+            if has_scratch_t2 or has_interleaved:
+                print(f"{strategy:<15} {backbone:<12} {'FAILED':<10} {'FAILED':<10} {'FAILED':<8} {'FAILED':<12} {'':<5} {'FAILED':<12}")
+            else:
+                print(f"{strategy:<15} {backbone:<12} {'FAILED':<12} {'FAILED':<12} {'Failed':<20}")
+
+    # Missing baseline warnings
+    if not has_scratch_t2 and not has_interleaved:
+        print(f"\n⚠️  Missing Baseline Methods:")
+        print(f"   • No baseline methods (scratch_t2, interleaved) were run successfully")
+        print(f"   • Comparative metrics (PD_t, SFR_rel, AD) cannot be computed")
+        print(f"   • Run baseline methods first to enable full comparative analysis")
+    elif not has_scratch_t2:
+        print(f"\n⚠️  Missing Scratch_T2 Baseline:")
+        print(f"   • Scratch_T2 baseline not available - some comparative metrics may be incomplete")
+        print(f"   • PD_t and SFR_rel calculations require Scratch_T2 as reference")
+    elif not has_interleaved:
+        print(f"\n⚠️  Missing Interleaved Baseline:")
+        print(f"   • Interleaved baseline not available - using Scratch_T2 as primary reference")
+
+    # Interpretation guide with statistical significance explanation
+    if has_scratch_t2 or has_interleaved:
+        print(f"\n📖 Interpretation Guide:")
+        print(f"   • PD_t: Performance Deficit relative to Scratch_T2 (higher = worse)")
+        print(f"   • SFR_rel: Shortcut Forgetting Rate relative to Scratch_T2 (higher = more forgetting)")
+        print(f"   • AD: Adaptation Delay in epochs to reach threshold (higher = slower adaptation)")
+        print(f"   • Sig.: Statistical significance indicators (*** p<0.001, ** p<0.01, * p<0.05)")
+        print(f"   • Baseline methods provide reference points for measuring continual learning effectiveness")
+
+        # Statistical summary if available
+        if statistical_results and 'interpretation' in statistical_results:
+            print(f"\n📊 Statistical Summary:")
+            interpretation = statistical_results['interpretation']
+            if 'significant_differences' in interpretation:
+                print(f"   • {interpretation['significant_differences']}")
+            if 'large_effects' in interpretation and interpretation['large_effects'] != "No large effect sizes detected between methods.":
+                print(f"   • {interpretation['large_effects'][:100]}...")  # Truncate for console
+
+    print(f"\n📊 Experiment Summary:")
+    print(f"   • Total experiments: {len(results)}")
+    print(f"   • Successful: {len(successful_results)}")
+    print(f"   • Failed: {len(results) - len(successful_results)}")
+    print(f"   • Baseline methods available: {has_scratch_t2 or has_interleaved}")
 
     return results
 
@@ -1632,8 +2255,8 @@ def main():
 
     # Single experiment parameters
     parser.add_argument('--model', type=str, default='derpp',
-                   choices=['sgd', 'derpp', 'ewc_on', 'gpm', 'dgr'],
-                       help='Continual learning strategy')
+                   choices=['sgd', 'derpp', 'ewc_on', 'gpm', 'dgr', 'scratch_t2', 'interleaved'],
+                       help='Continual learning strategy (includes baseline methods)')
     parser.add_argument('--backbone', type=str, default='resnet18',
                        choices=['resnet18', 'vit'],
                        help='Model backbone')
@@ -1677,62 +2300,16 @@ def main():
 
     # Run experiments
     if args.comparative:
-        print("🔬 Running Comparative Einstellung Effect Experiments")
-        print("Testing cognitive rigidity across different continual learning strategies")
+        # Use the enhanced comparative experiment runner with aggregation
+        results = run_comparative_experiment(
+            skip_training=args.skip_training,
+            force_retrain=args.force_retrain,
+            auto_checkpoint=args.auto_checkpoint,
+            debug=args.debug
+        )
 
-        # Experiment configurations
-        configs = [
-            ('sgd', 'resnet18'),
-            ('derpp', 'resnet18'),
-            ('ewc_on', 'resnet18'),
-            ('gpm', 'resnet18'),
-            ('dgr', 'resnet18'),
-        ]
-
-        results = []
-
-        for model, backbone in configs:
-            results_path = f"./einstellung_results/{model}_{backbone}_seed{args.seed}"
-
-            result = run_experiment(
-                model=model,
-                backbone=backbone,
-                seed=args.seed,
-                results_path=results_path,
-                execution_mode=execution_mode,
-                epochs=args.epochs,
-                debug=args.debug
-            )
-
-            if result and result.get('success', False):
-                results.append(result)
-                print(f"   ✅ {model}/{backbone} completed with {result.get('final_accuracy', 0):.2f}% accuracy")
-                print(f"   📄 Used checkpoint: {result.get('used_checkpoint', False)}")
-            else:
-                print(f"   ❌ {model}/{backbone} failed: {result.get('message', 'Unknown error')}")
-
-        # Summary comparison
-        print(f"\n{'='*106}")
-        print("COMPARATIVE ANALYSIS")
-        print(f"{'='*106}")
-        print(f"{'Strategy':<15} {'Backbone':<20} {'Final Acc':<12} {'Source':<12} {'Report':<35}")
-        print(f"{'-'*106}")
-
-        for result in results:
-            if result and result.get('success', False):
-                strategy = result.get('model', 'Unknown')
-                backbone = result.get('backbone', 'Unknown')
-                final_acc = f"{result.get('final_accuracy', 0):.2f}%"
-                source = "Checkpoint" if result.get('used_checkpoint', False) else "Training"
-                report_path = f"{result.get('output_dir', 'N/A')}/reports/"
-                print(f"{strategy:<15} {backbone:<20} {final_acc:<12} {source:<12} {report_path:<35}")
-            else:
-                strategy = result.get('model', 'Unknown') if result else 'Unknown'
-                backbone = result.get('backbone', 'Unknown') if result else 'Unknown'
-                print(f"{strategy:<15} {backbone:<20} {'FAILED':<12} {'FAILED':<12} {'FAILED':<35}")
-
-        print(f"\n📊 {len(results)} experiment(s) completed successfully")
-        print(f"📁 Detailed reports saved in respective results directories")
+        successful_results = [r for r in results if r and r.get('success', False)]
+        print(f"\n📊 Comparative experiment completed: {len(successful_results)}/{len(results)} successful")
 
         return results
     else:

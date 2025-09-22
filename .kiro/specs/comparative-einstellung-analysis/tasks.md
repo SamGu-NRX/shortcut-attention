@@ -12,7 +12,7 @@ Tasks are organized in dependency order, with each task building on previous wor
 
 ## Phase 1: Baseline Method Implementation
 
-- [ ] **1. Implement Scratch_T2 Baseline Method**
+- [x] **1. Implement Scratch_T2 Baseline Method**
 
   - Create `models/scratch_t2.py` extending ContinualModel following existing `models/joint.py` pattern
   - Implement Task 2 only training: skip Task 1, collect Task 2 data, train at end of Task 2
@@ -21,7 +21,7 @@ Tasks are organized in dependency order, with each task building on previous wor
   - Ensure compatibility with existing EinstellungEvaluator evaluation protocol
   - _Requirements: 1.1, 1.4_
 
-- [ ] **2. Implement Interleaved Baseline Method**
+- [x] **2. Implement Interleaved Baseline Method**
 
   - Create `models/interleaved.py` extending ContinualModel following existing `models/joint.py` pattern
   - Implement mixed task training: collect data from both tasks, train on combined dataset
@@ -30,7 +30,7 @@ Tasks are organized in dependency order, with each task building on previous wor
   - Ensure seamless integration with existing Mammoth training pipeline and evaluation system
   - _Requirements: 1.1, 1.4_
 
-- [ ] **3. Validate Baseline Method Integration**
+- [x] **3. Validate Baseline Method Integration**
   - Test that baseline methods are automatically discovered by existing `models/__init__.py` registry
   - Verify baseline methods work with existing `get_model()` function and argument parsing
   - Confirm baseline methods integrate with existing EinstellungEvaluator without modifications
@@ -42,7 +42,7 @@ Tasks are organized in dependency order, with each task building on previous wor
 
 ## Phase 2: Data Aggregation System
 
-- [ ] **4. Implement Comparative Results Aggregation**
+- [x] **4. Implement Comparative Results Aggregation**
 
   - Add `aggregate_comparative_results()` function to existing `run_einstellung_experiment.py`
   - Use existing `eri_vis.data_loader.ERIDataLoader` for CSV loading and validation
@@ -51,7 +51,7 @@ Tasks are organized in dependency order, with each task building on previous wor
   - Add error handling for missing CSV files and validation failures using existing patterns
   - _Requirements: 2.2, 2.3_
 
-- [ ] **5. Implement CSV File Discovery and Validation**
+- [x] **5. Implement CSV File Discovery and Validation**
 
   - Add `find_csv_file()` helper function to locate ERI CSV files in experiment output directories
   - Use existing file path patterns and naming conventions from current experiment system
@@ -60,7 +60,7 @@ Tasks are organized in dependency order, with each task building on previous wor
   - Integrate with existing logging system for progress tracking and error reporting
   - _Requirements: 2.2, 2.5_
 
-- [ ] **6. Test Data Aggregation Pipeline**
+- [x] **6. Test Data Aggregation Pipeline**
   - Create unit tests for CSV aggregation using existing test patterns and fixtures
   - Test aggregation with multiple methods including baseline methods
   - Verify aggregated CSV maintains existing format and passes ERI validation
@@ -72,7 +72,7 @@ Tasks are organized in dependency order, with each task building on previous wor
 
 ## Phase 3: Experiment Orchestration Enhancement
 
-- [ ] **7. Extend Comparative Experiment Runner**
+- [x] **7. Extend Comparative Experiment Runner**
 
   - Modify existing `run_comparative_experiment()` in `run_einstellung_experiment.py`
   - Add baseline method configs to existing configs list: ('scratch_t2', 'resnet18'), ('interleaved', 'resnet18')
@@ -81,7 +81,7 @@ Tasks are organized in dependency order, with each task building on previous wor
   - Maintain existing checkpoint management, error handling, and progress reporting
   - _Requirements: 4.1, 4.2, 4.4_
 
-- [ ] **8. Integrate Aggregation with Experiment Runner**
+- [x] **8. Integrate Aggregation with Experiment Runner**
 
   - Call `aggregate_comparative_results()` after all individual experiments complete
   - Pass aggregated CSV to existing `generate_eri_visualizations()` function
@@ -90,7 +90,7 @@ Tasks are organized in dependency order, with each task building on previous wor
   - Maintain existing experiment result reporting and summary generation
   - _Requirements: 4.2, 4.3, 4.4_
 
-- [ ] **9. Enhance Comparative Results Reporting**
+- [x] **9. Enhance Comparative Results Reporting**
   - Extend existing summary table in `run_comparative_experiment()` to show comparative metrics
   - Add PD_t, SFR_rel, and AD columns when baseline data is available
   - Use existing metrics calculation from ERI system for consistent reporting
@@ -102,7 +102,7 @@ Tasks are organized in dependency order, with each task building on previous wor
 
 ## Phase 4: Visualization Enhancement Validation
 
-- [ ] **10. Validate Multi-Method ERI Visualization**
+- [x] **10. Validate Multi-Method ERI Visualization**
 
   - Test existing `eri_vis.processing.ERITimelineProcessor` with multi-method datasets
   - Verify existing `compute_performance_deficits()` correctly uses Scratch_T2 as baseline
@@ -111,7 +111,7 @@ Tasks are organized in dependency order, with each task building on previous wor
   - Validate existing `ERIHeatmapPlotter` creates robustness heatmaps across all methods
   - _Requirements: 2.1, 2.3, 3.1, 3.2_
 
-- [ ] **11. Test Comparative Visualization Pipeline**
+- [x] **11. Test Comparative Visualization Pipeline**
 
   - Run end-to-end test with aggregated multi-method dataset
   - Verify comparative dynamics plots show all methods on same axes with distinct styling
@@ -120,7 +120,7 @@ Tasks are organized in dependency order, with each task building on previous wor
   - Validate all visualizations maintain existing quality and formatting standards
   - _Requirements: 2.1, 2.2, 2.4, 2.5_
 
-- [ ] **12. Implement Missing Baseline Detection and Warnings**
+- [x] **12. Implement Missing Baseline Detection and Warnings**
   - Add validation function to check for required baseline methods in aggregated datasets
   - Provide clear warnings when Scratch_T2 or Interleaved baselines are missing
   - Allow visualization pipeline to continue with available data when baselines are incomplete
@@ -132,7 +132,7 @@ Tasks are organized in dependency order, with each task building on previous wor
 
 ## Phase 5: Statistical Analysis and Enhanced Reporting
 
-- [ ] **13. Implement Statistical Significance Testing**
+- [x] **13. Implement Statistical Significance Testing**
 
   - Add statistical analysis functions for comparing methods on key metrics (final accuracy, AD, PD_t, SFR_rel)
   - Implement t-tests and ANOVA for pairwise and multi-group comparisons
@@ -141,7 +141,7 @@ Tasks are organized in dependency order, with each task building on previous wor
   - Integrate statistical functions with existing metrics calculation pipeline
   - _Requirements: 6.1, 6.2, 6.3_
 
-- [ ] **14. Enhance Comparative Reporting with Statistics**
+- [x] **14. Enhance Comparative Reporting with Statistics**
 
   - Extend comparative summary table to include statistical significance indicators
   - Add confidence intervals and p-values to method comparison outputs
@@ -150,7 +150,7 @@ Tasks are organized in dependency order, with each task building on previous wor
   - Generate comprehensive comparative analysis report with statistical validation
   - _Requirements: 5.1, 5.4, 6.4, 6.5_
 
-- [ ] **15. Implement Enhanced Output Organization**
+- [-] **15. Implement Enhanced Output Organization**
   - Create structured directory hierarchy for comparative analysis outputs
   - Organize individual method results, aggregated data, and comparative visualizations
   - Generate master comparative report combining individual and cross-method analysis
