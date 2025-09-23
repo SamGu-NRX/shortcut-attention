@@ -190,13 +190,55 @@ class EinstellungMixin:
 
         logging.info(f"Filtered Einstellung dataset: {len(self.data)} samples from {len(ALL_USED_FINE_LABELS)} classes")
 
+    def _normalize_target_index(self, target_value) -> int:
+        """Convert different tensor/array scalar types to a Python int."""
+        if isinstance(target_value, torch.Tensor):
+            return int(target_value.item())
+        if isinstance(target_value, np.generic):
+            return int(target_value)
+        return int(target_value)
+
+    def _can_use_cache_for_current_view(self) -> bool:
+        """Verify cache still aligns with the currently active subset view."""
+        if not getattr(self, 'enable_cache', False):
+            return False
+        if not getattr(self, '_cache_loaded', False):
+            return False
+        cached_data = getattr(self, '_cached_data', None)
+        if not isinstance(cached_data, dict):
+            return False
+        processed_images = cached_data.get('processed_images')
+        if processed_images is None:
+            return False
+
+        try:
+            cache_len = len(processed_images)
+            data_len = len(self.data)
+        except TypeError:
+            return False
+
+        if cache_len != data_len:
+            logging.warning(
+                "Einstellung cache length %s no longer matches current subset length %s; disabling cache for correctness.",
+                cache_len,
+                data_len,
+            )
+            if hasattr(self, '_disable_cache_with_fallback'):
+                self._disable_cache_with_fallback('Subset/cache length mismatch')
+            else:
+                self.enable_cache = False
+            return False
+
+        return True
+
     def apply_einstellung_effect(self, img: Image.Image, index: int) -> Image.Image:
         """Apply Einstellung Effect (magenta patch injection or masking) deterministically."""
         if not hasattr(self, 'apply_shortcut'):
             return img
 
         # Only apply to shortcut classes
-        target = self.targets[index]
+        target_value = self.targets[index]
+        target = self._normalize_target_index(target_value)
         original_label = ALL_USED_FINE_LABELS[target]
 
         if original_label not in SHORTCUT_FINE_LABELS:
@@ -263,8 +305,8 @@ class TEinstellungCIFAR100_224(TCIFAR100, EinstellungMixin):
 
     def __getitem__(self, index: int) -> Tuple[torch.Tensor, int]:
         """Retrieve items with Einstellung shortcut processing using caching when available."""
-        # Use cached data if available and caching is enabled
-        if self.enable_cache and hasattr(self, '_cache_loaded') and self._cache_loaded:
+        # Use cached data only when it still matches the active subset view
+        if self._can_use_cache_for_current_view():
             return self._get_cached_item(index)
 
         # Fallback to original on-the-fly processing
@@ -679,8 +721,8 @@ class MyEinstellungCIFAR100_224(MyCIFAR100, EinstellungMixin):
 
     def __getitem__(self, index: int) -> Tuple[torch.Tensor, int, torch.Tensor]:
         """Get item with Einstellung Effect processing using caching when available."""
-        # Use cached data if available and caching is enabled
-        if self.enable_cache and hasattr(self, '_cache_loaded') and self._cache_loaded:
+        # Use cached data only when it matches the active subset view
+        if self._can_use_cache_for_current_view():
             return self._get_cached_item(index)
 
         # Fallback to original on-the-fly processing

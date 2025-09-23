@@ -74,10 +74,10 @@
     <div class="header">
         <h1>🧠 Master Comparative Einstellung Analysis Report</h1>
         <h2>Comprehensive Cross-Method Cognitive Rigidity Assessment</h2>
-        <p><strong>Generated:</strong> 2025-09-22 04:02:11</p>
-        <p><strong>Total Methods:</strong> 7
-           | <strong>Baselines:</strong> 7
-           | <strong>Continual Learning:</strong> 0</p>
+        <p><strong>Generated:</strong> 2025-09-22 21:11:04</p>
+        <p><strong>Total Methods:</strong> 5
+           | <strong>Baselines:</strong> 1
+           | <strong>Continual Learning:</strong> 4</p>
     </div>
 
     <div class="toc">
@@ -95,38 +95,30 @@
 
     <div class="section" id="executive-summary">
         <h2>📊 Executive Summary</h2>
-        <p>This report presents a comprehensive comparative analysis of 0 continual learning methods
-           against 7 baseline methods for Einstellung Effect assessment.</p>
+        <p>This report presents a comprehensive comparative analysis of 4 continual learning methods
+           against 1 baseline methods for Einstellung Effect assessment.</p>
 
         <div class="method-grid">
             <div class="method-card baseline-card">
                 <h4>SCRATCH_T2 (resnet18)</h4>
                 <p><strong>Type:</strong> Baseline</p>
-                <p><strong>Final Accuracy:</strong> <span class="metric-value">70.00%</span></p></div>
-            <div class="method-card baseline-card">
-                <h4>SCRATCH_T2 (resnet18)</h4>
-                <p><strong>Type:</strong> Baseline</p>
-                <p><strong>Final Accuracy:</strong> <span class="metric-value">70.00%</span></p></div>
-            <div class="method-card baseline-card">
-                <h4>SCRATCH_T2 (resnet18)</h4>
-                <p><strong>Type:</strong> Baseline</p>
-                <p><strong>Final Accuracy:</strong> <span class="metric-value">70.00%</span></p></div>
-            <div class="method-card baseline-card">
-                <h4>SCRATCH_T2 (resnet18)</h4>
-                <p><strong>Type:</strong> Baseline</p>
-                <p><strong>Final Accuracy:</strong> <span class="metric-value">70.00%</span></p></div>
-            <div class="method-card baseline-card">
-                <h4>SCRATCH_T2 (resnet18)</h4>
-                <p><strong>Type:</strong> Baseline</p>
-                <p><strong>Final Accuracy:</strong> <span class="metric-value">70.00%</span></p></div>
-            <div class="method-card baseline-card">
-                <h4>SCRATCH_T2 (resnet18)</h4>
-                <p><strong>Type:</strong> Baseline</p>
-                <p><strong>Final Accuracy:</strong> <span class="metric-value">70.00%</span></p></div>
-            <div class="method-card baseline-card">
-                <h4>SCRATCH_T2 (resnet18)</h4>
-                <p><strong>Type:</strong> Baseline</p>
-                <p><strong>Final Accuracy:</strong> <span class="metric-value">70.00%</span></p></div>
+                <p><strong>Final Accuracy:</strong> <span class="metric-value">1.72%</span></p></div>
+            <div class="method-card cl-card">
+                <h4>SGD (resnet18)</h4>
+                <p><strong>Type:</strong> Continual Learning</p>
+                <p><strong>Final Accuracy:</strong> <span class="metric-value">27.70%</span></p></div>
+            <div class="method-card cl-card">
+                <h4>EWC_ON (resnet18)</h4>
+                <p><strong>Type:</strong> Continual Learning</p>
+                <p><strong>Final Accuracy:</strong> <span class="metric-value">27.65%</span></p></div>
+            <div class="method-card cl-card">
+                <h4>GPM (resnet18)</h4>
+                <p><strong>Type:</strong> Continual Learning</p>
+                <p><strong>Final Accuracy:</strong> <span class="metric-value">34.98%</span></p></div>
+            <div class="method-card cl-card">
+                <h4>DGR (resnet18)</h4>
+                <p><strong>Type:</strong> Continual Learning</p>
+                <p><strong>Final Accuracy:</strong> <span class="metric-value">14.52%</span></p></div>
         </div>
     </div>
     <div class="section" id="baseline-methods">
@@ -137,43 +129,7 @@
             <tr>
                 <td><strong>SCRATCH_T2</strong></td>
                 <td>Task 2 only training</td>
-                <td class="success">70.00%</td>
-                <td>Optimal performance reference (no catastrophic forgetting)</td>
-            </tr>
-            <tr>
-                <td><strong>SCRATCH_T2</strong></td>
-                <td>Task 2 only training</td>
-                <td class="success">70.00%</td>
-                <td>Optimal performance reference (no catastrophic forgetting)</td>
-            </tr>
-            <tr>
-                <td><strong>SCRATCH_T2</strong></td>
-                <td>Task 2 only training</td>
-                <td class="success">70.00%</td>
-                <td>Optimal performance reference (no catastrophic forgetting)</td>
-            </tr>
-            <tr>
-                <td><strong>SCRATCH_T2</strong></td>
-                <td>Task 2 only training</td>
-                <td class="success">70.00%</td>
-                <td>Optimal performance reference (no catastrophic forgetting)</td>
-            </tr>
-            <tr>
-                <td><strong>SCRATCH_T2</strong></td>
-                <td>Task 2 only training</td>
-                <td class="success">70.00%</td>
-                <td>Optimal performance reference (no catastrophic forgetting)</td>
-            </tr>
-            <tr>
-                <td><strong>SCRATCH_T2</strong></td>
-                <td>Task 2 only training</td>
-                <td class="success">70.00%</td>
-                <td>Optimal performance reference (no catastrophic forgetting)</td>
-            </tr>
-            <tr>
-                <td><strong>SCRATCH_T2</strong></td>
-                <td>Task 2 only training</td>
-                <td class="success">70.00%</td>
+                <td class="success">1.72%</td>
                 <td>Optimal performance reference (no catastrophic forgetting)</td>
             </tr>
         </table>
@@ -183,6 +139,38 @@
         <p>Continual learning methods tested for cognitive rigidity and adaptation capabilities:</p>
         <table>
             <tr><th>Method</th><th>Final Accuracy</th><th>PD_t</th><th>SFR_rel</th><th>AD</th><th>Assessment</th></tr>
+            <tr>
+                <td><strong>SGD</strong></td>
+                <td>27.70%</td>
+                <td>N/A</td>
+                <td>N/A</td>
+                <td>N/A</td>
+                <td class="">Insufficient data</td>
+            </tr>
+            <tr>
+                <td><strong>EWC_ON</strong></td>
+                <td>27.65%</td>
+                <td>N/A</td>
+                <td>N/A</td>
+                <td>N/A</td>
+                <td class="">Insufficient data</td>
+            </tr>
+            <tr>
+                <td><strong>GPM</strong></td>
+                <td>34.98%</td>
+                <td>N/A</td>
+                <td>N/A</td>
+                <td>N/A</td>
+                <td class="">Insufficient data</td>
+            </tr>
+            <tr>
+                <td><strong>DGR</strong></td>
+                <td>14.52%</td>
+                <td>N/A</td>
+                <td>N/A</td>
+                <td>N/A</td>
+                <td class="">Insufficient data</td>
+            </tr>
         </table>
     </div>
         <div class="section" id="statistical-significance">
@@ -201,12 +189,12 @@
             <tr><td>Evaluation Protocol</td><td>T1_all, T2_shortcut_normal, T2_shortcut_masked, T2_nonshortcut_normal</td></tr>
             <tr><td>Random Seed</td><td>42</td></tr>
             <tr><td>Backbone Architecture</td><td>ResNet-18</td></tr>
-            <tr><td>Total Experiments</td><td>7</td></tr>
-            <tr><td>Report Generated</td><td>2025-09-22 04:02:11</td></tr>
+            <tr><td>Total Experiments</td><td>5</td></tr>
+            <tr><td>Report Generated</td><td>2025-09-22 21:11:04</td></tr>
         </table>
 
         <h4>Method Configurations:</h4>
-        <ul><li><strong>SCRATCH_T2</strong> with resnet18 (Source: Training)</li><li><strong>SCRATCH_T2</strong> with resnet18 (Source: Training)</li><li><strong>SCRATCH_T2</strong> with resnet18 (Source: Training)</li><li><strong>SCRATCH_T2</strong> with resnet18 (Source: Training)</li><li><strong>SCRATCH_T2</strong> with resnet18 (Source: Training)</li><li><strong>SCRATCH_T2</strong> with resnet18 (Source: Training)</li><li><strong>SCRATCH_T2</strong> with resnet18 (Source: Training)</li>
+        <ul><li><strong>SCRATCH_T2</strong> with resnet18 (Source: Training)</li><li><strong>SGD</strong> with resnet18 (Source: Training)</li><li><strong>EWC_ON</strong> with resnet18 (Source: Training)</li><li><strong>GPM</strong> with resnet18 (Source: Training)</li><li><strong>DGR</strong> with resnet18 (Source: Training)</li>
         </ul>
     </div>
 

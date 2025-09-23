@@ -1,0 +1,5021 @@
+{
+  "configuration": {
+    "dataset_name": "seq-cifar100-einstellung",
+    "adaptation_threshold": 0.8,
+    "extract_attention": false
+  },
+  "timeline_data": [
+    {
+      "epoch": 0,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.21825,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 3.000286148071289,
+        "T2_shortcut_normal": 4.9830118103027345,
+        "T2_shortcut_masked": 5.065729347229004,
+        "T2_nonshortcut_normal": 5.122568397521973
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591386.7654998
+    },
+    {
+      "epoch": 1,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.2625,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 2.8025966148376464,
+        "T2_shortcut_normal": 5.253587261199951,
+        "T2_shortcut_masked": 5.290854110717773,
+        "T2_nonshortcut_normal": 5.393075951894124
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591398.470422
+    },
+    {
+      "epoch": 2,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.3065,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 2.6275232934951784,
+        "T2_shortcut_normal": 5.56518896484375,
+        "T2_shortcut_masked": 5.665163047790528,
+        "T2_nonshortcut_normal": 5.78296363067627
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591410.324811
+    },
+    {
+      "epoch": 3,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.33225,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 2.504827443122864,
+        "T2_shortcut_normal": 5.683641345977783,
+        "T2_shortcut_masked": 5.768577144622803,
+        "T2_nonshortcut_normal": 5.871285429636638
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591422.120456
+    },
+    {
+      "epoch": 4,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.34825,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 2.4461769094467165,
+        "T2_shortcut_normal": 5.832371520996094,
+        "T2_shortcut_masked": 5.926742332458496,
+        "T2_nonshortcut_normal": 6.091950653076172
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591433.833318
+    },
+    {
+      "epoch": 5,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.371,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 2.345273549079895,
+        "T2_shortcut_normal": 5.931464939117432,
+        "T2_shortcut_masked": 6.016187023162842,
+        "T2_nonshortcut_normal": 6.133769064585368
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591445.4917362
+    },
+    {
+      "epoch": 6,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.3855,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 2.3080714206695556,
+        "T2_shortcut_normal": 6.091968082427979,
+        "T2_shortcut_masked": 6.212105987548828,
+        "T2_nonshortcut_normal": 6.297753086090088
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591457.1508899
+    },
+    {
+      "epoch": 7,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.39325,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 2.2762717018127443,
+        "T2_shortcut_normal": 6.106342712402344,
+        "T2_shortcut_masked": 6.176994842529297,
+        "T2_nonshortcut_normal": 6.30006276067098
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591468.7255151
+    },
+    {
+      "epoch": 8,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.41075,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 2.222433924674988,
+        "T2_shortcut_normal": 6.223984481811524,
+        "T2_shortcut_masked": 6.329663055419922,
+        "T2_nonshortcut_normal": 6.428200462341309
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591480.354162
+    },
+    {
+      "epoch": 9,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.4175,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 2.1955840196609495,
+        "T2_shortcut_normal": 6.29971212387085,
+        "T2_shortcut_masked": 6.383269584655761,
+        "T2_nonshortcut_normal": 6.568493028004964
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591492.033358
+    },
+    {
+      "epoch": 10,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.43025,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 2.1246347455978394,
+        "T2_shortcut_normal": 6.327745727539062,
+        "T2_shortcut_masked": 6.44416100692749,
+        "T2_nonshortcut_normal": 6.505032104492187
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591503.611084
+    },
+    {
+      "epoch": 11,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.438,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 2.071725715637207,
+        "T2_shortcut_normal": 6.503662754058838,
+        "T2_shortcut_masked": 6.611297706604004,
+        "T2_nonshortcut_normal": 6.6610008939107255
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591515.188135
+    },
+    {
+      "epoch": 12,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.4415,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 2.0713273973464967,
+        "T2_shortcut_normal": 6.5475382766723635,
+        "T2_shortcut_masked": 6.647714294433594,
+        "T2_nonshortcut_normal": 6.697905529022217
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591526.877252
+    },
+    {
+      "epoch": 13,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.4485,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 2.068101233482361,
+        "T2_shortcut_normal": 6.637165199279785,
+        "T2_shortcut_masked": 6.763642250061035,
+        "T2_nonshortcut_normal": 6.792191463470459
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591538.5309079
+    },
+    {
+      "epoch": 14,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.456,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 2.028837788581848,
+        "T2_shortcut_normal": 6.629853763580322,
+        "T2_shortcut_masked": 6.7408511924743655,
+        "T2_nonshortcut_normal": 6.803823585510254
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591550.208405
+    },
+    {
+      "epoch": 15,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.4655,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 1.9900813550949097,
+        "T2_shortcut_normal": 6.667999244689941,
+        "T2_shortcut_masked": 6.79452515411377,
+        "T2_nonshortcut_normal": 6.816950964609782
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591561.8088472
+    },
+    {
+      "epoch": 16,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.47425,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 1.9558349685668945,
+        "T2_shortcut_normal": 6.773050910949707,
+        "T2_shortcut_masked": 6.885404815673828,
+        "T2_nonshortcut_normal": 6.932321343739828
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591573.433301
+    },
+    {
+      "epoch": 17,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.4655,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 1.9943050718307496,
+        "T2_shortcut_normal": 6.8625240249633785,
+        "T2_shortcut_masked": 7.001330924987793,
+        "T2_nonshortcut_normal": 6.954487374623617
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591585.0295942
+    },
+    {
+      "epoch": 18,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.474,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 1.9704590129852295,
+        "T2_shortcut_normal": 6.9735820083618165,
+        "T2_shortcut_masked": 7.091134765625,
+        "T2_nonshortcut_normal": 7.039538970947266
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591596.699153
+    },
+    {
+      "epoch": 19,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.47925,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 1.9519133949279786,
+        "T2_shortcut_normal": 6.996240089416504,
+        "T2_shortcut_masked": 7.134757881164551,
+        "T2_nonshortcut_normal": 7.094274791717529
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591608.354932
+    },
+    {
+      "epoch": 20,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.4875,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 1.9132416763305664,
+        "T2_shortcut_normal": 6.950205783843995,
+        "T2_shortcut_masked": 7.110770942687989,
+        "T2_nonshortcut_normal": 7.073193987528483
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591619.9531908
+    },
+    {
+      "epoch": 21,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.486,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 1.9321579031944276,
+        "T2_shortcut_normal": 7.108265357971192,
+        "T2_shortcut_masked": 7.296204063415527,
+        "T2_nonshortcut_normal": 7.259338507334391
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591631.6211998
+    },
+    {
+      "epoch": 22,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.48575,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 1.9687520885467529,
+        "T2_shortcut_normal": 7.180630954742432,
+        "T2_shortcut_masked": 7.302779624938965,
+        "T2_nonshortcut_normal": 7.337424379984538
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591643.2333708
+    },
+    {
+      "epoch": 23,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.4985,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 1.9092631015777588,
+        "T2_shortcut_normal": 7.155739719390869,
+        "T2_shortcut_masked": 7.310737216949463,
+        "T2_nonshortcut_normal": 7.257294836680094
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591655.029752
+    },
+    {
+      "epoch": 24,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.4875,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 1.9364604678153992,
+        "T2_shortcut_normal": 7.207996650695801,
+        "T2_shortcut_masked": 7.3407747802734375,
+        "T2_nonshortcut_normal": 7.305322806040446
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591666.7058072
+    },
+    {
+      "epoch": 25,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.4935,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 1.905510980606079,
+        "T2_shortcut_normal": 7.290107597351074,
+        "T2_shortcut_masked": 7.3960531539917,
+        "T2_nonshortcut_normal": 7.401748708089193
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591678.288864
+    },
+    {
+      "epoch": 26,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.50025,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 1.8780831317901612,
+        "T2_shortcut_normal": 7.331743045806885,
+        "T2_shortcut_masked": 7.479574497222901,
+        "T2_nonshortcut_normal": 7.387080694834391
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591690.0118668
+    },
+    {
+      "epoch": 27,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.49575,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 1.9186396989822387,
+        "T2_shortcut_normal": 7.41628897857666,
+        "T2_shortcut_masked": 7.5580708694458005,
+        "T2_nonshortcut_normal": 7.5195496190389
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591701.657758
+    },
+    {
+      "epoch": 28,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.507,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 1.8917272329330443,
+        "T2_shortcut_normal": 7.436449855804443,
+        "T2_shortcut_masked": 7.588923030853271,
+        "T2_nonshortcut_normal": 7.5342533340454105
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591713.286826
+    },
+    {
+      "epoch": 29,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.512,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 1.8755584206581115,
+        "T2_shortcut_normal": 7.519708229064942,
+        "T2_shortcut_masked": 7.715059478759765,
+        "T2_nonshortcut_normal": 7.632147519429525
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591725.727995
+    },
+    {
+      "epoch": 30,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.50075,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 1.9127296495437622,
+        "T2_shortcut_normal": 7.632725376129151,
+        "T2_shortcut_masked": 7.785885654449463,
+        "T2_nonshortcut_normal": 7.789023295084635
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591738.072887
+    },
+    {
+      "epoch": 31,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.507,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 1.9019101219177246,
+        "T2_shortcut_normal": 7.702784187316895,
+        "T2_shortcut_masked": 7.820626731872559,
+        "T2_nonshortcut_normal": 7.772528594970703
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591749.987395
+    },
+    {
+      "epoch": 32,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.505,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 1.9020834169387817,
+        "T2_shortcut_normal": 7.627782871246338,
+        "T2_shortcut_masked": 7.7652859802246095,
+        "T2_nonshortcut_normal": 7.720677773793539
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591761.6711922
+    },
+    {
+      "epoch": 33,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.5135,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 1.8854710416793823,
+        "T2_shortcut_normal": 7.712463775634766,
+        "T2_shortcut_masked": 7.874780727386475,
+        "T2_nonshortcut_normal": 7.830770467122396
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591773.422818
+    },
+    {
+      "epoch": 34,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.51375,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 1.8662103452682495,
+        "T2_shortcut_normal": 7.856811546325684,
+        "T2_shortcut_masked": 8.005473838806152,
+        "T2_nonshortcut_normal": 7.888455851236979
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591785.223765
+    },
+    {
+      "epoch": 35,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.525,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 1.8250438022613524,
+        "T2_shortcut_normal": 7.781827781677246,
+        "T2_shortcut_masked": 7.934606712341308,
+        "T2_nonshortcut_normal": 7.844839581807454
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591801.085717
+    },
+    {
+      "epoch": 36,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.525,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 1.8180763783454894,
+        "T2_shortcut_normal": 7.81491153717041,
+        "T2_shortcut_masked": 7.9456817893981935,
+        "T2_nonshortcut_normal": 7.861687452952067
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591814.441239
+    },
+    {
+      "epoch": 37,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.5275,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 1.8147485399246215,
+        "T2_shortcut_normal": 7.834960968017578,
+        "T2_shortcut_masked": 7.966851142883301,
+        "T2_nonshortcut_normal": 7.88059994506836
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591826.14563
+    },
+    {
+      "epoch": 38,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.52875,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 1.8115983991622924,
+        "T2_shortcut_normal": 7.854361381530762,
+        "T2_shortcut_masked": 7.991695831298828,
+        "T2_nonshortcut_normal": 7.902468863169352
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591837.818372
+    },
+    {
+      "epoch": 39,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.53025,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 1.8177166838645935,
+        "T2_shortcut_normal": 7.868237277984619,
+        "T2_shortcut_masked": 8.007852146148682,
+        "T2_nonshortcut_normal": 7.9094257825215655
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591849.6649559
+    },
+    {
+      "epoch": 40,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.52875,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 1.8101989893913268,
+        "T2_shortcut_normal": 7.88259188079834,
+        "T2_shortcut_masked": 8.027749504089355,
+        "T2_nonshortcut_normal": 7.920843701680501
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591861.393329
+    },
+    {
+      "epoch": 41,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.52975,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 1.816350073814392,
+        "T2_shortcut_normal": 7.910614906311035,
+        "T2_shortcut_masked": 8.065496772766114,
+        "T2_nonshortcut_normal": 7.963072254180908
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591873.154156
+    },
+    {
+      "epoch": 42,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.53275,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 1.8103881034851075,
+        "T2_shortcut_normal": 7.9322133636474605,
+        "T2_shortcut_masked": 8.077524600982667,
+        "T2_nonshortcut_normal": 7.991747158050537
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591884.8531342
+    },
+    {
+      "epoch": 43,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.5305,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 1.8048022508621215,
+        "T2_shortcut_normal": 7.933092582702637,
+        "T2_shortcut_masked": 8.075727176666259,
+        "T2_nonshortcut_normal": 7.989022851308187
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591896.5183492
+    },
+    {
+      "epoch": 44,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.53125,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 1.8201475734710693,
+        "T2_shortcut_normal": 7.940575412750244,
+        "T2_shortcut_masked": 8.082206630706787,
+        "T2_nonshortcut_normal": 8.019979871114096
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591908.371915
+    },
+    {
+      "epoch": 45,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.53225,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 1.8147113556861878,
+        "T2_shortcut_normal": 7.943774345397949,
+        "T2_shortcut_masked": 8.083048011779786,
+        "T2_nonshortcut_normal": 8.017285319010417
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591920.078063
+    },
+    {
+      "epoch": 46,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.53325,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 1.8118111553192138,
+        "T2_shortcut_normal": 7.9476060409545894,
+        "T2_shortcut_masked": 8.087816535949708,
+        "T2_nonshortcut_normal": 8.01975202178955
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591931.8513799
+    },
+    {
+      "epoch": 47,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.53275,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 1.8112583298683167,
+        "T2_shortcut_normal": 7.946661808013916,
+        "T2_shortcut_masked": 8.085888061523438,
+        "T2_nonshortcut_normal": 8.018202449798585
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591943.5907269
+    },
+    {
+      "epoch": 48,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.532,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 1.8108485288619995,
+        "T2_shortcut_normal": 7.94720792388916,
+        "T2_shortcut_masked": 8.085849456787109,
+        "T2_nonshortcut_normal": 8.017160204569498
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591955.623289
+    },
+    {
+      "epoch": 49,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.534,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 1.8102040519714355,
+        "T2_shortcut_normal": 7.949406925201416,
+        "T2_shortcut_masked": 8.089255210876464,
+        "T2_nonshortcut_normal": 8.020541330973307
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591967.373045
+    },
+    {
+      "epoch": 0,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.53175,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.0
+      },
+      "subset_losses": {
+        "T1_all": 1.8160177836418152,
+        "T2_shortcut_normal": 7.308894752502441,
+        "T2_shortcut_masked": 7.393217994689941,
+        "T2_nonshortcut_normal": 6.319913387298584
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591984.253118
+    },
+    {
+      "epoch": 1,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.53325,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.006
+      },
+      "subset_losses": {
+        "T1_all": 1.8297144174575806,
+        "T2_shortcut_normal": 7.011736270904541,
+        "T2_shortcut_masked": 7.055339317321778,
+        "T2_nonshortcut_normal": 5.578122505187988
+      },
+      "attention_metrics": {},
+      "timestamp": 1758591992.992717
+    },
+    {
+      "epoch": 2,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.53075,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.020666666666666667
+      },
+      "subset_losses": {
+        "T1_all": 1.8366169748306274,
+        "T2_shortcut_normal": 6.898339942932129,
+        "T2_shortcut_masked": 6.92524475479126,
+        "T2_nonshortcut_normal": 5.131459683736165
+      },
+      "attention_metrics": {},
+      "timestamp": 1758592001.522388
+    },
+    {
+      "epoch": 3,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.53225,
+        "T2_shortcut_normal": 0.0,
+        "T2_shortcut_masked": 0.0,
+        "T2_nonshortcut_normal": 0.03933333333333333
+      },
+      "subset_losses": {
+        "T1_all": 1.8459252514839173,
+        "T2_shortcut_normal": 6.708995273590088,
+        "T2_shortcut_masked": 6.7095330009460445,
+        "T2_nonshortcut_normal": 4.846586358388265
+      },
+      "attention_metrics": {},
+      "timestamp": 1758592010.428915
+    },
+    {
+      "epoch": 4,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.533,
+        "T2_shortcut_normal": 0.002,
+        "T2_shortcut_masked": 0.002,
+        "T2_nonshortcut_normal": 0.05266666666666667
+      },
+      "subset_losses": {
+        "T1_all": 1.8514339241981506,
+        "T2_shortcut_normal": 6.456908878326416,
+        "T2_shortcut_masked": 6.431411396026611,
+        "T2_nonshortcut_normal": 4.676876373926799
+      },
+      "attention_metrics": {},
+      "timestamp": 1758592019.206759
+    },
+    {
+      "epoch": 5,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.5315,
+        "T2_shortcut_normal": 0.01,
+        "T2_shortcut_masked": 0.002,
+        "T2_nonshortcut_normal": 0.06133333333333333
+      },
+      "subset_losses": {
+        "T1_all": 1.8553159132003785,
+        "T2_shortcut_normal": 6.257834266662598,
+        "T2_shortcut_masked": 6.214375026702881,
+        "T2_nonshortcut_normal": 4.564397506713867
+      },
+      "attention_metrics": {},
+      "timestamp": 1758592027.809111
+    },
+    {
+      "epoch": 6,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.5295,
+        "T2_shortcut_normal": 0.012,
+        "T2_shortcut_masked": 0.002,
+        "T2_nonshortcut_normal": 0.08533333333333333
+      },
+      "subset_losses": {
+        "T1_all": 1.8664876141548157,
+        "T2_shortcut_normal": 6.423070976257324,
+        "T2_shortcut_masked": 6.367599285125732,
+        "T2_nonshortcut_normal": 4.325000024159749
+      },
+      "attention_metrics": {},
+      "timestamp": 1758592036.785534
+    },
+    {
+      "epoch": 7,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.5285,
+        "T2_shortcut_normal": 0.02,
+        "T2_shortcut_masked": 0.006,
+        "T2_nonshortcut_normal": 0.09333333333333334
+      },
+      "subset_losses": {
+        "T1_all": 1.8746204566955567,
+        "T2_shortcut_normal": 6.217909236907959,
+        "T2_shortcut_masked": 6.14894864654541,
+        "T2_nonshortcut_normal": 4.245711344401042
+      },
+      "attention_metrics": {},
+      "timestamp": 1758592045.6074739
+    },
+    {
+      "epoch": 8,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.52875,
+        "T2_shortcut_normal": 0.02,
+        "T2_shortcut_masked": 0.002,
+        "T2_nonshortcut_normal": 0.11733333333333333
+      },
+      "subset_losses": {
+        "T1_all": 1.880314646244049,
+        "T2_shortcut_normal": 6.409627323150635,
+        "T2_shortcut_masked": 6.3325386772155765,
+        "T2_nonshortcut_normal": 4.063441410064697
+      },
+      "attention_metrics": {},
+      "timestamp": 1758592054.397163
+    },
+    {
+      "epoch": 9,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.526,
+        "T2_shortcut_normal": 0.024,
+        "T2_shortcut_masked": 0.01,
+        "T2_nonshortcut_normal": 0.12466666666666666
+      },
+      "subset_losses": {
+        "T1_all": 1.8765742902755738,
+        "T2_shortcut_normal": 6.231855777740479,
+        "T2_shortcut_masked": 6.147051578521729,
+        "T2_nonshortcut_normal": 3.9929664293924967
+      },
+      "attention_metrics": {},
+      "timestamp": 1758592063.109196
+    },
+    {
+      "epoch": 10,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.52375,
+        "T2_shortcut_normal": 0.024,
+        "T2_shortcut_masked": 0.012,
+        "T2_nonshortcut_normal": 0.152
+      },
+      "subset_losses": {
+        "T1_all": 1.8876080708503724,
+        "T2_shortcut_normal": 6.285535278320313,
+        "T2_shortcut_masked": 6.183160041809082,
+        "T2_nonshortcut_normal": 3.8705444043477377
+      },
+      "attention_metrics": {},
+      "timestamp": 1758592071.318686
+    },
+    {
+      "epoch": 11,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.5235,
+        "T2_shortcut_normal": 0.036,
+        "T2_shortcut_masked": 0.012,
+        "T2_nonshortcut_normal": 0.15533333333333332
+      },
+      "subset_losses": {
+        "T1_all": 1.8871804342269898,
+        "T2_shortcut_normal": 6.125274116516113,
+        "T2_shortcut_masked": 6.00625040435791,
+        "T2_nonshortcut_normal": 3.831111888249715
+      },
+      "attention_metrics": {},
+      "timestamp": 1758592079.546698
+    },
+    {
+      "epoch": 12,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.52275,
+        "T2_shortcut_normal": 0.036,
+        "T2_shortcut_masked": 0.016,
+        "T2_nonshortcut_normal": 0.16266666666666665
+      },
+      "subset_losses": {
+        "T1_all": 1.896816731929779,
+        "T2_shortcut_normal": 6.0934437484741215,
+        "T2_shortcut_masked": 5.974380428314209,
+        "T2_nonshortcut_normal": 3.776310033162435
+      },
+      "attention_metrics": {},
+      "timestamp": 1758592087.737953
+    },
+    {
+      "epoch": 13,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.52275,
+        "T2_shortcut_normal": 0.042,
+        "T2_shortcut_masked": 0.014,
+        "T2_nonshortcut_normal": 0.17866666666666667
+      },
+      "subset_losses": {
+        "T1_all": 1.8998845162391662,
+        "T2_shortcut_normal": 6.182021606445312,
+        "T2_shortcut_masked": 6.059698867797851,
+        "T2_nonshortcut_normal": 3.6384055054982505
+      },
+      "attention_metrics": {},
+      "timestamp": 1758592095.916833
+    },
+    {
+      "epoch": 14,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.52275,
+        "T2_shortcut_normal": 0.042,
+        "T2_shortcut_masked": 0.022,
+        "T2_nonshortcut_normal": 0.18733333333333332
+      },
+      "subset_losses": {
+        "T1_all": 1.9015576848983764,
+        "T2_shortcut_normal": 6.132254428863526,
+        "T2_shortcut_masked": 6.0112488784790035,
+        "T2_nonshortcut_normal": 3.6177708193461102
+      },
+      "attention_metrics": {},
+      "timestamp": 1758592104.123596
+    },
+    {
+      "epoch": 15,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.51925,
+        "T2_shortcut_normal": 0.052,
+        "T2_shortcut_masked": 0.028,
+        "T2_nonshortcut_normal": 0.19666666666666666
+      },
+      "subset_losses": {
+        "T1_all": 1.908671407699585,
+        "T2_shortcut_normal": 6.074197631835937,
+        "T2_shortcut_masked": 5.94617972946167,
+        "T2_nonshortcut_normal": 3.566404420216878
+      },
+      "attention_metrics": {},
+      "timestamp": 1758592112.322321
+    },
+    {
+      "epoch": 16,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.5165,
+        "T2_shortcut_normal": 0.05,
+        "T2_shortcut_masked": 0.034,
+        "T2_nonshortcut_normal": 0.20933333333333334
+      },
+      "subset_losses": {
+        "T1_all": 1.9144717888832092,
+        "T2_shortcut_normal": 6.04397583770752,
+        "T2_shortcut_masked": 5.913839874267578,
+        "T2_nonshortcut_normal": 3.490446605682373
+      },
+      "attention_metrics": {},
+      "timestamp": 1758592120.5254998
+    },
+    {
+      "epoch": 17,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.5125,
+        "T2_shortcut_normal": 0.064,
+        "T2_shortcut_masked": 0.038,
+        "T2_nonshortcut_normal": 0.21466666666666667
+      },
+      "subset_losses": {
+        "T1_all": 1.9251708273887633,
+        "T2_shortcut_normal": 5.992906391143799,
+        "T2_shortcut_masked": 5.859383178710938,
+        "T2_nonshortcut_normal": 3.419391127904256
+      },
+      "attention_metrics": {},
+      "timestamp": 1758592128.741465
+    },
+    {
+      "epoch": 18,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.51375,
+        "T2_shortcut_normal": 0.066,
+        "T2_shortcut_masked": 0.04,
+        "T2_nonshortcut_normal": 0.22733333333333333
+      },
+      "subset_losses": {
+        "T1_all": 1.9306017642021178,
+        "T2_shortcut_normal": 5.996626350402832,
+        "T2_shortcut_masked": 5.877444843292237,
+        "T2_nonshortcut_normal": 3.405101001103719
+      },
+      "attention_metrics": {},
+      "timestamp": 1758592136.950132
+    },
+    {
+      "epoch": 19,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.51125,
+        "T2_shortcut_normal": 0.072,
+        "T2_shortcut_masked": 0.044,
+        "T2_nonshortcut_normal": 0.22533333333333333
+      },
+      "subset_losses": {
+        "T1_all": 1.9406894478797914,
+        "T2_shortcut_normal": 5.851409915924072,
+        "T2_shortcut_masked": 5.702012752532959,
+        "T2_nonshortcut_normal": 3.3926687501271564
+      },
+      "attention_metrics": {},
+      "timestamp": 1758592145.153156
+    },
+    {
+      "epoch": 20,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.51,
+        "T2_shortcut_normal": 0.09,
+        "T2_shortcut_masked": 0.042,
+        "T2_nonshortcut_normal": 0.24
+      },
+      "subset_losses": {
+        "T1_all": 1.9509673461914063,
+        "T2_shortcut_normal": 5.851528133392334,
+        "T2_shortcut_masked": 5.6942413101196285,
+        "T2_nonshortcut_normal": 3.333745672861735
+      },
+      "attention_metrics": {},
+      "timestamp": 1758592153.338292
+    },
+    {
+      "epoch": 21,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.508,
+        "T2_shortcut_normal": 0.09,
+        "T2_shortcut_masked": 0.05,
+        "T2_nonshortcut_normal": 0.24133333333333334
+      },
+      "subset_losses": {
+        "T1_all": 1.9567389650344849,
+        "T2_shortcut_normal": 5.803724063873291,
+        "T2_shortcut_masked": 5.662756065368653,
+        "T2_nonshortcut_normal": 3.3064332695007326
+      },
+      "attention_metrics": {},
+      "timestamp": 1758592161.495347
+    },
+    {
+      "epoch": 22,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.5065,
+        "T2_shortcut_normal": 0.098,
+        "T2_shortcut_masked": 0.046,
+        "T2_nonshortcut_normal": 0.25866666666666666
+      },
+      "subset_losses": {
+        "T1_all": 1.9658986234664917,
+        "T2_shortcut_normal": 5.869351631164551,
+        "T2_shortcut_masked": 5.723194664001465,
+        "T2_nonshortcut_normal": 3.194398919423421
+      },
+      "attention_metrics": {},
+      "timestamp": 1758592169.71183
+    },
+    {
+      "epoch": 23,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.50525,
+        "T2_shortcut_normal": 0.098,
+        "T2_shortcut_masked": 0.052,
+        "T2_nonshortcut_normal": 0.262
+      },
+      "subset_losses": {
+        "T1_all": 1.9710681600570679,
+        "T2_shortcut_normal": 5.740922466278076,
+        "T2_shortcut_masked": 5.581893333435058,
+        "T2_nonshortcut_normal": 3.158743612289429
+      },
+      "attention_metrics": {},
+      "timestamp": 1758592177.908454
+    },
+    {
+      "epoch": 24,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.50475,
+        "T2_shortcut_normal": 0.098,
+        "T2_shortcut_masked": 0.05,
+        "T2_nonshortcut_normal": 0.278
+      },
+      "subset_losses": {
+        "T1_all": 1.9830822887420654,
+        "T2_shortcut_normal": 5.842622856140137,
+        "T2_shortcut_masked": 5.697240104675293,
+        "T2_nonshortcut_normal": 3.082736558596293
+      },
+      "attention_metrics": {},
+      "timestamp": 1758592186.1153579
+    },
+    {
+      "epoch": 25,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.50225,
+        "T2_shortcut_normal": 0.104,
+        "T2_shortcut_masked": 0.052,
+        "T2_nonshortcut_normal": 0.288
+      },
+      "subset_losses": {
+        "T1_all": 1.9936252193450927,
+        "T2_shortcut_normal": 5.826069282531738,
+        "T2_shortcut_masked": 5.6855986328125,
+        "T2_nonshortcut_normal": 3.0624746780395506
+      },
+      "attention_metrics": {},
+      "timestamp": 1758592194.303637
+    },
+    {
+      "epoch": 26,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.5,
+        "T2_shortcut_normal": 0.122,
+        "T2_shortcut_masked": 0.064,
+        "T2_nonshortcut_normal": 0.29
+      },
+      "subset_losses": {
+        "T1_all": 2.0123454389572144,
+        "T2_shortcut_normal": 5.573986209869385,
+        "T2_shortcut_masked": 5.419255043029785,
+        "T2_nonshortcut_normal": 3.0749322268168133
+      },
+      "attention_metrics": {},
+      "timestamp": 1758592202.530377
+    },
+    {
+      "epoch": 27,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.49925,
+        "T2_shortcut_normal": 0.124,
+        "T2_shortcut_masked": 0.064,
+        "T2_nonshortcut_normal": 0.304
+      },
+      "subset_losses": {
+        "T1_all": 2.0160770711898803,
+        "T2_shortcut_normal": 5.619407688140869,
+        "T2_shortcut_masked": 5.476111057281494,
+        "T2_nonshortcut_normal": 3.0045810998280844
+      },
+      "attention_metrics": {},
+      "timestamp": 1758592210.7539861
+    },
+    {
+      "epoch": 28,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.49475,
+        "T2_shortcut_normal": 0.124,
+        "T2_shortcut_masked": 0.062,
+        "T2_nonshortcut_normal": 0.31266666666666665
+      },
+      "subset_losses": {
+        "T1_all": 2.0225239000320436,
+        "T2_shortcut_normal": 5.662026405334473,
+        "T2_shortcut_masked": 5.516563472747802,
+        "T2_nonshortcut_normal": 2.9806191991170246
+      },
+      "attention_metrics": {},
+      "timestamp": 1758592219.0152519
+    },
+    {
+      "epoch": 29,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.4935,
+        "T2_shortcut_normal": 0.134,
+        "T2_shortcut_masked": 0.07,
+        "T2_nonshortcut_normal": 0.32
+      },
+      "subset_losses": {
+        "T1_all": 2.0362542715072633,
+        "T2_shortcut_normal": 5.592461601257324,
+        "T2_shortcut_masked": 5.44661767578125,
+        "T2_nonshortcut_normal": 2.9609962860743204
+      },
+      "attention_metrics": {},
+      "timestamp": 1758592227.276341
+    },
+    {
+      "epoch": 30,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.49225,
+        "T2_shortcut_normal": 0.124,
+        "T2_shortcut_masked": 0.066,
+        "T2_nonshortcut_normal": 0.31666666666666665
+      },
+      "subset_losses": {
+        "T1_all": 2.0475546503067017,
+        "T2_shortcut_normal": 5.592360893249512,
+        "T2_shortcut_masked": 5.453094375610352,
+        "T2_nonshortcut_normal": 2.925769331932068
+      },
+      "attention_metrics": {},
+      "timestamp": 1758592235.5293581
+    },
+    {
+      "epoch": 31,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.48725,
+        "T2_shortcut_normal": 0.114,
+        "T2_shortcut_masked": 0.06,
+        "T2_nonshortcut_normal": 0.33666666666666667
+      },
+      "subset_losses": {
+        "T1_all": 2.059588933944702,
+        "T2_shortcut_normal": 5.723421478271485,
+        "T2_shortcut_masked": 5.585045497894287,
+        "T2_nonshortcut_normal": 2.8465532185236615
+      },
+      "attention_metrics": {},
+      "timestamp": 1758592243.875961
+    },
+    {
+      "epoch": 32,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.485,
+        "T2_shortcut_normal": 0.132,
+        "T2_shortcut_masked": 0.072,
+        "T2_nonshortcut_normal": 0.3253333333333333
+      },
+      "subset_losses": {
+        "T1_all": 2.060589602470398,
+        "T2_shortcut_normal": 5.530462913513183,
+        "T2_shortcut_masked": 5.395592048645019,
+        "T2_nonshortcut_normal": 2.8845051113764444
+      },
+      "attention_metrics": {},
+      "timestamp": 1758592252.071811
+    },
+    {
+      "epoch": 33,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.48175,
+        "T2_shortcut_normal": 0.128,
+        "T2_shortcut_masked": 0.064,
+        "T2_nonshortcut_normal": 0.3426666666666667
+      },
+      "subset_losses": {
+        "T1_all": 2.0881878061294556,
+        "T2_shortcut_normal": 5.710592796325684,
+        "T2_shortcut_masked": 5.569626838684082,
+        "T2_nonshortcut_normal": 2.789098749478658
+      },
+      "attention_metrics": {},
+      "timestamp": 1758592260.255828
+    },
+    {
+      "epoch": 34,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.4805,
+        "T2_shortcut_normal": 0.132,
+        "T2_shortcut_masked": 0.078,
+        "T2_nonshortcut_normal": 0.33866666666666667
+      },
+      "subset_losses": {
+        "T1_all": 2.081752027511597,
+        "T2_shortcut_normal": 5.526301204681396,
+        "T2_shortcut_masked": 5.3822294731140135,
+        "T2_nonshortcut_normal": 2.8165862474441528
+      },
+      "attention_metrics": {},
+      "timestamp": 1758592268.459886
+    },
+    {
+      "epoch": 35,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.48075,
+        "T2_shortcut_normal": 0.13,
+        "T2_shortcut_masked": 0.076,
+        "T2_nonshortcut_normal": 0.3413333333333333
+      },
+      "subset_losses": {
+        "T1_all": 2.0823997402191163,
+        "T2_shortcut_normal": 5.568745029449463,
+        "T2_shortcut_masked": 5.428638835906982,
+        "T2_nonshortcut_normal": 2.8000369119644164
+      },
+      "attention_metrics": {},
+      "timestamp": 1758592276.600186
+    },
+    {
+      "epoch": 36,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.4805,
+        "T2_shortcut_normal": 0.126,
+        "T2_shortcut_masked": 0.074,
+        "T2_nonshortcut_normal": 0.344
+      },
+      "subset_losses": {
+        "T1_all": 2.084251763343811,
+        "T2_shortcut_normal": 5.5713743019104,
+        "T2_shortcut_masked": 5.432367408752442,
+        "T2_nonshortcut_normal": 2.7977365783055625
+      },
+      "attention_metrics": {},
+      "timestamp": 1758592284.804652
+    },
+    {
+      "epoch": 37,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.4805,
+        "T2_shortcut_normal": 0.128,
+        "T2_shortcut_masked": 0.074,
+        "T2_nonshortcut_normal": 0.3453333333333333
+      },
+      "subset_losses": {
+        "T1_all": 2.0862478723526,
+        "T2_shortcut_normal": 5.587473014831543,
+        "T2_shortcut_masked": 5.450145420074463,
+        "T2_nonshortcut_normal": 2.790492696126302
+      },
+      "attention_metrics": {},
+      "timestamp": 1758592293.008448
+    },
+    {
+      "epoch": 38,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.481,
+        "T2_shortcut_normal": 0.128,
+        "T2_shortcut_masked": 0.074,
+        "T2_nonshortcut_normal": 0.3446666666666667
+      },
+      "subset_losses": {
+        "T1_all": 2.0866653270721436,
+        "T2_shortcut_normal": 5.5829587745666505,
+        "T2_shortcut_masked": 5.448520721435547,
+        "T2_nonshortcut_normal": 2.786708375930786
+      },
+      "attention_metrics": {},
+      "timestamp": 1758592301.168787
+    },
+    {
+      "epoch": 39,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.48,
+        "T2_shortcut_normal": 0.128,
+        "T2_shortcut_masked": 0.076,
+        "T2_nonshortcut_normal": 0.3473333333333333
+      },
+      "subset_losses": {
+        "T1_all": 2.0867036561965944,
+        "T2_shortcut_normal": 5.572028064727784,
+        "T2_shortcut_masked": 5.437355068206787,
+        "T2_nonshortcut_normal": 2.78488506603241
+      },
+      "attention_metrics": {},
+      "timestamp": 1758592309.3791842
+    },
+    {
+      "epoch": 40,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.48125,
+        "T2_shortcut_normal": 0.13,
+        "T2_shortcut_masked": 0.074,
+        "T2_nonshortcut_normal": 0.3486666666666667
+      },
+      "subset_losses": {
+        "T1_all": 2.0876585330963136,
+        "T2_shortcut_normal": 5.584949867248535,
+        "T2_shortcut_masked": 5.450050025939942,
+        "T2_nonshortcut_normal": 2.7772218634287515
+      },
+      "attention_metrics": {},
+      "timestamp": 1758592317.541962
+    },
+    {
+      "epoch": 41,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.48175,
+        "T2_shortcut_normal": 0.13,
+        "T2_shortcut_masked": 0.076,
+        "T2_nonshortcut_normal": 0.3486666666666667
+      },
+      "subset_losses": {
+        "T1_all": 2.0887708673477174,
+        "T2_shortcut_normal": 5.578316741943359,
+        "T2_shortcut_masked": 5.442026950836182,
+        "T2_nonshortcut_normal": 2.76820628452301
+      },
+      "attention_metrics": {},
+      "timestamp": 1758592325.725399
+    },
+    {
+      "epoch": 42,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.48,
+        "T2_shortcut_normal": 0.128,
+        "T2_shortcut_masked": 0.076,
+        "T2_nonshortcut_normal": 0.34933333333333333
+      },
+      "subset_losses": {
+        "T1_all": 2.0880468158721923,
+        "T2_shortcut_normal": 5.574410018920898,
+        "T2_shortcut_masked": 5.439731433868408,
+        "T2_nonshortcut_normal": 2.7651213912963866
+      },
+      "attention_metrics": {},
+      "timestamp": 1758592333.880173
+    },
+    {
+      "epoch": 43,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.48,
+        "T2_shortcut_normal": 0.13,
+        "T2_shortcut_masked": 0.072,
+        "T2_nonshortcut_normal": 0.35
+      },
+      "subset_losses": {
+        "T1_all": 2.089861204147339,
+        "T2_shortcut_normal": 5.583606014251709,
+        "T2_shortcut_masked": 5.4489695167541505,
+        "T2_nonshortcut_normal": 2.764123842557271
+      },
+      "attention_metrics": {},
+      "timestamp": 1758592342.070027
+    },
+    {
+      "epoch": 44,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.481,
+        "T2_shortcut_normal": 0.134,
+        "T2_shortcut_masked": 0.076,
+        "T2_nonshortcut_normal": 0.35
+      },
+      "subset_losses": {
+        "T1_all": 2.0896863002777097,
+        "T2_shortcut_normal": 5.5863725929260255,
+        "T2_shortcut_masked": 5.453887306213379,
+        "T2_nonshortcut_normal": 2.756475417455037
+      },
+      "attention_metrics": {},
+      "timestamp": 1758592350.296067
+    },
+    {
+      "epoch": 45,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.48075,
+        "T2_shortcut_normal": 0.132,
+        "T2_shortcut_masked": 0.076,
+        "T2_nonshortcut_normal": 0.3506666666666667
+      },
+      "subset_losses": {
+        "T1_all": 2.090016185760498,
+        "T2_shortcut_normal": 5.588078620910644,
+        "T2_shortcut_masked": 5.45576322555542,
+        "T2_nonshortcut_normal": 2.7554788846969602
+      },
+      "attention_metrics": {},
+      "timestamp": 1758592358.448738
+    },
+    {
+      "epoch": 46,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.48,
+        "T2_shortcut_normal": 0.132,
+        "T2_shortcut_masked": 0.076,
+        "T2_nonshortcut_normal": 0.35133333333333333
+      },
+      "subset_losses": {
+        "T1_all": 2.0903158016204832,
+        "T2_shortcut_normal": 5.586028953552246,
+        "T2_shortcut_masked": 5.453694675445557,
+        "T2_nonshortcut_normal": 2.7557225144704183
+      },
+      "attention_metrics": {},
+      "timestamp": 1758592366.6637518
+    },
+    {
+      "epoch": 47,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.48,
+        "T2_shortcut_normal": 0.132,
+        "T2_shortcut_masked": 0.074,
+        "T2_nonshortcut_normal": 0.35
+      },
+      "subset_losses": {
+        "T1_all": 2.0904678325653077,
+        "T2_shortcut_normal": 5.58719617843628,
+        "T2_shortcut_masked": 5.455073616027832,
+        "T2_nonshortcut_normal": 2.7559275376001993
+      },
+      "attention_metrics": {},
+      "timestamp": 1758592374.8419662
+    },
+    {
+      "epoch": 48,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.48025,
+        "T2_shortcut_normal": 0.132,
+        "T2_shortcut_masked": 0.074,
+        "T2_nonshortcut_normal": 0.3506666666666667
+      },
+      "subset_losses": {
+        "T1_all": 2.0905136318206785,
+        "T2_shortcut_normal": 5.586570529937744,
+        "T2_shortcut_masked": 5.454539772033692,
+        "T2_nonshortcut_normal": 2.755462309201558
+      },
+      "attention_metrics": {},
+      "timestamp": 1758592383.073559
+    },
+    {
+      "epoch": 49,
+      "task_id": 0,
+      "subset_accuracies": {
+        "T1_all": 0.48025,
+        "T2_shortcut_normal": 0.132,
+        "T2_shortcut_masked": 0.074,
+        "T2_nonshortcut_normal": 0.352
+      },
+      "subset_losses": {
+        "T1_all": 2.090739194869995,
+        "T2_shortcut_normal": 5.5864378929138185,
+        "T2_shortcut_masked": 5.454517330169677,
+        "T2_nonshortcut_normal": 2.7553154910405477
+      },
+      "attention_metrics": {},
+      "timestamp": 1758592391.257184
+    }
+  ],
+  "metrics_timeline": [
+    {
+      "epoch": 0,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.21825,
+      "loss": 3.000286148071289,
+      "timestamp": 1758591386.765385
+    },
+    {
+      "epoch": 0,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 4.9830118103027345,
+      "timestamp": 1758591386.765385
+    },
+    {
+      "epoch": 0,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 5.065729347229004,
+      "timestamp": 1758591386.765385
+    },
+    {
+      "epoch": 0,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 5.122568397521973,
+      "timestamp": 1758591386.765385
+    },
+    {
+      "epoch": 1,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.2625,
+      "loss": 2.8025966148376464,
+      "timestamp": 1758591398.470342
+    },
+    {
+      "epoch": 1,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 5.253587261199951,
+      "timestamp": 1758591398.470342
+    },
+    {
+      "epoch": 1,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 5.290854110717773,
+      "timestamp": 1758591398.470342
+    },
+    {
+      "epoch": 1,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 5.393075951894124,
+      "timestamp": 1758591398.470342
+    },
+    {
+      "epoch": 2,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.3065,
+      "loss": 2.6275232934951784,
+      "timestamp": 1758591410.3247292
+    },
+    {
+      "epoch": 2,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 5.56518896484375,
+      "timestamp": 1758591410.3247292
+    },
+    {
+      "epoch": 2,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 5.665163047790528,
+      "timestamp": 1758591410.3247292
+    },
+    {
+      "epoch": 2,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 5.78296363067627,
+      "timestamp": 1758591410.3247292
+    },
+    {
+      "epoch": 3,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.33225,
+      "loss": 2.504827443122864,
+      "timestamp": 1758591422.1203682
+    },
+    {
+      "epoch": 3,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 5.683641345977783,
+      "timestamp": 1758591422.1203682
+    },
+    {
+      "epoch": 3,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 5.768577144622803,
+      "timestamp": 1758591422.1203682
+    },
+    {
+      "epoch": 3,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 5.871285429636638,
+      "timestamp": 1758591422.1203682
+    },
+    {
+      "epoch": 4,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.34825,
+      "loss": 2.4461769094467165,
+      "timestamp": 1758591433.8332312
+    },
+    {
+      "epoch": 4,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 5.832371520996094,
+      "timestamp": 1758591433.8332312
+    },
+    {
+      "epoch": 4,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 5.926742332458496,
+      "timestamp": 1758591433.8332312
+    },
+    {
+      "epoch": 4,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 6.091950653076172,
+      "timestamp": 1758591433.8332312
+    },
+    {
+      "epoch": 5,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.371,
+      "loss": 2.345273549079895,
+      "timestamp": 1758591445.49166
+    },
+    {
+      "epoch": 5,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 5.931464939117432,
+      "timestamp": 1758591445.49166
+    },
+    {
+      "epoch": 5,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 6.016187023162842,
+      "timestamp": 1758591445.49166
+    },
+    {
+      "epoch": 5,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 6.133769064585368,
+      "timestamp": 1758591445.49166
+    },
+    {
+      "epoch": 6,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.3855,
+      "loss": 2.3080714206695556,
+      "timestamp": 1758591457.15081
+    },
+    {
+      "epoch": 6,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 6.091968082427979,
+      "timestamp": 1758591457.15081
+    },
+    {
+      "epoch": 6,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 6.212105987548828,
+      "timestamp": 1758591457.15081
+    },
+    {
+      "epoch": 6,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 6.297753086090088,
+      "timestamp": 1758591457.15081
+    },
+    {
+      "epoch": 7,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.39325,
+      "loss": 2.2762717018127443,
+      "timestamp": 1758591468.725433
+    },
+    {
+      "epoch": 7,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 6.106342712402344,
+      "timestamp": 1758591468.725433
+    },
+    {
+      "epoch": 7,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 6.176994842529297,
+      "timestamp": 1758591468.725433
+    },
+    {
+      "epoch": 7,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 6.30006276067098,
+      "timestamp": 1758591468.725433
+    },
+    {
+      "epoch": 8,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.41075,
+      "loss": 2.222433924674988,
+      "timestamp": 1758591480.354082
+    },
+    {
+      "epoch": 8,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 6.223984481811524,
+      "timestamp": 1758591480.354082
+    },
+    {
+      "epoch": 8,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 6.329663055419922,
+      "timestamp": 1758591480.354082
+    },
+    {
+      "epoch": 8,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 6.428200462341309,
+      "timestamp": 1758591480.354082
+    },
+    {
+      "epoch": 9,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.4175,
+      "loss": 2.1955840196609495,
+      "timestamp": 1758591492.033282
+    },
+    {
+      "epoch": 9,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 6.29971212387085,
+      "timestamp": 1758591492.033282
+    },
+    {
+      "epoch": 9,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 6.383269584655761,
+      "timestamp": 1758591492.033282
+    },
+    {
+      "epoch": 9,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 6.568493028004964,
+      "timestamp": 1758591492.033282
+    },
+    {
+      "epoch": 10,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.43025,
+      "loss": 2.1246347455978394,
+      "timestamp": 1758591503.611008
+    },
+    {
+      "epoch": 10,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 6.327745727539062,
+      "timestamp": 1758591503.611008
+    },
+    {
+      "epoch": 10,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 6.44416100692749,
+      "timestamp": 1758591503.611008
+    },
+    {
+      "epoch": 10,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 6.505032104492187,
+      "timestamp": 1758591503.611008
+    },
+    {
+      "epoch": 11,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.438,
+      "loss": 2.071725715637207,
+      "timestamp": 1758591515.1880581
+    },
+    {
+      "epoch": 11,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 6.503662754058838,
+      "timestamp": 1758591515.1880581
+    },
+    {
+      "epoch": 11,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 6.611297706604004,
+      "timestamp": 1758591515.1880581
+    },
+    {
+      "epoch": 11,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 6.6610008939107255,
+      "timestamp": 1758591515.1880581
+    },
+    {
+      "epoch": 12,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.4415,
+      "loss": 2.0713273973464967,
+      "timestamp": 1758591526.877179
+    },
+    {
+      "epoch": 12,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 6.5475382766723635,
+      "timestamp": 1758591526.877179
+    },
+    {
+      "epoch": 12,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 6.647714294433594,
+      "timestamp": 1758591526.877179
+    },
+    {
+      "epoch": 12,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 6.697905529022217,
+      "timestamp": 1758591526.877179
+    },
+    {
+      "epoch": 13,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.4485,
+      "loss": 2.068101233482361,
+      "timestamp": 1758591538.530815
+    },
+    {
+      "epoch": 13,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 6.637165199279785,
+      "timestamp": 1758591538.530815
+    },
+    {
+      "epoch": 13,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 6.763642250061035,
+      "timestamp": 1758591538.530815
+    },
+    {
+      "epoch": 13,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 6.792191463470459,
+      "timestamp": 1758591538.530815
+    },
+    {
+      "epoch": 14,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.456,
+      "loss": 2.028837788581848,
+      "timestamp": 1758591550.2083268
+    },
+    {
+      "epoch": 14,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 6.629853763580322,
+      "timestamp": 1758591550.2083268
+    },
+    {
+      "epoch": 14,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 6.7408511924743655,
+      "timestamp": 1758591550.2083268
+    },
+    {
+      "epoch": 14,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 6.803823585510254,
+      "timestamp": 1758591550.2083268
+    },
+    {
+      "epoch": 15,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.4655,
+      "loss": 1.9900813550949097,
+      "timestamp": 1758591561.808758
+    },
+    {
+      "epoch": 15,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 6.667999244689941,
+      "timestamp": 1758591561.808758
+    },
+    {
+      "epoch": 15,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 6.79452515411377,
+      "timestamp": 1758591561.808758
+    },
+    {
+      "epoch": 15,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 6.816950964609782,
+      "timestamp": 1758591561.808758
+    },
+    {
+      "epoch": 16,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.47425,
+      "loss": 1.9558349685668945,
+      "timestamp": 1758591573.433221
+    },
+    {
+      "epoch": 16,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 6.773050910949707,
+      "timestamp": 1758591573.433221
+    },
+    {
+      "epoch": 16,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 6.885404815673828,
+      "timestamp": 1758591573.433221
+    },
+    {
+      "epoch": 16,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 6.932321343739828,
+      "timestamp": 1758591573.433221
+    },
+    {
+      "epoch": 17,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.4655,
+      "loss": 1.9943050718307496,
+      "timestamp": 1758591585.029521
+    },
+    {
+      "epoch": 17,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 6.8625240249633785,
+      "timestamp": 1758591585.029521
+    },
+    {
+      "epoch": 17,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 7.001330924987793,
+      "timestamp": 1758591585.029521
+    },
+    {
+      "epoch": 17,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 6.954487374623617,
+      "timestamp": 1758591585.029521
+    },
+    {
+      "epoch": 18,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.474,
+      "loss": 1.9704590129852295,
+      "timestamp": 1758591596.6990778
+    },
+    {
+      "epoch": 18,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 6.9735820083618165,
+      "timestamp": 1758591596.6990778
+    },
+    {
+      "epoch": 18,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 7.091134765625,
+      "timestamp": 1758591596.6990778
+    },
+    {
+      "epoch": 18,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.039538970947266,
+      "timestamp": 1758591596.6990778
+    },
+    {
+      "epoch": 19,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.47925,
+      "loss": 1.9519133949279786,
+      "timestamp": 1758591608.3548539
+    },
+    {
+      "epoch": 19,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 6.996240089416504,
+      "timestamp": 1758591608.3548539
+    },
+    {
+      "epoch": 19,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 7.134757881164551,
+      "timestamp": 1758591608.3548539
+    },
+    {
+      "epoch": 19,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.094274791717529,
+      "timestamp": 1758591608.3548539
+    },
+    {
+      "epoch": 20,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.4875,
+      "loss": 1.9132416763305664,
+      "timestamp": 1758591619.953116
+    },
+    {
+      "epoch": 20,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 6.950205783843995,
+      "timestamp": 1758591619.953116
+    },
+    {
+      "epoch": 20,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 7.110770942687989,
+      "timestamp": 1758591619.953116
+    },
+    {
+      "epoch": 20,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.073193987528483,
+      "timestamp": 1758591619.953116
+    },
+    {
+      "epoch": 21,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.486,
+      "loss": 1.9321579031944276,
+      "timestamp": 1758591631.621121
+    },
+    {
+      "epoch": 21,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.108265357971192,
+      "timestamp": 1758591631.621121
+    },
+    {
+      "epoch": 21,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 7.296204063415527,
+      "timestamp": 1758591631.621121
+    },
+    {
+      "epoch": 21,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.259338507334391,
+      "timestamp": 1758591631.621121
+    },
+    {
+      "epoch": 22,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.48575,
+      "loss": 1.9687520885467529,
+      "timestamp": 1758591643.233299
+    },
+    {
+      "epoch": 22,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.180630954742432,
+      "timestamp": 1758591643.233299
+    },
+    {
+      "epoch": 22,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 7.302779624938965,
+      "timestamp": 1758591643.233299
+    },
+    {
+      "epoch": 22,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.337424379984538,
+      "timestamp": 1758591643.233299
+    },
+    {
+      "epoch": 23,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.4985,
+      "loss": 1.9092631015777588,
+      "timestamp": 1758591655.029671
+    },
+    {
+      "epoch": 23,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.155739719390869,
+      "timestamp": 1758591655.029671
+    },
+    {
+      "epoch": 23,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 7.310737216949463,
+      "timestamp": 1758591655.029671
+    },
+    {
+      "epoch": 23,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.257294836680094,
+      "timestamp": 1758591655.029671
+    },
+    {
+      "epoch": 24,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.4875,
+      "loss": 1.9364604678153992,
+      "timestamp": 1758591666.7057312
+    },
+    {
+      "epoch": 24,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.207996650695801,
+      "timestamp": 1758591666.7057312
+    },
+    {
+      "epoch": 24,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 7.3407747802734375,
+      "timestamp": 1758591666.7057312
+    },
+    {
+      "epoch": 24,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.305322806040446,
+      "timestamp": 1758591666.7057312
+    },
+    {
+      "epoch": 25,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.4935,
+      "loss": 1.905510980606079,
+      "timestamp": 1758591678.288785
+    },
+    {
+      "epoch": 25,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.290107597351074,
+      "timestamp": 1758591678.288785
+    },
+    {
+      "epoch": 25,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 7.3960531539917,
+      "timestamp": 1758591678.288785
+    },
+    {
+      "epoch": 25,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.401748708089193,
+      "timestamp": 1758591678.288785
+    },
+    {
+      "epoch": 26,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.50025,
+      "loss": 1.8780831317901612,
+      "timestamp": 1758591690.01178
+    },
+    {
+      "epoch": 26,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.331743045806885,
+      "timestamp": 1758591690.01178
+    },
+    {
+      "epoch": 26,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 7.479574497222901,
+      "timestamp": 1758591690.01178
+    },
+    {
+      "epoch": 26,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.387080694834391,
+      "timestamp": 1758591690.01178
+    },
+    {
+      "epoch": 27,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.49575,
+      "loss": 1.9186396989822387,
+      "timestamp": 1758591701.657676
+    },
+    {
+      "epoch": 27,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.41628897857666,
+      "timestamp": 1758591701.657676
+    },
+    {
+      "epoch": 27,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 7.5580708694458005,
+      "timestamp": 1758591701.657676
+    },
+    {
+      "epoch": 27,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.5195496190389,
+      "timestamp": 1758591701.657676
+    },
+    {
+      "epoch": 28,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.507,
+      "loss": 1.8917272329330443,
+      "timestamp": 1758591713.286748
+    },
+    {
+      "epoch": 28,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.436449855804443,
+      "timestamp": 1758591713.286748
+    },
+    {
+      "epoch": 28,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 7.588923030853271,
+      "timestamp": 1758591713.286748
+    },
+    {
+      "epoch": 28,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.5342533340454105,
+      "timestamp": 1758591713.286748
+    },
+    {
+      "epoch": 29,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.512,
+      "loss": 1.8755584206581115,
+      "timestamp": 1758591725.727903
+    },
+    {
+      "epoch": 29,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.519708229064942,
+      "timestamp": 1758591725.727903
+    },
+    {
+      "epoch": 29,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 7.715059478759765,
+      "timestamp": 1758591725.727903
+    },
+    {
+      "epoch": 29,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.632147519429525,
+      "timestamp": 1758591725.727903
+    },
+    {
+      "epoch": 30,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.50075,
+      "loss": 1.9127296495437622,
+      "timestamp": 1758591738.0728068
+    },
+    {
+      "epoch": 30,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.632725376129151,
+      "timestamp": 1758591738.0728068
+    },
+    {
+      "epoch": 30,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 7.785885654449463,
+      "timestamp": 1758591738.0728068
+    },
+    {
+      "epoch": 30,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.789023295084635,
+      "timestamp": 1758591738.0728068
+    },
+    {
+      "epoch": 31,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.507,
+      "loss": 1.9019101219177246,
+      "timestamp": 1758591749.987317
+    },
+    {
+      "epoch": 31,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.702784187316895,
+      "timestamp": 1758591749.987317
+    },
+    {
+      "epoch": 31,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 7.820626731872559,
+      "timestamp": 1758591749.987317
+    },
+    {
+      "epoch": 31,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.772528594970703,
+      "timestamp": 1758591749.987317
+    },
+    {
+      "epoch": 32,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.505,
+      "loss": 1.9020834169387817,
+      "timestamp": 1758591761.671083
+    },
+    {
+      "epoch": 32,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.627782871246338,
+      "timestamp": 1758591761.671083
+    },
+    {
+      "epoch": 32,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 7.7652859802246095,
+      "timestamp": 1758591761.671083
+    },
+    {
+      "epoch": 32,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.720677773793539,
+      "timestamp": 1758591761.671083
+    },
+    {
+      "epoch": 33,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.5135,
+      "loss": 1.8854710416793823,
+      "timestamp": 1758591773.422734
+    },
+    {
+      "epoch": 33,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.712463775634766,
+      "timestamp": 1758591773.422734
+    },
+    {
+      "epoch": 33,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 7.874780727386475,
+      "timestamp": 1758591773.422734
+    },
+    {
+      "epoch": 33,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.830770467122396,
+      "timestamp": 1758591773.422734
+    },
+    {
+      "epoch": 34,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.51375,
+      "loss": 1.8662103452682495,
+      "timestamp": 1758591785.223665
+    },
+    {
+      "epoch": 34,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.856811546325684,
+      "timestamp": 1758591785.223665
+    },
+    {
+      "epoch": 34,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 8.005473838806152,
+      "timestamp": 1758591785.223665
+    },
+    {
+      "epoch": 34,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.888455851236979,
+      "timestamp": 1758591785.223665
+    },
+    {
+      "epoch": 35,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.525,
+      "loss": 1.8250438022613524,
+      "timestamp": 1758591801.085631
+    },
+    {
+      "epoch": 35,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.781827781677246,
+      "timestamp": 1758591801.085631
+    },
+    {
+      "epoch": 35,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 7.934606712341308,
+      "timestamp": 1758591801.085631
+    },
+    {
+      "epoch": 35,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.844839581807454,
+      "timestamp": 1758591801.085631
+    },
+    {
+      "epoch": 36,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.525,
+      "loss": 1.8180763783454894,
+      "timestamp": 1758591814.4411619
+    },
+    {
+      "epoch": 36,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.81491153717041,
+      "timestamp": 1758591814.4411619
+    },
+    {
+      "epoch": 36,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 7.9456817893981935,
+      "timestamp": 1758591814.4411619
+    },
+    {
+      "epoch": 36,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.861687452952067,
+      "timestamp": 1758591814.4411619
+    },
+    {
+      "epoch": 37,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.5275,
+      "loss": 1.8147485399246215,
+      "timestamp": 1758591826.145552
+    },
+    {
+      "epoch": 37,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.834960968017578,
+      "timestamp": 1758591826.145552
+    },
+    {
+      "epoch": 37,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 7.966851142883301,
+      "timestamp": 1758591826.145552
+    },
+    {
+      "epoch": 37,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.88059994506836,
+      "timestamp": 1758591826.145552
+    },
+    {
+      "epoch": 38,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.52875,
+      "loss": 1.8115983991622924,
+      "timestamp": 1758591837.8182971
+    },
+    {
+      "epoch": 38,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.854361381530762,
+      "timestamp": 1758591837.8182971
+    },
+    {
+      "epoch": 38,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 7.991695831298828,
+      "timestamp": 1758591837.8182971
+    },
+    {
+      "epoch": 38,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.902468863169352,
+      "timestamp": 1758591837.8182971
+    },
+    {
+      "epoch": 39,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.53025,
+      "loss": 1.8177166838645935,
+      "timestamp": 1758591849.664861
+    },
+    {
+      "epoch": 39,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.868237277984619,
+      "timestamp": 1758591849.664861
+    },
+    {
+      "epoch": 39,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 8.007852146148682,
+      "timestamp": 1758591849.664861
+    },
+    {
+      "epoch": 39,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.9094257825215655,
+      "timestamp": 1758591849.664861
+    },
+    {
+      "epoch": 40,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.52875,
+      "loss": 1.8101989893913268,
+      "timestamp": 1758591861.3932428
+    },
+    {
+      "epoch": 40,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.88259188079834,
+      "timestamp": 1758591861.3932428
+    },
+    {
+      "epoch": 40,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 8.027749504089355,
+      "timestamp": 1758591861.3932428
+    },
+    {
+      "epoch": 40,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.920843701680501,
+      "timestamp": 1758591861.3932428
+    },
+    {
+      "epoch": 41,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.52975,
+      "loss": 1.816350073814392,
+      "timestamp": 1758591873.154073
+    },
+    {
+      "epoch": 41,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.910614906311035,
+      "timestamp": 1758591873.154073
+    },
+    {
+      "epoch": 41,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 8.065496772766114,
+      "timestamp": 1758591873.154073
+    },
+    {
+      "epoch": 41,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.963072254180908,
+      "timestamp": 1758591873.154073
+    },
+    {
+      "epoch": 42,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.53275,
+      "loss": 1.8103881034851075,
+      "timestamp": 1758591884.853054
+    },
+    {
+      "epoch": 42,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.9322133636474605,
+      "timestamp": 1758591884.853054
+    },
+    {
+      "epoch": 42,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 8.077524600982667,
+      "timestamp": 1758591884.853054
+    },
+    {
+      "epoch": 42,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.991747158050537,
+      "timestamp": 1758591884.853054
+    },
+    {
+      "epoch": 43,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.5305,
+      "loss": 1.8048022508621215,
+      "timestamp": 1758591896.518272
+    },
+    {
+      "epoch": 43,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.933092582702637,
+      "timestamp": 1758591896.518272
+    },
+    {
+      "epoch": 43,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 8.075727176666259,
+      "timestamp": 1758591896.518272
+    },
+    {
+      "epoch": 43,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.989022851308187,
+      "timestamp": 1758591896.518272
+    },
+    {
+      "epoch": 44,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.53125,
+      "loss": 1.8201475734710693,
+      "timestamp": 1758591908.371828
+    },
+    {
+      "epoch": 44,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.940575412750244,
+      "timestamp": 1758591908.371828
+    },
+    {
+      "epoch": 44,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 8.082206630706787,
+      "timestamp": 1758591908.371828
+    },
+    {
+      "epoch": 44,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 8.019979871114096,
+      "timestamp": 1758591908.371828
+    },
+    {
+      "epoch": 45,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.53225,
+      "loss": 1.8147113556861878,
+      "timestamp": 1758591920.0779788
+    },
+    {
+      "epoch": 45,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.943774345397949,
+      "timestamp": 1758591920.0779788
+    },
+    {
+      "epoch": 45,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 8.083048011779786,
+      "timestamp": 1758591920.0779788
+    },
+    {
+      "epoch": 45,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 8.017285319010417,
+      "timestamp": 1758591920.0779788
+    },
+    {
+      "epoch": 46,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.53325,
+      "loss": 1.8118111553192138,
+      "timestamp": 1758591931.851305
+    },
+    {
+      "epoch": 46,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.9476060409545894,
+      "timestamp": 1758591931.851305
+    },
+    {
+      "epoch": 46,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 8.087816535949708,
+      "timestamp": 1758591931.851305
+    },
+    {
+      "epoch": 46,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 8.01975202178955,
+      "timestamp": 1758591931.851305
+    },
+    {
+      "epoch": 47,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.53275,
+      "loss": 1.8112583298683167,
+      "timestamp": 1758591943.590644
+    },
+    {
+      "epoch": 47,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.946661808013916,
+      "timestamp": 1758591943.590644
+    },
+    {
+      "epoch": 47,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 8.085888061523438,
+      "timestamp": 1758591943.590644
+    },
+    {
+      "epoch": 47,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 8.018202449798585,
+      "timestamp": 1758591943.590644
+    },
+    {
+      "epoch": 48,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.532,
+      "loss": 1.8108485288619995,
+      "timestamp": 1758591955.6231802
+    },
+    {
+      "epoch": 48,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.94720792388916,
+      "timestamp": 1758591955.6231802
+    },
+    {
+      "epoch": 48,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 8.085849456787109,
+      "timestamp": 1758591955.6231802
+    },
+    {
+      "epoch": 48,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 8.017160204569498,
+      "timestamp": 1758591955.6231802
+    },
+    {
+      "epoch": 49,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.534,
+      "loss": 1.8102040519714355,
+      "timestamp": 1758591967.372973
+    },
+    {
+      "epoch": 49,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.949406925201416,
+      "timestamp": 1758591967.372973
+    },
+    {
+      "epoch": 49,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 8.089255210876464,
+      "timestamp": 1758591967.372973
+    },
+    {
+      "epoch": 49,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 8.020541330973307,
+      "timestamp": 1758591967.372973
+    },
+    {
+      "epoch": 0,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.53175,
+      "loss": 1.8160177836418152,
+      "timestamp": 1758591984.252959
+    },
+    {
+      "epoch": 0,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.308894752502441,
+      "timestamp": 1758591984.252959
+    },
+    {
+      "epoch": 0,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 7.393217994689941,
+      "timestamp": 1758591984.252959
+    },
+    {
+      "epoch": 0,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.0,
+      "loss": 6.319913387298584,
+      "timestamp": 1758591984.252959
+    },
+    {
+      "epoch": 1,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.53325,
+      "loss": 1.8297144174575806,
+      "timestamp": 1758591992.992621
+    },
+    {
+      "epoch": 1,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 7.011736270904541,
+      "timestamp": 1758591992.992621
+    },
+    {
+      "epoch": 1,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 7.055339317321778,
+      "timestamp": 1758591992.992621
+    },
+    {
+      "epoch": 1,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.006,
+      "loss": 5.578122505187988,
+      "timestamp": 1758591992.992621
+    },
+    {
+      "epoch": 2,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.53075,
+      "loss": 1.8366169748306274,
+      "timestamp": 1758592001.52224
+    },
+    {
+      "epoch": 2,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 6.898339942932129,
+      "timestamp": 1758592001.52224
+    },
+    {
+      "epoch": 2,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 6.92524475479126,
+      "timestamp": 1758592001.52224
+    },
+    {
+      "epoch": 2,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.020666666666666667,
+      "loss": 5.131459683736165,
+      "timestamp": 1758592001.52224
+    },
+    {
+      "epoch": 3,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.53225,
+      "loss": 1.8459252514839173,
+      "timestamp": 1758592010.428836
+    },
+    {
+      "epoch": 3,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.0,
+      "loss": 6.708995273590088,
+      "timestamp": 1758592010.428836
+    },
+    {
+      "epoch": 3,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.0,
+      "loss": 6.7095330009460445,
+      "timestamp": 1758592010.428836
+    },
+    {
+      "epoch": 3,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.03933333333333333,
+      "loss": 4.846586358388265,
+      "timestamp": 1758592010.428836
+    },
+    {
+      "epoch": 4,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.533,
+      "loss": 1.8514339241981506,
+      "timestamp": 1758592019.206632
+    },
+    {
+      "epoch": 4,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.002,
+      "loss": 6.456908878326416,
+      "timestamp": 1758592019.206632
+    },
+    {
+      "epoch": 4,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.002,
+      "loss": 6.431411396026611,
+      "timestamp": 1758592019.206632
+    },
+    {
+      "epoch": 4,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.05266666666666667,
+      "loss": 4.676876373926799,
+      "timestamp": 1758592019.206632
+    },
+    {
+      "epoch": 5,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.5315,
+      "loss": 1.8553159132003785,
+      "timestamp": 1758592027.8090298
+    },
+    {
+      "epoch": 5,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.01,
+      "loss": 6.257834266662598,
+      "timestamp": 1758592027.8090298
+    },
+    {
+      "epoch": 5,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.002,
+      "loss": 6.214375026702881,
+      "timestamp": 1758592027.8090298
+    },
+    {
+      "epoch": 5,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.06133333333333333,
+      "loss": 4.564397506713867,
+      "timestamp": 1758592027.8090298
+    },
+    {
+      "epoch": 6,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.5295,
+      "loss": 1.8664876141548157,
+      "timestamp": 1758592036.785447
+    },
+    {
+      "epoch": 6,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.012,
+      "loss": 6.423070976257324,
+      "timestamp": 1758592036.785447
+    },
+    {
+      "epoch": 6,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.002,
+      "loss": 6.367599285125732,
+      "timestamp": 1758592036.785447
+    },
+    {
+      "epoch": 6,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.08533333333333333,
+      "loss": 4.325000024159749,
+      "timestamp": 1758592036.785447
+    },
+    {
+      "epoch": 7,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.5285,
+      "loss": 1.8746204566955567,
+      "timestamp": 1758592045.607384
+    },
+    {
+      "epoch": 7,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.02,
+      "loss": 6.217909236907959,
+      "timestamp": 1758592045.607384
+    },
+    {
+      "epoch": 7,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.006,
+      "loss": 6.14894864654541,
+      "timestamp": 1758592045.607384
+    },
+    {
+      "epoch": 7,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.09333333333333334,
+      "loss": 4.245711344401042,
+      "timestamp": 1758592045.607384
+    },
+    {
+      "epoch": 8,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.52875,
+      "loss": 1.880314646244049,
+      "timestamp": 1758592054.396847
+    },
+    {
+      "epoch": 8,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.02,
+      "loss": 6.409627323150635,
+      "timestamp": 1758592054.396847
+    },
+    {
+      "epoch": 8,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.002,
+      "loss": 6.3325386772155765,
+      "timestamp": 1758592054.396847
+    },
+    {
+      "epoch": 8,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.11733333333333333,
+      "loss": 4.063441410064697,
+      "timestamp": 1758592054.396847
+    },
+    {
+      "epoch": 9,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.526,
+      "loss": 1.8765742902755738,
+      "timestamp": 1758592063.109115
+    },
+    {
+      "epoch": 9,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.024,
+      "loss": 6.231855777740479,
+      "timestamp": 1758592063.109115
+    },
+    {
+      "epoch": 9,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.01,
+      "loss": 6.147051578521729,
+      "timestamp": 1758592063.109115
+    },
+    {
+      "epoch": 9,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.12466666666666666,
+      "loss": 3.9929664293924967,
+      "timestamp": 1758592063.109115
+    },
+    {
+      "epoch": 10,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.52375,
+      "loss": 1.8876080708503724,
+      "timestamp": 1758592071.3186078
+    },
+    {
+      "epoch": 10,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.024,
+      "loss": 6.285535278320313,
+      "timestamp": 1758592071.3186078
+    },
+    {
+      "epoch": 10,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.012,
+      "loss": 6.183160041809082,
+      "timestamp": 1758592071.3186078
+    },
+    {
+      "epoch": 10,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.152,
+      "loss": 3.8705444043477377,
+      "timestamp": 1758592071.3186078
+    },
+    {
+      "epoch": 11,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.5235,
+      "loss": 1.8871804342269898,
+      "timestamp": 1758592079.54662
+    },
+    {
+      "epoch": 11,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.036,
+      "loss": 6.125274116516113,
+      "timestamp": 1758592079.54662
+    },
+    {
+      "epoch": 11,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.012,
+      "loss": 6.00625040435791,
+      "timestamp": 1758592079.54662
+    },
+    {
+      "epoch": 11,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.15533333333333332,
+      "loss": 3.831111888249715,
+      "timestamp": 1758592079.54662
+    },
+    {
+      "epoch": 12,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.52275,
+      "loss": 1.896816731929779,
+      "timestamp": 1758592087.737868
+    },
+    {
+      "epoch": 12,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.036,
+      "loss": 6.0934437484741215,
+      "timestamp": 1758592087.737868
+    },
+    {
+      "epoch": 12,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.016,
+      "loss": 5.974380428314209,
+      "timestamp": 1758592087.737868
+    },
+    {
+      "epoch": 12,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.16266666666666665,
+      "loss": 3.776310033162435,
+      "timestamp": 1758592087.737868
+    },
+    {
+      "epoch": 13,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.52275,
+      "loss": 1.8998845162391662,
+      "timestamp": 1758592095.916756
+    },
+    {
+      "epoch": 13,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.042,
+      "loss": 6.182021606445312,
+      "timestamp": 1758592095.916756
+    },
+    {
+      "epoch": 13,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.014,
+      "loss": 6.059698867797851,
+      "timestamp": 1758592095.916756
+    },
+    {
+      "epoch": 13,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.17866666666666667,
+      "loss": 3.6384055054982505,
+      "timestamp": 1758592095.916756
+    },
+    {
+      "epoch": 14,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.52275,
+      "loss": 1.9015576848983764,
+      "timestamp": 1758592104.123518
+    },
+    {
+      "epoch": 14,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.042,
+      "loss": 6.132254428863526,
+      "timestamp": 1758592104.123518
+    },
+    {
+      "epoch": 14,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.022,
+      "loss": 6.0112488784790035,
+      "timestamp": 1758592104.123518
+    },
+    {
+      "epoch": 14,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.18733333333333332,
+      "loss": 3.6177708193461102,
+      "timestamp": 1758592104.123518
+    },
+    {
+      "epoch": 15,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.51925,
+      "loss": 1.908671407699585,
+      "timestamp": 1758592112.3222451
+    },
+    {
+      "epoch": 15,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.052,
+      "loss": 6.074197631835937,
+      "timestamp": 1758592112.3222451
+    },
+    {
+      "epoch": 15,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.028,
+      "loss": 5.94617972946167,
+      "timestamp": 1758592112.3222451
+    },
+    {
+      "epoch": 15,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.19666666666666666,
+      "loss": 3.566404420216878,
+      "timestamp": 1758592112.3222451
+    },
+    {
+      "epoch": 16,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.5165,
+      "loss": 1.9144717888832092,
+      "timestamp": 1758592120.5254211
+    },
+    {
+      "epoch": 16,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.05,
+      "loss": 6.04397583770752,
+      "timestamp": 1758592120.5254211
+    },
+    {
+      "epoch": 16,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.034,
+      "loss": 5.913839874267578,
+      "timestamp": 1758592120.5254211
+    },
+    {
+      "epoch": 16,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.20933333333333334,
+      "loss": 3.490446605682373,
+      "timestamp": 1758592120.5254211
+    },
+    {
+      "epoch": 17,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.5125,
+      "loss": 1.9251708273887633,
+      "timestamp": 1758592128.741384
+    },
+    {
+      "epoch": 17,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.064,
+      "loss": 5.992906391143799,
+      "timestamp": 1758592128.741384
+    },
+    {
+      "epoch": 17,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.038,
+      "loss": 5.859383178710938,
+      "timestamp": 1758592128.741384
+    },
+    {
+      "epoch": 17,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.21466666666666667,
+      "loss": 3.419391127904256,
+      "timestamp": 1758592128.741384
+    },
+    {
+      "epoch": 18,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.51375,
+      "loss": 1.9306017642021178,
+      "timestamp": 1758592136.950057
+    },
+    {
+      "epoch": 18,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.066,
+      "loss": 5.996626350402832,
+      "timestamp": 1758592136.950057
+    },
+    {
+      "epoch": 18,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.04,
+      "loss": 5.877444843292237,
+      "timestamp": 1758592136.950057
+    },
+    {
+      "epoch": 18,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.22733333333333333,
+      "loss": 3.405101001103719,
+      "timestamp": 1758592136.950057
+    },
+    {
+      "epoch": 19,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.51125,
+      "loss": 1.9406894478797914,
+      "timestamp": 1758592145.1530812
+    },
+    {
+      "epoch": 19,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.072,
+      "loss": 5.851409915924072,
+      "timestamp": 1758592145.1530812
+    },
+    {
+      "epoch": 19,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.044,
+      "loss": 5.702012752532959,
+      "timestamp": 1758592145.1530812
+    },
+    {
+      "epoch": 19,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.22533333333333333,
+      "loss": 3.3926687501271564,
+      "timestamp": 1758592145.1530812
+    },
+    {
+      "epoch": 20,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.51,
+      "loss": 1.9509673461914063,
+      "timestamp": 1758592153.338212
+    },
+    {
+      "epoch": 20,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.09,
+      "loss": 5.851528133392334,
+      "timestamp": 1758592153.338212
+    },
+    {
+      "epoch": 20,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.042,
+      "loss": 5.6942413101196285,
+      "timestamp": 1758592153.338212
+    },
+    {
+      "epoch": 20,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.24,
+      "loss": 3.333745672861735,
+      "timestamp": 1758592153.338212
+    },
+    {
+      "epoch": 21,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.508,
+      "loss": 1.9567389650344849,
+      "timestamp": 1758592161.495268
+    },
+    {
+      "epoch": 21,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.09,
+      "loss": 5.803724063873291,
+      "timestamp": 1758592161.495268
+    },
+    {
+      "epoch": 21,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.05,
+      "loss": 5.662756065368653,
+      "timestamp": 1758592161.495268
+    },
+    {
+      "epoch": 21,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.24133333333333334,
+      "loss": 3.3064332695007326,
+      "timestamp": 1758592161.495268
+    },
+    {
+      "epoch": 22,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.5065,
+      "loss": 1.9658986234664917,
+      "timestamp": 1758592169.711754
+    },
+    {
+      "epoch": 22,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.098,
+      "loss": 5.869351631164551,
+      "timestamp": 1758592169.711754
+    },
+    {
+      "epoch": 22,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.046,
+      "loss": 5.723194664001465,
+      "timestamp": 1758592169.711754
+    },
+    {
+      "epoch": 22,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.25866666666666666,
+      "loss": 3.194398919423421,
+      "timestamp": 1758592169.711754
+    },
+    {
+      "epoch": 23,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.50525,
+      "loss": 1.9710681600570679,
+      "timestamp": 1758592177.908374
+    },
+    {
+      "epoch": 23,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.098,
+      "loss": 5.740922466278076,
+      "timestamp": 1758592177.908374
+    },
+    {
+      "epoch": 23,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.052,
+      "loss": 5.581893333435058,
+      "timestamp": 1758592177.908374
+    },
+    {
+      "epoch": 23,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.262,
+      "loss": 3.158743612289429,
+      "timestamp": 1758592177.908374
+    },
+    {
+      "epoch": 24,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.50475,
+      "loss": 1.9830822887420654,
+      "timestamp": 1758592186.115278
+    },
+    {
+      "epoch": 24,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.098,
+      "loss": 5.842622856140137,
+      "timestamp": 1758592186.115278
+    },
+    {
+      "epoch": 24,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.05,
+      "loss": 5.697240104675293,
+      "timestamp": 1758592186.115278
+    },
+    {
+      "epoch": 24,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.278,
+      "loss": 3.082736558596293,
+      "timestamp": 1758592186.115278
+    },
+    {
+      "epoch": 25,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.50225,
+      "loss": 1.9936252193450927,
+      "timestamp": 1758592194.30356
+    },
+    {
+      "epoch": 25,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.104,
+      "loss": 5.826069282531738,
+      "timestamp": 1758592194.30356
+    },
+    {
+      "epoch": 25,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.052,
+      "loss": 5.6855986328125,
+      "timestamp": 1758592194.30356
+    },
+    {
+      "epoch": 25,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.288,
+      "loss": 3.0624746780395506,
+      "timestamp": 1758592194.30356
+    },
+    {
+      "epoch": 26,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.5,
+      "loss": 2.0123454389572144,
+      "timestamp": 1758592202.530302
+    },
+    {
+      "epoch": 26,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.122,
+      "loss": 5.573986209869385,
+      "timestamp": 1758592202.530302
+    },
+    {
+      "epoch": 26,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.064,
+      "loss": 5.419255043029785,
+      "timestamp": 1758592202.530302
+    },
+    {
+      "epoch": 26,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.29,
+      "loss": 3.0749322268168133,
+      "timestamp": 1758592202.530302
+    },
+    {
+      "epoch": 27,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.49925,
+      "loss": 2.0160770711898803,
+      "timestamp": 1758592210.7538922
+    },
+    {
+      "epoch": 27,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.124,
+      "loss": 5.619407688140869,
+      "timestamp": 1758592210.7538922
+    },
+    {
+      "epoch": 27,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.064,
+      "loss": 5.476111057281494,
+      "timestamp": 1758592210.7538922
+    },
+    {
+      "epoch": 27,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.304,
+      "loss": 3.0045810998280844,
+      "timestamp": 1758592210.7538922
+    },
+    {
+      "epoch": 28,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.49475,
+      "loss": 2.0225239000320436,
+      "timestamp": 1758592219.015169
+    },
+    {
+      "epoch": 28,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.124,
+      "loss": 5.662026405334473,
+      "timestamp": 1758592219.015169
+    },
+    {
+      "epoch": 28,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.062,
+      "loss": 5.516563472747802,
+      "timestamp": 1758592219.015169
+    },
+    {
+      "epoch": 28,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.31266666666666665,
+      "loss": 2.9806191991170246,
+      "timestamp": 1758592219.015169
+    },
+    {
+      "epoch": 29,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.4935,
+      "loss": 2.0362542715072633,
+      "timestamp": 1758592227.276253
+    },
+    {
+      "epoch": 29,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.134,
+      "loss": 5.592461601257324,
+      "timestamp": 1758592227.276253
+    },
+    {
+      "epoch": 29,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.07,
+      "loss": 5.44661767578125,
+      "timestamp": 1758592227.276253
+    },
+    {
+      "epoch": 29,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.32,
+      "loss": 2.9609962860743204,
+      "timestamp": 1758592227.276253
+    },
+    {
+      "epoch": 30,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.49225,
+      "loss": 2.0475546503067017,
+      "timestamp": 1758592235.529278
+    },
+    {
+      "epoch": 30,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.124,
+      "loss": 5.592360893249512,
+      "timestamp": 1758592235.529278
+    },
+    {
+      "epoch": 30,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.066,
+      "loss": 5.453094375610352,
+      "timestamp": 1758592235.529278
+    },
+    {
+      "epoch": 30,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.31666666666666665,
+      "loss": 2.925769331932068,
+      "timestamp": 1758592235.529278
+    },
+    {
+      "epoch": 31,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.48725,
+      "loss": 2.059588933944702,
+      "timestamp": 1758592243.875833
+    },
+    {
+      "epoch": 31,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.114,
+      "loss": 5.723421478271485,
+      "timestamp": 1758592243.875833
+    },
+    {
+      "epoch": 31,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.06,
+      "loss": 5.585045497894287,
+      "timestamp": 1758592243.875833
+    },
+    {
+      "epoch": 31,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.33666666666666667,
+      "loss": 2.8465532185236615,
+      "timestamp": 1758592243.875833
+    },
+    {
+      "epoch": 32,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.485,
+      "loss": 2.060589602470398,
+      "timestamp": 1758592252.0717351
+    },
+    {
+      "epoch": 32,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.132,
+      "loss": 5.530462913513183,
+      "timestamp": 1758592252.0717351
+    },
+    {
+      "epoch": 32,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.072,
+      "loss": 5.395592048645019,
+      "timestamp": 1758592252.0717351
+    },
+    {
+      "epoch": 32,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.3253333333333333,
+      "loss": 2.8845051113764444,
+      "timestamp": 1758592252.0717351
+    },
+    {
+      "epoch": 33,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.48175,
+      "loss": 2.0881878061294556,
+      "timestamp": 1758592260.2557418
+    },
+    {
+      "epoch": 33,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.128,
+      "loss": 5.710592796325684,
+      "timestamp": 1758592260.2557418
+    },
+    {
+      "epoch": 33,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.064,
+      "loss": 5.569626838684082,
+      "timestamp": 1758592260.2557418
+    },
+    {
+      "epoch": 33,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.3426666666666667,
+      "loss": 2.789098749478658,
+      "timestamp": 1758592260.2557418
+    },
+    {
+      "epoch": 34,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.4805,
+      "loss": 2.081752027511597,
+      "timestamp": 1758592268.459807
+    },
+    {
+      "epoch": 34,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.132,
+      "loss": 5.526301204681396,
+      "timestamp": 1758592268.459807
+    },
+    {
+      "epoch": 34,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.078,
+      "loss": 5.3822294731140135,
+      "timestamp": 1758592268.459807
+    },
+    {
+      "epoch": 34,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.33866666666666667,
+      "loss": 2.8165862474441528,
+      "timestamp": 1758592268.459807
+    },
+    {
+      "epoch": 35,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.48075,
+      "loss": 2.0823997402191163,
+      "timestamp": 1758592276.600107
+    },
+    {
+      "epoch": 35,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.13,
+      "loss": 5.568745029449463,
+      "timestamp": 1758592276.600107
+    },
+    {
+      "epoch": 35,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.076,
+      "loss": 5.428638835906982,
+      "timestamp": 1758592276.600107
+    },
+    {
+      "epoch": 35,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.3413333333333333,
+      "loss": 2.8000369119644164,
+      "timestamp": 1758592276.600107
+    },
+    {
+      "epoch": 36,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.4805,
+      "loss": 2.084251763343811,
+      "timestamp": 1758592284.8045728
+    },
+    {
+      "epoch": 36,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.126,
+      "loss": 5.5713743019104,
+      "timestamp": 1758592284.8045728
+    },
+    {
+      "epoch": 36,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.074,
+      "loss": 5.432367408752442,
+      "timestamp": 1758592284.8045728
+    },
+    {
+      "epoch": 36,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.344,
+      "loss": 2.7977365783055625,
+      "timestamp": 1758592284.8045728
+    },
+    {
+      "epoch": 37,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.4805,
+      "loss": 2.0862478723526,
+      "timestamp": 1758592293.008369
+    },
+    {
+      "epoch": 37,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.128,
+      "loss": 5.587473014831543,
+      "timestamp": 1758592293.008369
+    },
+    {
+      "epoch": 37,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.074,
+      "loss": 5.450145420074463,
+      "timestamp": 1758592293.008369
+    },
+    {
+      "epoch": 37,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.3453333333333333,
+      "loss": 2.790492696126302,
+      "timestamp": 1758592293.008369
+    },
+    {
+      "epoch": 38,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.481,
+      "loss": 2.0866653270721436,
+      "timestamp": 1758592301.168671
+    },
+    {
+      "epoch": 38,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.128,
+      "loss": 5.5829587745666505,
+      "timestamp": 1758592301.168671
+    },
+    {
+      "epoch": 38,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.074,
+      "loss": 5.448520721435547,
+      "timestamp": 1758592301.168671
+    },
+    {
+      "epoch": 38,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.3446666666666667,
+      "loss": 2.786708375930786,
+      "timestamp": 1758592301.168671
+    },
+    {
+      "epoch": 39,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.48,
+      "loss": 2.0867036561965944,
+      "timestamp": 1758592309.379104
+    },
+    {
+      "epoch": 39,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.128,
+      "loss": 5.572028064727784,
+      "timestamp": 1758592309.379104
+    },
+    {
+      "epoch": 39,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.076,
+      "loss": 5.437355068206787,
+      "timestamp": 1758592309.379104
+    },
+    {
+      "epoch": 39,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.3473333333333333,
+      "loss": 2.78488506603241,
+      "timestamp": 1758592309.379104
+    },
+    {
+      "epoch": 40,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.48125,
+      "loss": 2.0876585330963136,
+      "timestamp": 1758592317.541885
+    },
+    {
+      "epoch": 40,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.13,
+      "loss": 5.584949867248535,
+      "timestamp": 1758592317.541885
+    },
+    {
+      "epoch": 40,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.074,
+      "loss": 5.450050025939942,
+      "timestamp": 1758592317.541885
+    },
+    {
+      "epoch": 40,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.3486666666666667,
+      "loss": 2.7772218634287515,
+      "timestamp": 1758592317.541885
+    },
+    {
+      "epoch": 41,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.48175,
+      "loss": 2.0887708673477174,
+      "timestamp": 1758592325.725313
+    },
+    {
+      "epoch": 41,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.13,
+      "loss": 5.578316741943359,
+      "timestamp": 1758592325.725313
+    },
+    {
+      "epoch": 41,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.076,
+      "loss": 5.442026950836182,
+      "timestamp": 1758592325.725313
+    },
+    {
+      "epoch": 41,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.3486666666666667,
+      "loss": 2.76820628452301,
+      "timestamp": 1758592325.725313
+    },
+    {
+      "epoch": 42,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.48,
+      "loss": 2.0880468158721923,
+      "timestamp": 1758592333.880095
+    },
+    {
+      "epoch": 42,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.128,
+      "loss": 5.574410018920898,
+      "timestamp": 1758592333.880095
+    },
+    {
+      "epoch": 42,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.076,
+      "loss": 5.439731433868408,
+      "timestamp": 1758592333.880095
+    },
+    {
+      "epoch": 42,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.34933333333333333,
+      "loss": 2.7651213912963866,
+      "timestamp": 1758592333.880095
+    },
+    {
+      "epoch": 43,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.48,
+      "loss": 2.089861204147339,
+      "timestamp": 1758592342.069948
+    },
+    {
+      "epoch": 43,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.13,
+      "loss": 5.583606014251709,
+      "timestamp": 1758592342.069948
+    },
+    {
+      "epoch": 43,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.072,
+      "loss": 5.4489695167541505,
+      "timestamp": 1758592342.069948
+    },
+    {
+      "epoch": 43,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.35,
+      "loss": 2.764123842557271,
+      "timestamp": 1758592342.069948
+    },
+    {
+      "epoch": 44,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.481,
+      "loss": 2.0896863002777097,
+      "timestamp": 1758592350.295989
+    },
+    {
+      "epoch": 44,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.134,
+      "loss": 5.5863725929260255,
+      "timestamp": 1758592350.295989
+    },
+    {
+      "epoch": 44,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.076,
+      "loss": 5.453887306213379,
+      "timestamp": 1758592350.295989
+    },
+    {
+      "epoch": 44,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.35,
+      "loss": 2.756475417455037,
+      "timestamp": 1758592350.295989
+    },
+    {
+      "epoch": 45,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.48075,
+      "loss": 2.090016185760498,
+      "timestamp": 1758592358.4486551
+    },
+    {
+      "epoch": 45,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.132,
+      "loss": 5.588078620910644,
+      "timestamp": 1758592358.4486551
+    },
+    {
+      "epoch": 45,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.076,
+      "loss": 5.45576322555542,
+      "timestamp": 1758592358.4486551
+    },
+    {
+      "epoch": 45,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.3506666666666667,
+      "loss": 2.7554788846969602,
+      "timestamp": 1758592358.4486551
+    },
+    {
+      "epoch": 46,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.48,
+      "loss": 2.0903158016204832,
+      "timestamp": 1758592366.663643
+    },
+    {
+      "epoch": 46,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.132,
+      "loss": 5.586028953552246,
+      "timestamp": 1758592366.663643
+    },
+    {
+      "epoch": 46,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.076,
+      "loss": 5.453694675445557,
+      "timestamp": 1758592366.663643
+    },
+    {
+      "epoch": 46,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.35133333333333333,
+      "loss": 2.7557225144704183,
+      "timestamp": 1758592366.663643
+    },
+    {
+      "epoch": 47,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.48,
+      "loss": 2.0904678325653077,
+      "timestamp": 1758592374.84189
+    },
+    {
+      "epoch": 47,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.132,
+      "loss": 5.58719617843628,
+      "timestamp": 1758592374.84189
+    },
+    {
+      "epoch": 47,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.074,
+      "loss": 5.455073616027832,
+      "timestamp": 1758592374.84189
+    },
+    {
+      "epoch": 47,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.35,
+      "loss": 2.7559275376001993,
+      "timestamp": 1758592374.84189
+    },
+    {
+      "epoch": 48,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.48025,
+      "loss": 2.0905136318206785,
+      "timestamp": 1758592383.07348
+    },
+    {
+      "epoch": 48,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.132,
+      "loss": 5.586570529937744,
+      "timestamp": 1758592383.07348
+    },
+    {
+      "epoch": 48,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.074,
+      "loss": 5.454539772033692,
+      "timestamp": 1758592383.07348
+    },
+    {
+      "epoch": 48,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.3506666666666667,
+      "loss": 2.755462309201558,
+      "timestamp": 1758592383.07348
+    },
+    {
+      "epoch": 49,
+      "task_id": 0,
+      "subset_name": "T1_all",
+      "accuracy": 0.48025,
+      "loss": 2.090739194869995,
+      "timestamp": 1758592391.2571058
+    },
+    {
+      "epoch": 49,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_normal",
+      "accuracy": 0.132,
+      "loss": 5.5864378929138185,
+      "timestamp": 1758592391.2571058
+    },
+    {
+      "epoch": 49,
+      "task_id": 0,
+      "subset_name": "T2_shortcut_masked",
+      "accuracy": 0.074,
+      "loss": 5.454517330169677,
+      "timestamp": 1758592391.2571058
+    },
+    {
+      "epoch": 49,
+      "task_id": 0,
+      "subset_name": "T2_nonshortcut_normal",
+      "accuracy": 0.352,
+      "loss": 2.7553154910405477,
+      "timestamp": 1758592391.2571058
+    }
+  ],
+  "final_metrics": {
+    "adaptation_delay": null,
+    "performance_deficit": 0.0,
+    "shortcut_feature_reliance": 0.5,
+    "eri_score": null,
+    "task1_accuracy_final": 0.534,
+    "task2_shortcut_accuracy": 0.0,
+    "task2_masked_accuracy": 0.0,
+    "task2_nonshortcut_accuracy": 0.0
+  }
+}

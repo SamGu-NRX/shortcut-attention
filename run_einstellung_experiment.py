@@ -46,1278 +46,188 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-# Import plotting libraries
-try:
-    import matplotlib.pyplot as plt
-    import seaborn as sns
-    import pandas as pd
-    PLOTTING_AVAILABLE = True
-except ImportError:
-    PLOTTING_AVAILABLE = False
-    print("⚠️  Plotting libraries not available. Install with: pip install matplotlib seaborn pandas")
-
-# Ensure Mammoth modules are importable
-sys.path.append(str(Path(__file__).parent))
-
-# Import utilities (but delay main import until after integration is enabled)
-from utils.args import add_experiment_args, add_management_args
-from utils.einstellung_integration import enable_einstellung_integration, get_einstellung_evaluator
-
-
-class ResultsReporter:
-    """Comprehensive results reporting with charts and formatted output"""
-
-    def __init__(self, output_dir: str):
-        self.output_dir = Path(output_dir)
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-        self.report_dir = self.output_dir / "reports"
-        self.report_dir.mkdir(exist_ok=True)
-
-    def generate_comprehensive_report(self, experiment_results: Dict[str, Any],
-                                   terminal_output: str) -> str:
-        """Generate a comprehensive HTML report with charts"""
-
-        # Save terminal output
-        terminal_file = self.report_dir / "terminal_output.txt"
-        with open(terminal_file, 'w') as f:
-            f.write(terminal_output)
-
-        # Generate charts only if plotting is available
-        if PLOTTING_AVAILABLE:
-            charts_dir = self.report_dir / "charts"
-            charts_dir.mkdir(exist_ok=True)
-
-            # Create accuracy chart
-            accuracy_chart = self._create_accuracy_chart(experiment_results, charts_dir)
-
-            # Create performance summary chart
-            performance_chart = self._create_performance_chart(experiment_results, charts_dir)
-        else:
-            accuracy_chart = None
-            performance_chart = None
-
-        # Generate HTML report
-        report_file = self.report_dir / "experiment_report.html"
-        html_content = self._generate_html_report(experiment_results, accuracy_chart,
-                                                performance_chart, terminal_file)
-
-        with open(report_file, 'w') as f:
-            f.write(html_content)
-
-        # Generate markdown summary
-        markdown_file = self.report_dir / "experiment_summary.md"
-        markdown_content = self._generate_markdown_summary(experiment_results)
-
-        with open(markdown_file, 'w') as f:
-            f.write(markdown_content)
-
-        return str(report_file)
-
-    def _create_accuracy_chart(self, results: Dict[str, Any], charts_dir: Path) -> str:
-        """Create accuracy visualization chart"""
-        if not PLOTTING_AVAILABLE:
-            return None
-
-        plt.figure(figsize=(10, 6))
-
-        # Extract accuracy data
-        final_accuracy = results.get('final_accuracy', 0)
-        model = results.get('model', 'Unknown')
-        backbone = results.get('backbone', 'Unknown')
-
-        # Create bar chart
-        categories = ['Final Accuracy']
-        values = [final_accuracy]
-
-        plt.bar(categories, values, color='skyblue', alpha=0.7)
-        plt.title(f'Experiment Results: {model} with {backbone}')
-        plt.ylabel('Accuracy (%)')
-        plt.ylim(0, 100)
-
-        # Add value labels on bars
-        for i, v in enumerate(values):
-            plt.text(i, v + 1, f'{v:.1f}%', ha='center', va='bottom')
-
-        chart_file = charts_dir / "accuracy_chart.png"
-        plt.savefig(chart_file, dpi=300, bbox_inches='tight')
-        plt.close()
-
-        return str(chart_file)
-
-    def _create_performance_chart(self, results: Dict[str, Any], charts_dir: Path) -> str:
-        """Create performance metrics chart"""
-        if not PLOTTING_AVAILABLE:
-            return None
-
-        plt.figure(figsize=(12, 8))
-
-        # Performance metrics
-        metrics = {
-            'Training Time': results.get('training_time', 0),
-            'Evaluation Time': results.get('evaluation_time', 0),
-            'Total Time': results.get('total_time', 0)
-        }
-
-        # Create horizontal bar chart
-        plt.barh(list(metrics.keys()), list(metrics.values()),
-                color=['red', 'green', 'blue'], alpha=0.7)
-        plt.title('Experiment Performance Metrics')
-        plt.xlabel('Time (seconds)')
-
-        # Add value labels
-        for i, (k, v) in enumerate(metrics.items()):
-            plt.text(v + 0.1, i, f'{v:.1f}s', va='center')
-
-        chart_file = charts_dir / "performance_chart.png"
-        plt.savefig(chart_file, dpi=300, bbox_inches='tight')
-        plt.close()
-
-        return str(chart_file)
-
-    def _generate_html_report(self, results: Dict[str, Any], accuracy_chart: Optional[str],
-                            performance_chart: Optional[str], terminal_file: Path) -> str:
-        """Generate comprehensive HTML report"""
-
-        # Chart sections (conditional)
-        accuracy_section = ""
-        performance_section = ""
-
-        if accuracy_chart:
-            accuracy_section = f'<h2>📈 Accuracy Results</h2><div style="text-align: center;"><img src="{os.path.basename(accuracy_chart)}" alt="Accuracy Chart" style="max-width: 100%; border: 1px solid #ddd;"></div>'
-        else:
-            accuracy_section = '<h2>📈 Accuracy Results</h2><p><em>Charts not available - install matplotlib to enable visualization</em></p>'
-
-        if performance_chart:
-            performance_section = f'<h2>⚡ Performance Metrics</h2><div style="text-align: center;"><img src="{os.path.basename(performance_chart)}" alt="Performance Chart" style="max-width: 100%; border: 1px solid #ddd;"></div>'
-        else:
-            performance_section = '<h2>⚡ Performance Metrics</h2><p><em>Charts not available - install matplotlib to enable visualization</em></p>'
-
-        html_content = f'''<!DOCTYPE html>
-<html>
-<head>
-    <title>Einstellung Effect Experiment Report</title>
-    <style>
-        body {{ font-family: Arial, sans-serif; margin: 40px; }}
-        .header {{ background: #f0f0f0; padding: 20px; border-radius: 8px; }}
-        .success {{ color: #28a745; }}
-        .info {{ color: #17a2b8; }}
-        table {{ border-collapse: collapse; width: 100%; margin: 20px 0; }}
-        th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
-        th {{ background-color: #f2f2f2; }}
-    </style>
-</head>
-<body>
-    <div class="header">
-        <h1>🧠 Einstellung Effect Experiment Report</h1>
-        <p><strong>Generated:</strong> {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</p>
-        <p><strong>Model:</strong> {results.get('model', 'Unknown')} | <strong>Backbone:</strong> {results.get('backbone', 'Unknown')} | <strong>Seed:</strong> {results.get('seed', 'Unknown')}</p>
-    </div>
-
-    <h2>📊 Experiment Summary</h2>
-    <table>
-        <tr><th>Metric</th><th>Value</th></tr>
-        <tr><td>Final Accuracy</td><td class="success">{results.get('final_accuracy', 0):.2f}%</td></tr>
-        <tr><td>Used Checkpoint</td><td class="info">{results.get('used_checkpoint', False)}</td></tr>
-        <tr><td>Training Time</td><td>{results.get('training_time', 0):.1f}s</td></tr>
-        <tr><td>Evaluation Time</td><td>{results.get('evaluation_time', 0):.1f}s</td></tr>
-        <tr><td>Total Time</td><td>{results.get('total_time', 0):.1f}s</td></tr>
-        <tr><td>Output Directory</td><td>{results.get('output_dir', 'Unknown')}</td></tr>
-    </table>
-
-    {accuracy_section}
-
-    {performance_section}
-
-    <h2>🖥️ Terminal Output</h2>
-    <p><a href="{terminal_file.name}">View Full Terminal Output</a></p>
-
-    <h2>📋 Experiment Configuration</h2>
-    <pre>{json.dumps(results.get('config', {}), indent=2)}</pre>
-
-    <hr>
-    <p><em>Report generated by Mammoth Einstellung Experiment Runner</em></p>
-</body>
-</html>'''
-
-        return html_content
-
-    def _generate_markdown_summary(self, results: Dict[str, Any]) -> str:
-        """Generate markdown summary"""
-
-        # Compute values beforehand to avoid f-string issues
-        model = results.get('model', 'Unknown')
-        backbone = results.get('backbone', 'Unknown')
-        seed = results.get('seed', 'Unknown')
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        final_accuracy = results.get('final_accuracy', 0)
-        used_checkpoint = results.get('used_checkpoint', False)
-        training_time = results.get('training_time', 0)
-        evaluation_time = results.get('evaluation_time', 0)
-        total_time = results.get('total_time', 0)
-        output_dir = results.get('output_dir', 'Unknown')
-
-        # Compute status
-        success = results.get('success', False)
-        status_icon = "✅" if success else "❌"
-        status_text = "Completed Successfully" if success else "Failed"
-
-        # Compute performance metrics
-        time_saved = max(0, 3600 - total_time)  # Assume 1 hour saved
-        efficiency = (time_saved / 3600) * 100 if time_saved > 0 else 0
-
-        markdown_content = f"""# Einstellung Effect Experiment Summary
-
-## 🎯 Experiment Overview
-- **Model:** {model}
-- **Backbone:** {backbone}
-- **Seed:** {seed}
-- **Timestamp:** {timestamp}
-
-## 📊 Results
-| Metric | Value |
-|--------|-------|
-| Final Accuracy | {final_accuracy:.2f}% |
-| Used Checkpoint | {used_checkpoint} |
-| Training Time | {training_time:.1f}s |
-| Evaluation Time | {evaluation_time:.1f}s |
-| Total Time | {total_time:.1f}s |
-
-## 🎉 Status
-{status_icon} **Experiment {status_text}**
-
-## 📁 Output Directory
-```
-{output_dir}
-```
-
-## 🚀 Performance Summary
-- **Time Saved:** {time_saved:.1f}s (by using checkpoints)
-- **Efficiency:** {efficiency:.1f}% faster than training from scratch
-
----
-*Generated by Mammoth Einstellung Experiment Runner*
-"""
-
-        return markdown_content
-
-    def extract_comprehensive_metrics_from_output(self, output: str) -> Dict[str, Any]:
-        """Extract comprehensive Einstellung metrics from Mammoth output"""
-
-        output = (output or "").replace('\r', '\n')
-
-        metrics = {
-            'final_accuracy': 0.0,
-            'raw_accuracies': {},
-            'subset_accuracies': {},
-            'timeline_data': [],
-            'einstellung_metrics': {}
-        }
-
-        # Extract final accuracy (Class-IL from last task)
-        patterns = [
-            r'Accuracy for \d+ task\(s\):\s*\[Class-IL\]:\s*(\d+\.?\d*)\s*%',
-            r'Final accuracy:\s*(\d+\.?\d*)\s*%'
-        ]
-
-        for pattern in patterns:
-            matches = re.findall(pattern, output)
-            if matches:
-                metrics['final_accuracy'] = float(matches[-1])
-                break
-
-        # Extract raw accuracy values
-        raw_pattern = r'Raw accuracy values: Class-IL \[([\d., ]+)\] \| Task-IL \[([\d., ]+)\]'
-        raw_matches = re.findall(raw_pattern, output)
-
-        if raw_matches:
-            # Get the last (final) raw accuracies
-            class_il_raw = raw_matches[-1][0].split(', ')
-            task_il_raw = raw_matches[-1][1].split(', ')
-
-            metrics['raw_accuracies'] = {
-                'class_il': [float(x.strip()) for x in class_il_raw if x.strip()],
-                'task_il': [float(x.strip()) for x in task_il_raw if x.strip()]
-            }
-
-        # Extract subset accuracies (if Einstellung evaluation is enabled)
-        subset_patterns = {
-            'T1_all': r'T1_all.*?accuracy[:\s]*(\d+\.?\d*)%?',
-            'T2_shortcut_normal': r'T2_shortcut_normal.*?accuracy[:\s]*(\d+\.?\d*)%?',
-            'T2_shortcut_masked': r'T2_shortcut_masked.*?accuracy[:\s]*(\d+\.?\d*)%?',
-            'T2_nonshortcut_normal': r'T2_nonshortcut_normal.*?accuracy[:\s]*(\d+\.?\d*)%?'
-        }
-
-        for subset, pattern in subset_patterns.items():
-            matches = re.findall(pattern, output, re.IGNORECASE)
-            if matches:
-                metrics['subset_accuracies'][subset] = float(matches[-1])
-
-        # Calculate Einstellung Effect metrics if we have subset data
-        if len(metrics['subset_accuracies']) >= 2:
-            shortcut_normal = metrics['subset_accuracies'].get('T2_shortcut_normal', 0)
-            shortcut_masked = metrics['subset_accuracies'].get('T2_shortcut_masked', 0)
-            nonshortcut_normal = metrics['subset_accuracies'].get('T2_nonshortcut_normal', 0)
-            t1_all = metrics['subset_accuracies'].get('T1_all', 0)
-
-            # Performance Deficit: (acc_shortcut - acc_masked) / acc_shortcut
-            if shortcut_normal > 0:
-                performance_deficit = (shortcut_normal - shortcut_masked) / shortcut_normal
-            else:
-                performance_deficit = 0.0
-
-            # Shortcut Feature Reliance: acc_shortcut / (acc_shortcut + acc_nonshortcut)
-            if (shortcut_normal + nonshortcut_normal) > 0:
-                shortcut_reliance = shortcut_normal / (shortcut_normal + nonshortcut_normal)
-            else:
-                shortcut_reliance = 0.0
-
-            # Simplified ERI Score (without adaptation delay from training)
-            eri_score = 0.4 * performance_deficit + 0.2 * shortcut_reliance
-
-            metrics['einstellung_metrics'] = {
-                'performance_deficit': performance_deficit,
-                'shortcut_feature_reliance': shortcut_reliance,
-                'eri_score': eri_score,
-                'adaptation_delay': 0.0  # Would need training timeline to calculate
-            }
-
-        # Fallback: if final accuracy not detected but raw accuracies exist, use last Class-IL value
-        class_il_series = metrics['raw_accuracies'].get('class_il')
-        if class_il_series and (metrics['final_accuracy'] == 0.0 or metrics['final_accuracy'] is None):
-            metrics['final_accuracy'] = float(class_il_series[-1])
-
-        return metrics
-
-    def generate_comprehensive_einstellung_report(self, results: Dict[str, Any],
-                                                comprehensive_metrics: Dict[str, Any]) -> str:
-        """Generate comprehensive Einstellung Effect report following EINSTELLUNG_README.md design"""
-
-        # Generate comprehensive HTML report
-        html_file = self.report_dir / "comprehensive_einstellung_report.html"
-
-        # Extract data
-        model = results.get('model', 'Unknown')
-        backbone = results.get('backbone', 'Unknown')
-        seed = results.get('seed', 'Unknown')
-        final_accuracy = comprehensive_metrics.get('final_accuracy', 0)
-        raw_accuracies = comprehensive_metrics.get('raw_accuracies', {})
-        subset_accuracies = comprehensive_metrics.get('subset_accuracies', {})
-        einstellung_metrics = comprehensive_metrics.get('einstellung_metrics', {})
-
-        # Determine ERI score interpretation
-        eri_score = einstellung_metrics.get('eri_score', 0)
-        if eri_score < 0.3:
-            eri_class = "success"
-            eri_interpretation = "Low rigidity (good adaptation)"
-        elif eri_score < 0.6:
-            eri_class = "warning"
-            eri_interpretation = "Moderate rigidity"
-        else:
-            eri_class = "danger"
-            eri_interpretation = "High rigidity (poor adaptation)"
-
-        # Create detailed HTML report
-        html_content = f"""<!DOCTYPE html>
-<html>
-<head>
-    <title>Comprehensive Einstellung Effect Analysis Report</title>
-    <style>
-        body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 40px; line-height: 1.6; }}
-        .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 10px; margin-bottom: 30px; }}
-        .section {{ background: #f8f9fa; padding: 20px; margin: 20px 0; border-radius: 8px; border-left: 4px solid #007bff; }}
-        .metric-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 20px 0; }}
-        .metric-card {{ background: white; padding: 15px; border-radius: 8px; border: 1px solid #dee2e6; text-align: center; }}
-        .metric-value {{ font-size: 2em; font-weight: bold; }}
-        .metric-label {{ color: #6c757d; font-size: 0.9em; }}
-        .success {{ color: #28a745; }}
-        .warning {{ color: #ffc107; }}
-        .danger {{ color: #dc3545; }}
-        .info {{ color: #17a2b8; }}
-        table {{ width: 100%; border-collapse: collapse; margin: 20px 0; }}
-        th, td {{ padding: 12px; text-align: left; border-bottom: 1px solid #dee2e6; }}
-        th {{ background-color: #f8f9fa; font-weight: 600; }}
-        .highlight {{ background: #fff3cd; }}
-        .eri-explanation {{ background: #e7f3ff; padding: 15px; border-radius: 5px; margin: 10px 0; }}
-    </style>
-</head>
-<body>
-    <div class="header">
-        <h1>🧠 Comprehensive Einstellung Effect Analysis</h1>
-        <h2>Cognitive Rigidity Assessment in Continual Learning</h2>
-        <p><strong>Generated:</strong> {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</p>
-        <p><strong>Experiment:</strong> {model} with {backbone} (Seed: {seed})</p>
-    </div>
-
-    <div class="section">
-        <h2>📊 Einstellung Rigidity Index (ERI) Analysis</h2>
-        <div class="eri-explanation">
-            <strong>ERI Score:</strong> Composite measure of cognitive rigidity combining adaptation delay, performance deficit, and shortcut reliance.
-            <br><strong>Interpretation:</strong> 0.0-0.3 (Low rigidity), 0.3-0.6 (Moderate rigidity), 0.6-1.0 (High rigidity)
-            <br><strong>Current Result:</strong> <span class="{eri_class}">{eri_interpretation}</span>
-        </div>
-
-        <div class="metric-grid">
-            <div class="metric-card">
-                <div class="metric-value {eri_class}">{eri_score:.3f}</div>
-                <div class="metric-label">ERI Score</div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-value warning">{einstellung_metrics.get('performance_deficit', 0):.3f}</div>
-                <div class="metric-label">Performance Deficit</div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-value info">{einstellung_metrics.get('shortcut_feature_reliance', 0):.3f}</div>
-                <div class="metric-label">Shortcut Feature Reliance</div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-value">{einstellung_metrics.get('adaptation_delay', 0):.1f}</div>
-                <div class="metric-label">Adaptation Delay (epochs)</div>
-            </div>
-        </div>
-    </div>
-
-    <div class="section">
-        <h2>🎯 Task Performance Analysis</h2>
-        <table>
-            <tr><th>Subset</th><th>Accuracy (%)</th><th>Description</th></tr>
-            <tr>
-                <td><strong>T1_all</strong></td>
-                <td class="{'success' if subset_accuracies.get('T1_all', 0) > 50 else 'danger'}">{subset_accuracies.get('T1_all', 'N/A')}</td>
-                <td>Task 1 performance (tests negative transfer)</td>
-            </tr>
-            <tr>
-                <td><strong>T2_shortcut_normal</strong></td>
-                <td class="{'success' if subset_accuracies.get('T2_shortcut_normal', 0) > 70 else 'warning'}">{subset_accuracies.get('T2_shortcut_normal', 'N/A')}</td>
-                <td>Task 2 shortcut classes with shortcuts</td>
-            </tr>
-            <tr>
-                <td><strong>T2_shortcut_masked</strong></td>
-                <td class="{'warning' if subset_accuracies.get('T2_shortcut_masked', 0) < subset_accuracies.get('T2_shortcut_normal', 0) else 'success'}">{subset_accuracies.get('T2_shortcut_masked', 'N/A')}</td>
-                <td>Task 2 shortcut classes without shortcuts</td>
-            </tr>
-            <tr>
-                <td><strong>T2_nonshortcut_normal</strong></td>
-                <td class="info">{subset_accuracies.get('T2_nonshortcut_normal', 'N/A')}</td>
-                <td>Task 2 non-shortcut classes (baseline)</td>
-            </tr>
-        </table>
-    </div>
-
-    <div class="section">
-        <h2>📈 Raw Performance Data</h2>
-        <table>
-            <tr><th>Metric</th><th>Task 1</th><th>Task 2</th><th>Final Average</th></tr>
-            <tr>
-                <td><strong>Class-IL Accuracy</strong></td>
-                <td>{raw_accuracies.get('class_il', [0])[0] if raw_accuracies.get('class_il') else 'N/A'}</td>
-                <td>{raw_accuracies.get('class_il', [0, 0])[-1] if len(raw_accuracies.get('class_il', [])) > 1 else 'N/A'}</td>
-                <td class="{'success' if final_accuracy > 50 else 'warning' if final_accuracy > 30 else 'danger'}">{final_accuracy:.2f}%</td>
-            </tr>
-            <tr>
-                <td><strong>Task-IL Accuracy</strong></td>
-                <td>{raw_accuracies.get('task_il', [0])[0] if raw_accuracies.get('task_il') else 'N/A'}</td>
-                <td>{raw_accuracies.get('task_il', [0, 0])[-1] if len(raw_accuracies.get('task_il', [])) > 1 else 'N/A'}</td>
-                <td>-</td>
-            </tr>
-        </table>
-
-        <h3>Raw Accuracy Values</h3>
-        <p><strong>Class-IL:</strong> {raw_accuracies.get('class_il', [])}</p>
-        <p><strong>Task-IL:</strong> {raw_accuracies.get('task_il', [])}</p>
-    </div>
-
-    <div class="section">
-        <h2>🔬 Einstellung Effect Interpretation</h2>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-            <div>
-                <h4>Expected Patterns:</h4>
-                <ul>
-                    <li><strong>Shortcut Learning:</strong> T2_shortcut_normal > T2_nonshortcut_normal</li>
-                    <li><strong>Performance Deficit:</strong> T2_shortcut_normal > T2_shortcut_masked</li>
-                    <li><strong>Negative Transfer:</strong> T1_all accuracy drops when shortcuts present</li>
-                </ul>
-            </div>
-            <div>
-                <h4>Strategy Comparison:</h4>
-                <ul>
-                    <li><strong>SGD:</strong> High rigidity (ERI > 0.6) - catastrophic forgetting</li>
-                    <li><strong>EWC:</strong> Moderate rigidity (ERI 0.4-0.6) - parameter constraints</li>
-                    <li><strong>DER++:</strong> Lower rigidity (ERI 0.3-0.5) - replay mechanisms</li>
-                </ul>
-            </div>
-        </div>
-    </div>
-
-    <div class="section">
-        <h2>📋 Experiment Configuration</h2>
-        <table>
-            <tr><th>Parameter</th><th>Value</th></tr>
-            <tr><td>Model</td><td>{model}</td></tr>
-            <tr><td>Backbone</td><td>{backbone}</td></tr>
-            <tr><td>Seed</td><td>{seed}</td></tr>
-            <tr><td>Training Time</td><td>{results.get('training_time', 0):.1f}s</td></tr>
-            <tr><td>Evaluation Time</td><td>{results.get('evaluation_time', 0):.1f}s</td></tr>
-            <tr><td>Used Checkpoint</td><td>{'Yes' if results.get('used_checkpoint', False) else 'No'}</td></tr>
-        </table>
-    </div>
-
-    <hr>
-    <p><em>Report generated by Mammoth Einstellung Experiment Runner following EINSTELLUNG_README.md design</em></p>
-</body>
-</html>"""
-
-        with open(html_file, 'w') as f:
-            f.write(html_content)
-
-        return str(html_file)
-
-class TerminalLogger:
-    """Capture and log terminal output"""
-
-    def __init__(self, output_dir: str):
-        self.output_dir = Path(output_dir)
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-        self.log_file = self.output_dir / "terminal_log.txt"
-        self.captured_output = []
-
-    def log(self, message: str):
-        """Log message to both console and file"""
-        print(message)
-        self.captured_output.append(message)
-
-        # Append to log file
-        with open(self.log_file, 'a') as f:
-            f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | {message}\n")
-
-    def get_captured_output(self) -> str:
-        """Get all captured output as string"""
-        return "\n".join(self.captured_output)
-
-
-def find_existing_checkpoints(strategy: str, backbone: str, seed: int,
-                            dataset: str = "seq-cifar100-einstellung",
-                            checkpoint_dir: str = "checkpoints") -> List[str]:
-    """
-    Find existing checkpoints matching the experiment configuration.
-
-    Uses pattern matching to find checkpoints since timestamps and UIDs are unique.
-
-    Args:
-        strategy: Continual learning strategy (e.g., 'derpp')
-        backbone: Model backbone (e.g., 'resnet18')
-        seed: Random seed
-        dataset: Dataset name
-        checkpoint_dir: Directory to search for checkpoints
-
-    Returns:
-        List of checkpoint file paths, sorted by modification time (newest first)
-    """
-    if not os.path.exists(checkpoint_dir):
-        return []
-
-    # Determine expected parameters for pattern matching
-    buffer_size = "500" if strategy == "derpp" else "0"
-    n_epochs = "20" if backbone == "vit" else "50"
-
-    # Create search patterns
-    # Pattern: {model}_{dataset}_{config}_{buffer_size}_{n_epochs}_{timestamp}_{uid}_{suffix}.pt
-    patterns = [
-        f"{strategy}_{dataset}_*_{buffer_size}_{n_epochs}_*_last.pt",
-        f"{strategy}_{dataset}_*_{buffer_size}_{n_epochs}_*_1.pt",  # Task 1 checkpoint
-    ]
-
-    found_checkpoints = []
-    for pattern in patterns:
-        search_path = os.path.join(checkpoint_dir, pattern)
-        found_checkpoints.extend(glob.glob(search_path))
-
-    # Filter out checkpoints that don't match our seed (if we can determine it)
-    # Note: Seed is not in filename, but we can check if the checkpoint base name
-    # matches our expected experiment setup
-
-    # Sort by modification time (newest first)
-    found_checkpoints.sort(key=lambda x: os.path.getmtime(x), reverse=True)
-
-    return found_checkpoints
-
-
-def get_checkpoint_info(checkpoint_path: str) -> Dict[str, Any]:
-    """
-    Extract information from checkpoint filename.
-
-    Args:
-        checkpoint_path: Path to checkpoint file
-
-    Returns:
-        Dictionary with extracted information
-    """
-    filename = os.path.basename(checkpoint_path)
-
-    # Parse filename: {model}_{dataset}_{config}_{buffer_size}_{n_epochs}_{timestamp}_{uid}_{suffix}.pt
-    pattern = r"([^_]+)_([^_]+)_([^_]+)_(\d+)_(\d+)_(\d{8}-\d{6})_([^_]+)_(.+)\.pt"
-    match = re.match(pattern, filename)
-
-    if match:
-        return {
-            'model': match.group(1),
-            'dataset': match.group(2),
-            'config': match.group(3),
-            'buffer_size': match.group(4),
-            'n_epochs': match.group(5),
-            'timestamp': match.group(6),
-            'uid': match.group(7),
-            'suffix': match.group(8),
-            'path': checkpoint_path,
-            'size_mb': f"{os.path.getsize(checkpoint_path) / (1024*1024):.1f}",
-            'modified': os.path.getmtime(checkpoint_path)
-        }
-    else:
-        return {
-            'path': checkpoint_path,
-            'filename': filename,
-            'size_mb': f"{os.path.getsize(checkpoint_path) / (1024*1024):.1f}",
-            'modified': os.path.getmtime(checkpoint_path)
-        }
-
-
-def prompt_checkpoint_action(checkpoints: List[str], strategy: str, backbone: str, seed: int) -> str:
-    """
-    Interactive prompt for what to do when checkpoints are found.
-
-    Args:
-        checkpoints: List of found checkpoint paths
-        strategy: Strategy name for context
-        backbone: Backbone name for context
-        seed: Seed for context
-
-    Returns:
-        Action choice: 'use', 'retrain', 'cancel'
-    """
-    print(f"\n🔍 Found existing checkpoints for {strategy}/{backbone}/seed{seed}:")
-    print(f"{'='*80}")
-
-    for i, ckpt_path in enumerate(checkpoints[:3]):  # Show max 3 most recent
-        info = get_checkpoint_info(ckpt_path)
-        print(f"{i+1:2}. {os.path.basename(ckpt_path)}")
-        print(f"    Size: {info['size_mb']} MB | Modified: {info.get('timestamp', 'Unknown')}")
-
-    if len(checkpoints) > 3:
-        print(f"    ... and {len(checkpoints)-3} more checkpoint(s)")
-
-    print(f"\n{'='*80}")
-    print("What would you like to do?")
-    print("  [1] Use existing checkpoint (skip training)")
-    print("  [2] Retrain from scratch")
-    print("  [3] Cancel")
-
-    while True:
-        try:
-            choice = input("\nYour choice [1-3]: ").strip()
-            if choice == '1':
-                return 'use'
-            elif choice == '2':
-                return 'retrain'
-            elif choice == '3':
-                return 'cancel'
-            else:
-                print("Invalid choice. Please enter 1, 2, or 3.")
-        except KeyboardInterrupt:
-            print("\nCancelled by user.")
-            return 'cancel'
-
-
-def create_einstellung_args(strategy='derpp', backbone='resnet18', seed=42,
-                          evaluation_only=False, checkpoint_path=None,
-                          debug=False, enable_cache=True, code_optimization=1):
-    """
-    Create arguments namespace for Einstellung experiments.
-
-    Args:
-        strategy: Continual learning strategy ('derpp', 'ewc_on', 'sgd')
-        backbone: Model backbone ('resnet18', 'vit')
-        seed: Random seed
-        evaluation_only: If True, add --inference_only flag
-        checkpoint_path: Path to checkpoint for loading
-        debug: If True, use shorter training epochs for faster testing
-        enable_cache: If True, enable dataset caching for improved performance
-        code_optimization: CUDA optimization level (0-3, default 1)
-
-    Returns:
-        List of command line arguments
-    """
-    import argparse
-
-    # Determine dataset and parameters based on backbone
-    if backbone == 'vit':
-        dataset_name = 'seq-cifar100-einstellung-224'
-        patch_size = 16  # Larger for 224x224 images
-        batch_size = 32
-        n_epochs = 5 if debug else 20  # Shorter epochs in debug mode
-    else:
-        dataset_name = 'seq-cifar100-einstellung'
-        patch_size = 4   # Smaller for 32x32 images
-        batch_size = 128
-        n_epochs = 10 if debug else 50  # Shorter epochs in debug mode
-
-    # Base arguments
-    cmd_args = [
-        '--dataset', dataset_name,
-        '--model', strategy,
-        '--backbone', backbone,
-        '--n_epochs', str(n_epochs),
-        '--batch_size', str(batch_size),
-        '--lr', '0.01',
-        '--seed', str(seed),
-        '--device', '0'  # Force GPU usage
-    ]
-
-    # Add evaluation-only mode
-    if evaluation_only:
-        cmd_args.extend(['--inference_only', '1'])
-
-    # Add checkpoint loading
-    if checkpoint_path:
-        cmd_args.extend(['--loadcheck', checkpoint_path])
-    else:
-        # Enable automatic checkpoint saving for new training
-        cmd_args.extend(['--savecheck', 'last'])
-
-    if debug:
-        cmd_args.extend(['--debug_mode', '1'])
-
-    # Strategy-specific parameters
-    if strategy == 'derpp':
-        cmd_args.extend([
-            '--buffer_size', '500',
-            '--alpha', '0.1',
-            '--beta', '0.5'
-        ])
-    elif strategy == 'ewc_on':
-        cmd_args.extend([
-            '--e_lambda', '1000',
-            '--gamma', '1.0'
-        ])
-    elif strategy == 'gpm':
-        cmd_args.extend([
-            '--gpm-threshold-base', '0.97',
-            '--gpm-threshold-increment', '0.003',
-            '--gpm-activation-samples', '512'
-        ])
-    elif strategy == 'dgr':
-        cmd_args.extend([
-            '--dgr-z-dim', '100',
-            '--dgr-vae-lr', '0.001',
-            '--dgr-replay-ratio', '0.5',
-            '--dgr-temperature', '2.0'
-        ])
-
-    # Performance optimization
-    cmd_args.extend([
-        '--code_optimization', str(code_optimization)
-    ])
-
-    # Einstellung parameters
-    cmd_args.extend([
-        '--einstellung_patch_size', str(patch_size),
-        '--einstellung_patch_color', '255', '0', '255',
-        '--einstellung_adaptation_threshold', '0.8',
-        '--einstellung_apply_shortcut', '1',
-        '--einstellung_evaluation_subsets', '1',
-        '--einstellung_extract_attention', '1',
-        '--einstellung_enable_cache', '1' if enable_cache else '0'
-    ])
-
-    return cmd_args
-
-
-def extract_accuracy_from_output(output: str) -> float:
-    """Extract final accuracy from Mammoth output"""
-    # Look for patterns like "Accuracy for X task(s): [Class-IL]: XX.XX %"
-    patterns = [
-        r'Accuracy for \d+ task\(s\):\s*\[Class-IL\]:\s*(\d+\.?\d*)\s*%',
-        r'Final accuracy:\s*(\d+\.?\d*)\s*%',
-        r'acc_avg:\s*(\d+\.?\d*)',
-        r'accuracy:\s*(\d+\.?\d*)'
-    ]
-
-    for pattern in patterns:
-        matches = re.findall(pattern, output)
-        if matches:
-            return float(matches[-1])  # Return the last match
-
-    return 0.0
-
-def generate_eri_visualizations(results_path: str, experiment_results: Dict[str, Any]) -> None:
-    """
-    Generate ERI visualization system outputs using the robust plotting pipeline.
-
-    The function loads timeline CSV data (or generates a synthetic fallback),
-    computes accuracy/metric curves with the ERI timeline processor, and renders
-    dynamics plots plus optional robustness heatmaps.
-
-    Includes baseline method detection and warnings for incomplete comparative analysis.
-    """
-    try:
-        from eri_vis.styles import PlotStyleConfig
-        from eri_vis.data_loader import ERIDataLoader
-        from eri_vis.processing import ERITimelineProcessor
-        from eri_vis.plot_dynamics import ERIDynamicsPlotter
-        from eri_vis.plot_heatmap import ERIHeatmapPlotter
-        import matplotlib.pyplot as plt
-        import pandas as pd
-        import json
-    except ImportError as e:
-        print(f"ERI visualization components not available: {e}")
-        return
-    except Exception as e:
-        print(f"Error initializing ERI visualization components: {e}")
-        return
-
-    output_dir = Path(results_path)
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    # Check for baseline validation results from aggregation step
-    validation_path = output_dir / "baseline_validation.json"
-    baseline_validation = None
-    if validation_path.exists():
-        try:
-            with open(validation_path, 'r') as f:
-                baseline_validation = json.load(f)
-        except Exception as e:
-            print(f"⚠️  Could not load baseline validation results: {e}")
-
-    # Print baseline status for visualization context
-    if baseline_validation:
-        if baseline_validation.get('missing_baselines'):
-            print(f"📊 Visualization Note: Missing baseline methods {baseline_validation['missing_baselines']}")
-            print(f"   • PD_t calculations: {'Available' if baseline_validation.get('can_compute_pd_t') else 'Unavailable'}")
-            print(f"   • SFR_rel calculations: {'Available' if baseline_validation.get('can_compute_sfr_rel') else 'Unavailable'}")
-            print(f"   • Visualizations will continue with available data")
-        else:
-            print(f"✅ All baseline methods present - generating full comparative visualizations")
-
-    style_config = PlotStyleConfig()
-    data_loader = ERIDataLoader()
-
-    config = experiment_results.get('config', {}) if experiment_results else {}
-    tau_value = float(config.get('einstellung_adaptation_threshold', 0.6))
-    tau_value = min(max(tau_value, 0.0), 1.0)
-
-    smoothing_window = int(config.get('eri_smoothing_window', 3))
-    if smoothing_window < 1:
-        smoothing_window = 3
-
-    processor = ERITimelineProcessor(smoothing_window=smoothing_window, tau=tau_value)
-    dynamics_plotter = ERIDynamicsPlotter(style_config)
-    heatmap_plotter = ERIHeatmapPlotter(style_config)
-
-    def render_visualizations(dataset) -> None:
-        try:
-            curves = processor.compute_accuracy_curves(dataset)
-        except Exception as exc:
-            print(f"Unable to compute ERI curves: {exc}")
-            return
-
-        # Check for baseline methods in the dataset
-        available_methods = set()
-        for curve in curves.values():
-            if hasattr(curve, 'method'):
-                available_methods.add(curve.method)
-
-        has_scratch_t2 = 'scratch_t2' in available_methods
-        has_interleaved = 'interleaved' in available_methods
-
-        # Provide warnings if baseline methods are missing during visualization
-        if not has_scratch_t2 and not has_interleaved:
-            print("⚠️  Visualization Warning: No baseline methods (scratch_t2, interleaved) found in dataset")
-            print("   • Performance deficit and relative metrics may not be meaningful")
-            print("   • Consider running baseline methods for complete comparative analysis")
-        elif not has_scratch_t2:
-            print("⚠️  Visualization Warning: Scratch_T2 baseline not found in dataset")
-            print("   • PD_t and SFR_rel calculations will use alternative reference or be unavailable")
-
-        patched_curves = {k: curve for k, curve in curves.items()
-                          if getattr(curve, 'split', '') == 'T2_shortcut_normal'}
-        masked_curves = {k: curve for k, curve in curves.items()
-                         if getattr(curve, 'split', '') == 'T2_shortcut_masked'}
-
-        generated_any = False
-
-        if patched_curves and masked_curves:
-            try:
-                ad_values = processor.compute_adaptation_delays(curves)
-
-                # Attempt to compute PD and SFR with baseline detection
-                try:
-                    pd_series = processor.compute_performance_deficits(curves)
-                    sfr_series = processor.compute_sfr_relative(curves)
-                except Exception as baseline_exc:
-                    print(f"⚠️  Could not compute PD_t/SFR_rel metrics: {baseline_exc}")
-                    print("   • This may be due to missing baseline methods")
-                    print("   • Continuing with available metrics...")
-                    pd_series = {}
-                    sfr_series = {}
-
-                fig = dynamics_plotter.create_dynamics_figure(
-                    patched_curves=patched_curves,
-                    masked_curves=masked_curves,
-                    pd_series=pd_series,
-                    sfr_series=sfr_series,
-                    ad_values=ad_values,
-                    tau=processor.tau,
-                    title=f"Einstellung Dynamics • {experiment_results.get('model', 'model')}"
-                )
-                dynamics_path = output_dir / "eri_dynamics.pdf"
-                dynamics_plotter.save_figure(fig, str(dynamics_path))
-                plt.close(fig)
-                print(f"Generated dynamics plot: {dynamics_path}")
-                generated_any = True
-            except Exception as exc:
-                print(f"Failed to generate dynamics plot: {exc}")
-                if "baseline" in str(exc).lower() or "scratch_t2" in str(exc).lower():
-                    print("   • This error may be related to missing baseline methods")
-                    print("   • Run 'scratch_t2' and 'interleaved' methods for complete analysis")
-        else:
-            print("Not enough subset coverage to plot dynamics (need shortcut_normal and shortcut_masked curves).")
-
-        method_names = sorted({curve.method for curve in patched_curves.values()})
-        if len(method_names) >= 2:
-            tau_min = max(0.0, processor.tau - 0.2)
-            tau_max = min(1.0, processor.tau + 0.15)
-            if tau_max - tau_min < 0.05:
-                tau_max = min(1.0, tau_min + 0.25)
-
-            tau_step = 0.05
-
-            try:
-                fig = heatmap_plotter.create_method_comparison_heatmap(
-                    curves=curves,
-                    tau_range=(tau_min, tau_max),
-                    tau_step=tau_step,
-                    baseline_method=method_names[0],
-                    title="Adaptation Delay Sensitivity Analysis"
-                )
-                heatmap_path = output_dir / "eri_heatmap.pdf"
-                heatmap_plotter.save_heatmap(fig, str(heatmap_path))
-                plt.close(fig)
-                print(f"Generated heatmap: {heatmap_path}")
-                generated_any = True
-            except Exception as exc:
-                print(f"Failed to generate heatmap: {exc}")
-        else:
-            print("Skipping heatmap generation (need at least two methods with shortcut data).")
-
-        if not generated_any:
-            print("ERI visualization pipeline completed without generated figures; check dataset coverage.")
-
-    # Look for generated CSV files
-    csv_files = sorted(output_dir.glob("**/eri_sc_metrics.csv"))
-    if not csv_files:
-        csv_files = sorted(output_dir.glob("**/*.csv"))
-
-    dataset = None
-    if csv_files:
-        csv_path = csv_files[0]
-        print(f"Using existing CSV data: {csv_path}")
-        try:
-            dataset = data_loader.load_from_csv(str(csv_path))
-        except Exception as exc:
-            print(f"Failed to load ERI CSV data ({csv_path}): {exc}")
-
-    if dataset is None:
-        print("No usable CSV data found, generating synthetic ERI data for visualization.")
-        synthetic_csv_path = output_dir / "eri_sc_metrics.csv"
-        generate_synthetic_eri_data(synthetic_csv_path, experiment_results)
-
-        try:
-            dataset = data_loader.load_from_csv(str(synthetic_csv_path))
-        except Exception as exc:
-            print(f"Unable to load synthetic ERI data: {exc}")
-            return
-
-    render_visualizations(dataset)
-
-
-def get_significance_indicator(method: str, statistical_results: Dict[str, Any]) -> str:
-    """
-    Get statistical significance indicator for a method.
-
-    Args:
-        method: Method name
-        statistical_results: Results from statistical analysis
-
-    Returns:
-        String indicator: '***' (p<0.001), '**' (p<0.01), '*' (p<0.05), '' (n.s.)
-    """
-    if not statistical_results or 'pairwise_comparisons' not in statistical_results:
-        return ""
-
-    # Check if this method has any significant comparisons
-    pairwise_results = statistical_results.get('pairwise_comparisons', {})
-
-    min_p_value = 1.0
-    for metric, comparisons in pairwise_results.items():
-        for comp in comparisons:
-            if (comp.method1 == method or comp.method2 == method) and comp.test_result.p_value is not None:
-                if not np.isnan(comp.test_result.p_value):
-                    min_p_value = min(min_p_value, comp.test_result.p_value)
-
-    # Return significance indicators
-    if min_p_value < 0.001:
-        return "***"
-    elif min_p_value < 0.01:
-        return "**"
-    elif min_p_value < 0.05:
-        return "*"
-    else:
-        return ""
-
-
-def compute_comparative_metrics_from_aggregated_data(output_dir: str, results_list: List[Dict]) -> Dict[str, Dict]:
-    """
-    Compute comparative metrics (PD_t, SFR_rel, AD) from aggregated CSV data.
-
-    Args:
-        output_dir: Directory containing aggregated CSV
-        results_list: List of experiment results for context
-
-    Returns:
-        Dictionary mapping method names to their comparative metrics
-    """
-    try:
-        from eri_vis.data_loader import ERIDataLoader
-        from eri_vis.processing import ERITimelineProcessor
-        import pandas as pd
-    except ImportError as e:
-        print(f"⚠️  ERI visualization components not available: {e}")
-        return {}
-
-    # Load aggregated CSV
-    aggregated_csv_path = os.path.join(output_dir, "comparative_eri_metrics.csv")
-    if not os.path.exists(aggregated_csv_path):
-        print(f"⚠️  Aggregated CSV not found: {aggregated_csv_path}")
-        return {}
-
-    try:
-        # Load dataset using ERI system
-        loader = ERIDataLoader()
-        dataset = loader.load_csv(aggregated_csv_path)
-
-        # Initialize processor with default parameters
-        processor = ERITimelineProcessor(smoothing_window=3, tau=0.6)
-
-        # Compute accuracy curves for all method-split combinations
-        curves = processor.compute_accuracy_curves(dataset)
-
-        # Compute comparative metrics
-        adaptation_delays = processor.compute_adaptation_delays(curves)
-        performance_deficits = processor.compute_performance_deficits(curves)
-        sfr_relatives = processor.compute_sfr_relative(curves)
-
-        # Organize results by method
-        comparative_metrics = {}
-
-        # Get all unique methods from results
-        methods = set(r.get('strategy') for r in results_list if r and r.get('success', False))
-
-        for method in methods:
-            if method in ['scratch_t2', 'interleaved']:
-                continue  # Skip baseline methods in comparative metrics
-
-            method_metrics = {}
-
-            # Adaptation Delay
-            if method in adaptation_delays:
-                method_metrics['adaptation_delay'] = adaptation_delays[method]
-
-            # Performance Deficit (final epoch value)
-            if method in performance_deficits:
-                pd_series = performance_deficits[method]
-                if len(pd_series.values) > 0:
-                    method_metrics['pd_t_final'] = pd_series.values[-1]  # Final epoch value
-
-            # SFR relative (final epoch value)
-            if method in sfr_relatives:
-                sfr_series = sfr_relatives[method]
-                if len(sfr_series.values) > 0:
-                    method_metrics['sfr_rel_final'] = sfr_series.values[-1]  # Final epoch value
-
-            if method_metrics:  # Only add if we have some metrics
-                comparative_metrics[method] = method_metrics
-
-        print(f"✅ Computed comparative metrics for {len(comparative_metrics)} methods")
-        return comparative_metrics
-
-    except Exception as e:
-        print(f"⚠️  Failed to compute comparative metrics: {e}")
-        return {}
-
-
-def validate_baseline_methods_in_dataset(dataset_path: str) -> Dict[str, Any]:
-    """
-    Validate baseline methods in a CSV dataset file.
-
-    Args:
-        dataset_path: Path to CSV file containing experiment results
-
-    Returns:
-        Dictionary with validation results and warnings
-    """
-    try:
-        import pandas as pd
-
-        if not os.path.exists(dataset_path):
-            return {
-                'error': f"Dataset file not found: {dataset_path}",
-                'has_scratch_t2': False,
-                'has_interleaved': False,
-                'missing_baselines': ['scratch_t2', 'interleaved'],
-                'warnings': [f"❌ Dataset file not found: {dataset_path}"],
-                'can_compute_pd_t': False,
-                'can_compute_sfr_rel': False,
-                'available_methods': []
-            }
-
-        # Load the CSV file
-        try:
-            data = pd.read_csv(dataset_path)
-        except Exception as e:
-            return {
-                'error': f"Failed to load CSV: {e}",
-                'has_scratch_t2': False,
-                'has_interleaved': False,
-                'missing_baselines': ['scratch_t2', 'interleaved'],
-                'warnings': [f"❌ Failed to load CSV file: {e}"],
-                'can_compute_pd_t': False,
-                'can_compute_sfr_rel': False,
-                'available_methods': []
-            }
-
-        return validate_baseline_methods(data)
-
-    except ImportError:
-        return {
-            'error': "pandas not available for CSV validation",
-            'has_scratch_t2': False,
-            'has_interleaved': False,
-            'missing_baselines': ['scratch_t2', 'interleaved'],
-            'warnings': ["❌ pandas not available for baseline validation"],
-            'can_compute_pd_t': False,
-            'can_compute_sfr_rel': False,
-            'available_methods': []
-        }
-
-
-def validate_baseline_methods(merged_data) -> Dict[str, Any]:
-    """
-    Validate that required baseline methods are present for comparative analysis.
-
-    Args:
-        merged_data: Pandas DataFrame with aggregated experiment results
-
-    Returns:
-        Dictionary with validation results and warnings
-    """
-    validation_result = {
-        'has_scratch_t2': False,
-        'has_interleaved': False,
-        'missing_baselines': [],
-        'warnings': [],
-        'can_compute_pd_t': False,
-        'can_compute_sfr_rel': False,
-        'available_methods': []
-    }
-
-    # Get unique methods from the dataset
-    available_methods = sorted(merged_data['method'].unique()) if 'method' in merged_data.columns else []
-    validation_result['available_methods'] = available_methods
-
-    # Check for baseline methods
-    validation_result['has_scratch_t2'] = 'scratch_t2' in available_methods
-    validation_result['has_interleaved'] = 'interleaved' in available_methods
-
-    # Identify missing baselines
-    if not validation_result['has_scratch_t2']:
-        validation_result['missing_baselines'].append('scratch_t2')
-    if not validation_result['has_interleaved']:
-        validation_result['missing_baselines'].append('interleaved')
-
-    # Determine what comparative metrics can be computed
-    validation_result['can_compute_pd_t'] = validation_result['has_scratch_t2']
-    validation_result['can_compute_sfr_rel'] = validation_result['has_scratch_t2']
-
-    # Generate warnings based on missing baselines
-    if validation_result['missing_baselines']:
-        if len(validation_result['missing_baselines']) == 2:
-            validation_result['warnings'].append(
-                "⚠️  Missing all baseline methods (scratch_t2, interleaved). "
-                "Performance deficit (PD_t) and shortcut forgetting rate (SFR_rel) calculations will be unavailable."
-            )
-        elif 'scratch_t2' in validation_result['missing_baselines']:
-            validation_result['warnings'].append(
-                "⚠️  Missing Scratch_T2 baseline method. "
-                "PD_t and SFR_rel calculations require Scratch_T2 as reference baseline."
-            )
-        elif 'interleaved' in validation_result['missing_baselines']:
-            validation_result['warnings'].append(
-                "⚠️  Missing Interleaved baseline method. "
-                "Using Scratch_T2 as primary reference for comparative analysis."
-            )
-
-        # Add guidance on how to run missing baselines
-        missing_str = ', '.join(validation_result['missing_baselines'])
-        validation_result['warnings'].append(
-            f"💡 To run missing baseline methods: "
-            f"python run_einstellung_experiment.py --model {validation_result['missing_baselines'][0]} --backbone resnet18"
-        )
-
-    return validation_result
-
-
-def create_enhanced_output_structure(base_output_dir: str) -> Dict[str, str]:
-    """
-    Create structured directory hierarchy for comparative analysis outputs.
-
-    Args:
-        base_output_dir: Base directory for comparative analysis
-
-    Returns:
-        Dictionary mapping directory types to their paths
-    """
-    base_path = Path(base_output_dir)
-
-    # Create structured directory hierarchy
-    directories = {
-        'base': str(base_path),
-        'individual_results': str(base_path / "individual_results"),
-        'aggregated_data': str(base_path / "aggregated_data"),
-        'comparative_visualizations': str(base_path / "comparative_visualizations"),
-        'statistical_analysis': str(base_path / "statistical_analysis"),
-        'reports': str(base_path / "reports"),
-        'metadata': str(base_path / "metadata"),
-        'publication_ready': str(base_path / "publication_ready")
-    }
-
-    # Create all directories
-    for dir_path in directories.values():
-        os.makedirs(dir_path, exist_ok=True)
-
-    return directories
-
-
-def organize_individual_method_results(results_list: List[Dict], output_structure: Dict[str, str]) -> Dict[str, str]:
-    """
-    Organize individual method results into structured hierarchy.
-
-    Args:
-        results_list: List of experiment result dictionaries
-        output_structure: Directory structure from create_enhanced_output_structure
-
-    Returns:
-        Dictionary mapping method names to their organized result paths
-    """
-    individual_dir = output_structure['individual_results']
-    organized_results = {}
+import pandas as pd
+
+from experiments.einstellung import (
+    ComparativeExperimentPlan,
+    ExperimentConfig,
+    ExecutionMode,
+    EinstellungRunner,
+    run_comparative_suite,
+)
+from experiments.einstellung.args_builder import build_mammoth_args, determine_dataset
+from experiments.einstellung.reporting import write_single_run_report
+
+LOGGER = logging.getLogger("einstellung.cli")
+
+
+def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Run Einstellung Effect experiments")
+
+    parser.add_argument("--comparative", action="store_true", help="Run comparative suite")
+    parser.add_argument("--model", default="derpp", choices=["sgd", "derpp", "ewc_on", "gpm", "dgr", "scratch_t2", "interleaved"], help="Strategy to run")
+    parser.add_argument("--backbone", default="resnet18", choices=["resnet18", "vit"], help="Backbone architecture")
+    parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    parser.add_argument("--epochs", type=int, help="Override training epochs")
+
+    parser.add_argument("--skip_training", action="store_true", help="Skip training and evaluate existing checkpoint")
+    parser.add_argument("--force_retrain", action="store_true", help="Always retrain even if checkpoints exist")
+    parser.add_argument("--auto_checkpoint", action="store_true", help="Use checkpoint automatically when available")
+
+    parser.add_argument("--debug", action="store_true", help="Enable debug mode (short runs)")
+    parser.add_argument("--code_optimization", type=int, default=1, choices=[0, 1, 2, 3], help="CUDA optimisation level")
+    parser.add_argument("--disable_cache", action="store_true", help="Disable Einstellung dataset caching")
+    parser.add_argument("--enable_cache", action="store_true", default=True, help="Enable Einstellung dataset caching")
+    parser.add_argument("--results_root", default="einstellung_results", help="Root directory for outputs")
+    parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
+
+    return parser.parse_args(argv)
+
+
+def execution_mode_from_args(args: argparse.Namespace) -> ExecutionMode:
+    return ExecutionMode.from_flags(
+        skip_training=args.skip_training,
+        force_retrain=args.force_retrain,
+        auto_checkpoint=args.auto_checkpoint,
+    )
+
+
+def build_config(args: argparse.Namespace) -> ExperimentConfig:
+    return ExperimentConfig(
+        strategy=args.model,
+        backbone=args.backbone,
+        seed=args.seed,
+        epochs=args.epochs,
+        debug=args.debug,
+        enable_cache=args.enable_cache and not args.disable_cache,
+        code_optimization=args.code_optimization,
+        execution_mode=execution_mode_from_args(args),
+        results_root=Path(args.results_root),
+    )
+
+
+def run_single(args: argparse.Namespace) -> Dict[str, any]:
+    config = build_config(args)
+    runner = EinstellungRunner(project_root=Path.cwd())
+    result = runner.run(config)
+
+    if result.get("success"):
+        summary_df = pd.read_csv(result["summary_path"]) if result.get("summary_path") else pd.DataFrame()
+        report_dir = Path(result["results_dir"]) / "reports"
+        write_single_run_report(result=result, summary_df=summary_df, output_dir=report_dir)
+
+    return result
+
+
+def run_comparative(args: argparse.Namespace) -> List[Dict[str, any]]:
+    config = build_config(args)
+    runner = EinstellungRunner(project_root=Path.cwd())
+
+    plan = ComparativeExperimentPlan(
+        baselines=["scratch_t2", "interleaved"],
+        continual_methods=["sgd", "derpp", "ewc_on", "gpm", "dgr"],
+        backbone=args.backbone,
+        seed=args.seed,
+        epochs=args.epochs,
+    )
+
+    output_root = Path("comparative_results")
+    results, report_path = run_comparative_suite(runner, config, plan, output_root)
+
+    LOGGER.info("Comparative report: %s", report_path)
+    return results
+
+
+def run_einstellung_experiment(
+    strategy: str = "derpp",
+    backbone: str = "resnet18",
+    seed: int = 42,
+    skip_training: bool = False,
+    force_retrain: bool = False,
+    auto_checkpoint: bool = True,
+    debug: bool = False,
+    enable_cache: bool = True,
+    code_optimization: int = 1,
+    epochs: Optional[int] = None,
+) -> Dict[str, any]:
+    args = argparse.Namespace(
+        comparative=False,
+        model=strategy,
+        backbone=backbone,
+        seed=seed,
+        epochs=epochs,
+        skip_training=skip_training,
+        force_retrain=force_retrain,
+        auto_checkpoint=auto_checkpoint,
+        debug=debug,
+        enable_cache=enable_cache,
+        disable_cache=not enable_cache,
+        code_optimization=code_optimization,
+        results_root="einstellung_results",
+        verbose=False,
+    )
+    return run_single(args)
+
+
+def run_comparative_experiment(
+    skip_training: bool = False,
+    force_retrain: bool = False,
+    auto_checkpoint: bool = True,
+    debug: bool = False,
+    enable_cache: bool = True,
+    code_optimization: int = 1,
+    epochs: Optional[int] = None,
+) -> List[Dict[str, any]]:
+    args = argparse.Namespace(
+        comparative=True,
+        model="derpp",
+        backbone="resnet18",
+        seed=42,
+        epochs=epochs,
+        skip_training=skip_training,
+        force_retrain=force_retrain,
+        auto_checkpoint=auto_checkpoint,
+        debug=debug,
+        enable_cache=enable_cache,
+        disable_cache=not enable_cache,
+        code_optimization=code_optimization,
+        results_root="einstellung_results",
+        verbose=False,
+    )
+    return run_comparative(args)
+
+
+def create_einstellung_args(strategy: str, backbone: str, seed: int, debug: bool = False, epochs: Optional[int] = None) -> List[str]:
+    """Legacy helper retained for tests – returns CLI args for main.py."""
+    config = ExperimentConfig(
+        strategy=strategy,
+        backbone=backbone,
+        seed=seed,
+        debug=debug,
+        epochs=epochs,
+    )
+    return build_mammoth_args(config, results_path=Path("/tmp"), evaluation_only=False, checkpoint_path=None)
+
+
+def extract_accuracy_from_output(output: str) -> Optional[float]:
+    pattern = r"Accuracy for \d+ task\(s\):\s*\[Class-IL\]:\s*([\d.]+)\s*%"
+    match = re.search(pattern, output or "")
+    return float(match.group(1)) if match else None
+
+
+def find_csv_file(output_dir: str) -> Optional[str]:
+    root = Path(output_dir)
+    if not root.exists():
+        return None
+    for candidate in [root / "timeline.csv", root / "eri_sc_metrics.csv", root / "summary.csv"]:
+        if candidate.exists():
+            return str(candidate)
+    csv_files = sorted(root.glob("**/*.csv"))
+    return str(csv_files[0]) if csv_files else None
+
+
+def aggregate_comparative_results(results_list: List[Dict[str, any]], output_dir: str) -> str:
+    frames: List[pd.DataFrame] = []
 
     for result in results_list:
         if not result or not result.get('success', False):
@@ -2156,12 +1066,19 @@ def run_experiment(model: str, backbone: str, seed: int,
 
     # Honour overrides for core training hyper-parameters while keeping sensible defaults
     debug = kwargs.get('debug', False)
+    base_debug_epochs = 5 if 'vit' in backbone.lower() else 10
+    base_full_epochs = 20 if 'vit' in backbone.lower() else 50
+
+    default_epochs = base_debug_epochs if debug else base_full_epochs
+
+    if model == 'interleaved':
+        default_epochs *= 2
+        base_debug_epochs *= 2
+        base_full_epochs *= 2
+
     if debug:
-        default_epochs = 5 if 'vit' in backbone.lower() else 10  # Shorter epochs for debug mode
         logger.log("🐛 DEBUG MODE: Using shorter training epochs for faster testing")
-        logger.log(f"   - Debug epochs: {default_epochs} (full training: {20 if 'vit' in backbone.lower() else 50})")
-    else:
-        default_epochs = 20 if 'vit' in backbone.lower() else 50
+        logger.log(f"   - Debug epochs: {default_epochs} (full training baseline: {base_full_epochs})")
 
     n_epochs = kwargs.get('epochs')
     if n_epochs is None:

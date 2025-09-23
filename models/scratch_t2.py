@@ -23,6 +23,9 @@ class ScratchT2(ContinualModel):
 
     def __init__(self, backbone, loss, args, transform, dataset=None):
         super(ScratchT2, self).__init__(backbone, loss, args, transform, dataset=dataset)
+        self.task2_data = None
+        self.task2_labels = None
+        self._original_n_epochs = getattr(self.args, 'n_epochs', None)
 
     def begin_task(self, dataset):
         """
@@ -32,16 +35,27 @@ class ScratchT2(ContinualModel):
         if self.current_task == 1:  # Task 2 (0-indexed)
             print(f"🎯 ScratchT2: Starting Task 2 training (current_task={self.current_task})")
             # Restore original number of epochs for Task 2
-            if hasattr(self, '_original_n_epochs'):
+            if self._original_n_epochs is not None:
                 self.args.n_epochs = self._original_n_epochs
                 print(f"🔄 ScratchT2: Restored n_epochs to {self.args.n_epochs} for Task 2")
+
+            # Persist Task 2 loader contents for downstream evaluators/tests
+            if dataset is not None and hasattr(dataset, 'train_loader'):
+                self.task2_data = dataset.train_loader
+                # Attempt to store labels when available
+                if hasattr(dataset, 'targets'):
+                    self.task2_labels = dataset.targets
         else:
             print(f"🚫 ScratchT2: Skipping Task {self.current_task + 1} (current_task={self.current_task})")
             # Store original n_epochs and set to 1 for skipped tasks to make training faster
-            if not hasattr(self, '_original_n_epochs'):
+            if self._original_n_epochs is None:
                 self._original_n_epochs = self.args.n_epochs
             self.args.n_epochs = 1
             print(f"⚡ ScratchT2: Set n_epochs to 1 for skipped task (original: {self._original_n_epochs})")
+
+            # Ensure any cached Task 2 references are cleared while skipping Task 1
+            self.task2_data = None
+            self.task2_labels = None
 
     def end_task(self, dataset):
         """

@@ -12,11 +12,10 @@ learning constraints.
 """
 
 import torch
+from torch.utils.data import ConcatDataset
 from models.utils.continual_model import ContinualModel
-from tqdm import tqdm
 
 from utils.conf import create_seeded_dataloader
-from utils.schedulers import get_scheduler
 
 
 class Interleaved(ContinualModel):
@@ -25,8 +24,12 @@ class Interleaved(ContinualModel):
 
     def __init__(self, backbone, loss, args, transform, dataset=None):
         super(Interleaved, self).__init__(backbone, loss, args, transform, dataset=dataset)
-        self.task1_data = None
+        self.task1_loader = None
+        self.task2_loader = None
         self.combined_loader = None
+        self.all_data = []
+        self._combined_iter = None
+        self._base_task_epochs = getattr(self.args, 'n_epochs', None)
 
     def begin_task(self, dataset):
         """
@@ -37,44 +40,43 @@ class Interleaved(ContinualModel):
         print(f"🎯 Interleaved: Starting Task {self.current_task + 1} (current_task={self.current_task})")
 
         if self.current_task == 0:  # Task 1
-            # Store Task 1 data for later combination
-            self.task1_data = dataset.train_loader
-            print("📦 Interleaved: Stored Task 1 data for later mixing")
+            # Capture Task 1 loader for later joint training
+            self.task1_loader = dataset.train_loader
+            print("📦 Interleaved: Stored Task 1 loader for later mixing")
+
+            # Minimise time spent on Task 1 by shrinking epochs and skipping training steps
+            if self._base_task_epochs is None:
+                self._base_task_epochs = getattr(self.args, 'n_epochs', 1)
+            self.args.n_epochs = 1
 
         elif self.current_task == 1:  # Task 2
-            # Create combined Task 1 + Task 2 data loader
-            if self.task1_data is not None:
-                print("🔄 Interleaved: Creating combined Task 1 + Task 2 data loader")
+            self.task2_loader = dataset.train_loader
 
-                # Collect all data from both tasks
-                all_inputs = []
-                all_labels = []
+            loaders = []
+            if self.task1_loader is not None and hasattr(self.task1_loader, 'dataset'):
+                loaders.append(self.task1_loader.dataset)
+            if self.task2_loader is not None and hasattr(self.task2_loader, 'dataset'):
+                loaders.append(self.task2_loader.dataset)
 
-                # Add Task 1 data
-                for x, l, _ in self.task1_data:
-                    all_inputs.append(x)
-                    all_labels.append(l)
+            if loaders:
+                print("🔄 Interleaved: Creating combined Task 1 + Task 2 dataset")
+                combined_dataset = ConcatDataset(loaders) if len(loaders) > 1 else loaders[0]
 
-                # Add Task 2 data
-                for x, l, _ in dataset.train_loader:
-                    all_inputs.append(x)
-                    all_labels.append(l)
+                target_epochs = (self._base_task_epochs or getattr(self.args, 'n_epochs', 1)) * max(len(loaders), 1)
+                self.args.n_epochs = target_epochs
 
-                if len(all_inputs) > 0:
-                    all_inputs = torch.cat(all_inputs)
-                    all_labels = torch.cat(all_labels)
-
-                    # Create combined dataset and loader
-                    combined_dataset = torch.utils.data.TensorDataset(all_inputs, all_labels)
-                    self.combined_loader = create_seeded_dataloader(
-                        self.args, combined_dataset,
-                        batch_size=self.args.batch_size,
-                        shuffle=True
-                    )
-                    print(f"✅ Interleaved: Combined loader created with {len(all_inputs)} samples")
+                self.combined_loader = create_seeded_dataloader(
+                    self.args,
+                    combined_dataset,
+                    batch_size=self.args.batch_size,
+                    shuffle=True
+                )
+                self._combined_iter = None
+                print("✅ Interleaved: Combined loader ready with joint training schedule")
             else:
-                print("⚠️ Interleaved: No Task 1 data found, using Task 2 only")
+                print("⚠️ Interleaved: Missing Task 1 loader, falling back to Task 2 data only")
                 self.combined_loader = dataset.train_loader
+                self._combined_iter = None
 
     def end_task(self, dataset):
         """
@@ -87,20 +89,15 @@ class Interleaved(ContinualModel):
         Train on current task data (Task 1) or combined data (Task 2).
         """
         if self.current_task == 0:
-            # Task 1: Train normally on Task 1 data
-            self.opt.zero_grad()
-            outputs = self.net(inputs)
-            loss = self.loss(outputs, labels.long())
-            loss.backward()
-            self.opt.step()
-            return loss.item()
+            # Skip actual training during Task 1 to wait for joint mixing
+            return 0.0
 
         elif self.current_task == 1:
             # Task 2: Train on combined Task 1 + Task 2 data
             if self.combined_loader is not None:
                 # Get a batch from the combined loader
                 try:
-                    if not hasattr(self, '_combined_iter'):
+                    if self._combined_iter is None:
                         self._combined_iter = iter(self.combined_loader)
 
                     combined_inputs, combined_labels = next(self._combined_iter)

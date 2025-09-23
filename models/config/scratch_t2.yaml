@@ -1,0 +1,17 @@
+# Scratch Task-2 Baseline Configuration
+#
+# This configuration isolates the Task 2 training baseline used to measure
+# Einstellung performance deficits. Adjust `base_epochs` to control how many
+# epochs are allocated to the Task 2 phase during experiments.
+
+model: scratch_t2
+
+training:
+  base_epochs: 50  # default Task 2 epochs (matches sequential baseline)
+  batch_size: 128
+  learning_rate: 0.01
+
+notes: |
+  Scratch_T2 skips Task 1 entirely and only trains when Task 2 is introduced.
+  Use this configuration to keep the baseline in sync with continual learning
+  schedules when adjusting experiment hyper-parameters.

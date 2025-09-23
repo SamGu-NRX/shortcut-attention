@@ -1,0 +1,17 @@
+# Interleaved Joint Training Baseline Configuration
+#
+# Interleaved trains on Task 1 and Task 2 data jointly for the cumulative
+# number of epochs used by sequential continual methods. Update
+# `joint_epochs` when tuning the per-task schedule.
+
+model: interleaved
+
+training:
+  joint_epochs: 100  # default cumulative epochs (e.g., 50 + 50)
+  batch_size: 128
+  learning_rate: 0.01
+
+notes: |
+  The interleaved baseline mixes Task 1 and Task 2 batches after both are
+  available. Ensure `joint_epochs` mirrors the sum of per-task epochs used
+  by other strategies when modifying experiment settings.
