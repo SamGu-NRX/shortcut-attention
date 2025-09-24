@@ -143,12 +143,14 @@ class TestComparativeVisualizationPipeline:
                             'seed': seed,
                             'epoch_eff': epoch,
                             'split': split,
-                            'acc': acc
+                            'acc': acc,
+                            'top5': min(0.99, acc + 0.08),
+                            'loss': max(0.0, 1.0 - acc)
                         })
 
                 # Save CSV file
                 df = pd.DataFrame(csv_rows)
-                csv_path = output_dir / "eri_sc_metrics.csv"
+                csv_path = output_dir / f"timeline_{method}.csv"
                 df.to_csv(csv_path, index=False)
 
                 # Add to results list
@@ -705,11 +707,13 @@ class TestComparativeVisualizationPipeline:
                             'seed': seed,
                             'epoch_eff': epoch,
                             'split': split,
-                            'acc': acc
+                            'acc': acc,
+                            'top5': min(0.99, acc + 0.08),
+                            'loss': max(0.0, 1.0 - acc)
                         })
 
                 df = pd.DataFrame(csv_rows)
-                csv_path = output_dir / "eri_sc_metrics.csv"
+                csv_path = output_dir / f"timeline_{method}.csv"
                 df.to_csv(csv_path, index=False)
 
                 large_results.append({

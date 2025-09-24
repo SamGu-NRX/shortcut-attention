@@ -111,6 +111,27 @@ class ERIDynamicsPlotter:
 
         return fig
 
+    def create_accuracy_only_figure(
+        self,
+        patched_curves: Dict[str, AccuracyCurve],
+        masked_curves: Dict[str, AccuracyCurve],
+        ad_values: Dict[str, float],
+        tau: float,
+        title: Optional[str] = None,
+    ) -> plt.Figure:
+        """Generate a single-panel accuracy trajectory figure."""
+        self._validate_inputs(patched_curves, masked_curves, {}, {}, ad_values)
+        self.style.apply_style()
+
+        fig, ax = plt.subplots(1, 1, figsize=self.style.figure_size, dpi=self.style.dpi)
+        self._create_panel_a(ax, patched_curves, masked_curves, ad_values, tau)
+
+        if title:
+            ax.set_title(title, fontsize=self.style.font_sizes['title'])
+
+        fig.tight_layout()
+        return fig
+
     def _validate_inputs(
         self,
         patched_curves: Dict[str, AccuracyCurve],

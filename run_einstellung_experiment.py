@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 import re
 import sys
@@ -24,6 +23,22 @@ from experiments.einstellung.args_builder import build_mammoth_args, determine_d
 from experiments.einstellung.reporting import write_single_run_report
 
 LOGGER = logging.getLogger("einstellung.cli")
+
+
+def create_session_dir(root: Path, seed: int) -> Path:
+    from datetime import datetime
+
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    session_dir = root / f"session_{timestamp}_seed{seed}"
+    session_dir.mkdir(parents=True, exist_ok=True)
+    return session_dir
+
+
+def log_command(session_dir: Path, command: List[str]) -> None:
+    session_dir.mkdir(parents=True, exist_ok=True)
+    history_file = session_dir / "command_history.log"
+    with history_file.open("a", encoding="utf-8") as fh:
+        fh.write(" ".join(command) + "\n")
 
 
 def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
@@ -73,6 +88,12 @@ def build_config(args: argparse.Namespace) -> ExperimentConfig:
 
 def run_single(args: argparse.Namespace) -> Dict[str, any]:
     config = build_config(args)
+    session_dir = create_session_dir(config.results_root, config.seed)
+    config.session_dir = session_dir
+    config.output_prefix = args.model
+
+    log_command(session_dir, [sys.executable] + (sys.argv or []))
+
     runner = EinstellungRunner(project_root=Path.cwd())
     result = runner.run(config)
 
@@ -88,8 +109,11 @@ def run_comparative(args: argparse.Namespace) -> List[Dict[str, any]]:
     config = build_config(args)
     runner = EinstellungRunner(project_root=Path.cwd())
 
+    session_dir = create_session_dir(config.results_root, args.seed)
+    log_command(session_dir, [sys.executable] + (sys.argv or []))
+
     plan = ComparativeExperimentPlan(
-        baselines=["scratch_t2", "interleaved"],
+        baselines=["scratch_t2"],
         continual_methods=["sgd", "derpp", "ewc_on", "gpm", "dgr"],
         backbone=args.backbone,
         seed=args.seed,
@@ -97,6 +121,8 @@ def run_comparative(args: argparse.Namespace) -> List[Dict[str, any]]:
     )
 
     output_root = Path("comparative_results")
+    # ensure shared session for all executions
+    config.session_dir = session_dir
     results, report_path = run_comparative_suite(runner, config, plan, output_root)
 
     LOGGER.info("Comparative report: %s", report_path)
@@ -184,11 +210,11 @@ def find_csv_file(output_dir: str) -> Optional[str]:
     root = Path(output_dir)
     if not root.exists():
         return None
-    for candidate in [root / "timeline.csv", root / "eri_sc_metrics.csv", root / "summary.csv"]:
-        if candidate.exists():
+    candidates = sorted(root.glob("**/timeline*.csv")) + sorted(root.glob("**/summary*.csv"))
+    for candidate in candidates:
+        if validate_csv_file(str(candidate)):
             return str(candidate)
-    csv_files = sorted(root.glob("**/*.csv"))
-    return str(csv_files[0]) if csv_files else None
+    return None
 
 
 def aggregate_comparative_results(results_list: List[Dict[str, any]], output_dir: str) -> str:
@@ -229,7 +255,7 @@ def validate_csv_file(csv_path: str) -> bool:
     except Exception:
         return False
 
-    required_cols = {"method", "seed", "epoch_eff", "split", "acc"}
+    required_cols = {"method", "seed", "epoch_eff", "split", "acc", "top5", "loss"}
     if not required_cols.issubset(df.columns):
         return False
 
@@ -277,6 +303,13 @@ def main(argv: Optional[List[str]] = None) -> int:
     args = parse_args(argv)
 
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
+    for name in [
+        'matplotlib',
+        'matplotlib.font_manager',
+        'matplotlib.pyplot',
+        'matplotlib.backends'
+    ]:
+        logging.getLogger(name).setLevel(logging.WARNING)
 
     if args.comparative:
         results = run_comparative(args)
@@ -286,10 +319,14 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     result = run_single(args)
     if result.get("success"):
-        LOGGER.info("Run complete: top-1=%.2f%%", (result.get("final_top1") or 0) * 100)
+        final_top1 = result.get("final_top1")
+        if final_top1 is not None:
+            LOGGER.info("Run complete: top-1=%.2f%%", final_top1 * 100)
+        else:
+            LOGGER.info("Run complete.")
         return 0
 
-    LOGGER.error("Run failed: %s", result.get("stderr"))
+    LOGGER.error("Run failed with return code %s", result.get("return_code"))
     return 1
 
 

@@ -90,6 +90,7 @@ class ERICLI:
 
         # Reduce matplotlib logging noise
         logging.getLogger('matplotlib').setLevel(logging.WARNING)
+        logging.getLogger('matplotlib.font_manager').setLevel(logging.WARNING)
         logging.getLogger('PIL').setLevel(logging.WARNING)
 
     def create_parser(self) -> argparse.ArgumentParser:
@@ -459,6 +460,42 @@ For more information, see docs/README_eri_vis.md
             self.logger.error(f"Failed to generate dynamics plot: {e}")
             return None
 
+    def generate_accuracy_plot(
+        self,
+        dataset: ERITimelineDataset,
+        output_dir: Path,
+        file_prefix: str = "fig_eri_accuracy",
+        format: str = "pdf"
+    ) -> Optional[Path]:
+        """Generate single-panel accuracy trajectories plot."""
+        try:
+            curves = self.processor.compute_accuracy_curves(dataset)
+            patched_curves = {k: v for k, v in curves.items() if 'shortcut_normal' in k}
+            masked_curves = {k: v for k, v in curves.items() if 'shortcut_masked' in k}
+
+            if not patched_curves:
+                self.logger.warning("No shortcut_normal curves found - skipping accuracy plot")
+                return None
+
+            ad_values = self.processor.compute_adaptation_delays(curves)
+
+            fig = self.dynamics_plotter.create_accuracy_only_figure(
+                patched_curves=patched_curves,
+                masked_curves=masked_curves,
+                ad_values=ad_values,
+                tau=self.processor.tau,
+                title="Accuracy Trajectories on Shortcut Task"
+            )
+
+            output_file = output_dir / f"{file_prefix}.{format}"
+            self.dynamics_plotter.save_figure(fig, str(output_file))
+            self.logger.info(f"Accuracy plot saved: {output_file}")
+            return output_file
+
+        except Exception as e:
+            self.logger.error(f"Failed to generate accuracy plot: {e}")
+            return None
+
     def generate_heatmap(
         self,
         dataset: ERITimelineDataset,
@@ -546,6 +583,11 @@ For more information, see docs/README_eri_vis.md
             dataset, output_dir, f"{file_prefix}_dynamics", args.format
         )
         results['dynamics'] = dynamics_file
+
+        accuracy_file = self.generate_accuracy_plot(
+            dataset, output_dir, f"{file_prefix}_accuracy", args.format
+        )
+        results['accuracy'] = accuracy_file
 
         # Generate heatmap if tau grid specified
         if args.tau_grid:

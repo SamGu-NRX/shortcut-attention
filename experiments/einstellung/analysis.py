@@ -29,6 +29,34 @@ def combine_summaries(results: Iterable[Dict[str, Any]]) -> pd.DataFrame:
     return pd.concat(frames, ignore_index=True)
 
 
+def combine_timelines(results: Iterable[Dict[str, Any]]) -> pd.DataFrame:
+    """Concatenate per-run timeline CSVs into a single DataFrame."""
+    frames: List[pd.DataFrame] = []
+
+    for result in results:
+        if not result.get("success"):
+            continue
+
+        timeline_path = result.get("timeline_path")
+        if not timeline_path:
+            continue
+
+        try:
+            df = pd.read_csv(timeline_path)
+        except FileNotFoundError:
+            continue
+
+        df = df.copy()
+        df["strategy"] = result.get("strategy")
+        df["backbone"] = result.get("backbone")
+        frames.append(df)
+
+    if not frames:
+        return pd.DataFrame()
+
+    return pd.concat(frames, ignore_index=True)
+
+
 def write_aggregated_outputs(summary_df: pd.DataFrame, output_dir: Path) -> Dict[str, Path]:
     """Persist aggregated summary CSVs for comparative analysis."""
     output_dir.mkdir(parents=True, exist_ok=True)

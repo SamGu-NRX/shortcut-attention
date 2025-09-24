@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-import json
-import re
+import logging
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -16,6 +15,8 @@ from .args_builder import build_mammoth_args, determine_dataset
 from .config import ExperimentConfig, ExecutionMode
 from .storage import describe_checkpoint, find_existing_checkpoints
 
+LOGGER = logging.getLogger("einstellung.runner")
+
 
 @dataclass
 class RunArtifacts:
@@ -24,7 +25,6 @@ class RunArtifacts:
     final_metrics: Dict[str, Any]
     summary_path: Path
     timeline_path: Path
-    json_path: Path
 
 
 class EinstellungRunner:
@@ -35,7 +35,7 @@ class EinstellungRunner:
         self.python = Path(sys.executable)
 
     def run(self, config: ExperimentConfig) -> Dict[str, Any]:
-        results_dir = config.resolve_results_dir()
+        results_dir = config.session_dir or config.resolve_results_dir()
         results_dir.mkdir(parents=True, exist_ok=True)
 
         dataset_name = determine_dataset(config.backbone)
@@ -75,25 +75,28 @@ class EinstellungRunner:
 
         command = [str(self.python), "main.py", *args]
 
+        try:
+            log_path = results_dir / "command_history.log"
+            with log_path.open("a", encoding="utf-8") as fh:
+                fh.write(" ".join(command) + "\n")
+        except OSError:
+            LOGGER.debug("Could not write command history to %s", results_dir)
+
         process = subprocess.run(
             command,
             cwd=self.project_root,
-            capture_output=True,
-            text=True,
         )
-
-        stdout = process.stdout
-        stderr = process.stderr
 
         artifacts: Optional[RunArtifacts] = None
         success = process.returncode == 0
 
         if success:
             try:
-                artifacts = self._load_artifacts(results_dir)
+                prefix = config.output_prefix or config.strategy
+                artifacts = self._load_artifacts(results_dir, prefix)
             except FileNotFoundError as exc:  # pragma: no cover - defensive
                 success = False
-                stderr += f"\nMissing expected output files: {exc}"
+                LOGGER.error("Missing expected output files: %s", exc)
 
         result: Dict[str, Any] = {
             "strategy": config.strategy,
@@ -105,12 +108,10 @@ class EinstellungRunner:
             "checkpoint_path": str(checkpoint_to_use) if checkpoint_to_use else None,
             "checkpoints_available": [str(p) for p in checkpoints],
             "command": command,
-            "stdout": stdout,
-            "stderr": stderr,
             "results_dir": str(results_dir),
             "reference_top1": config.reference_top1,
             "reference_top5": config.reference_top5,
-            "final_accuracy": self._extract_final_accuracy(stdout),
+            "return_code": process.returncode,
         }
 
         if checkpoint_to_use is not None:
@@ -121,7 +122,7 @@ class EinstellungRunner:
                 {
                     "timeline_path": str(artifacts.timeline_path),
                     "summary_path": str(artifacts.summary_path),
-                    "final_results_path": str(artifacts.json_path),
+                    "final_results_path": str(artifacts.summary_path),
                     "final_metrics": artifacts.final_metrics,
                     "summary_records": artifacts.summary.to_dict(orient="records"),
                 }
@@ -141,25 +142,35 @@ class EinstellungRunner:
                         "adaptation_delay": row["adaptation_delay"],
                     }
                 )
+                result["final_accuracy"] = float(row["top1"]) * 100
 
+        result.setdefault('output_dir', result.get('results_dir'))
         return result
 
-    def _load_artifacts(self, results_dir: Path) -> RunArtifacts:
-        timeline_path = results_dir / "timeline.csv"
-        summary_path = results_dir / "summary.csv"
-        json_path = results_dir / "einstellung_final_results.json"
+    def _load_artifacts(self, results_dir: Path, prefix: str) -> RunArtifacts:
+        timeline_path = results_dir / f"timeline_{prefix}.csv"
+        summary_path = results_dir / f"summary_{prefix}.csv"
 
-        if not timeline_path.exists() or not summary_path.exists() or not json_path.exists():
-            missing = [p.name for p in (timeline_path, summary_path, json_path) if not p.exists()]
+        missing = [p.name for p in (timeline_path, summary_path) if not p.exists()]
+        if missing:
             raise FileNotFoundError(
                 f"Missing outputs in {results_dir}: {', '.join(missing)}"
             )
 
         timeline = pd.read_csv(timeline_path)
         summary = pd.read_csv(summary_path)
-
-        with open(json_path, "r") as fh:
-            final_metrics = json.load(fh).get("final_metrics", {})
+        final_metrics = {}
+        if "subset" in summary.columns:
+            topline = summary[summary["subset"] == "T2_shortcut_normal"]
+            if not topline.empty:
+                row = topline.iloc[0]
+                final_metrics = {
+                    "adaptation_delay": row.get("adaptation_delay"),
+                    "performance_deficit": row.get("performance_deficit"),
+                    "shortcut_feature_reliance": row.get("shortcut_feature_reliance"),
+                    "top1": row.get("top1"),
+                    "top5": row.get("top5"),
+                }
 
         return RunArtifacts(
             timeline=timeline,
@@ -167,11 +178,4 @@ class EinstellungRunner:
             final_metrics=final_metrics,
             summary_path=summary_path,
             timeline_path=timeline_path,
-            json_path=json_path,
         )
-
-    @staticmethod
-    def _extract_final_accuracy(output: str) -> Optional[float]:
-        pattern = r"Accuracy for \d+ task\(s\):\s*\[Class-IL\]:\s*([\d.]+)"
-        match = re.search(pattern, output or "")
-        return float(match.group(1)) if match else None

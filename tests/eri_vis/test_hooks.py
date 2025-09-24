@@ -205,7 +205,7 @@ class TestERIExperimentHooks:
             assert 'heatmap' in result
 
             # Check final CSV was created
-            final_csv = self.output_dir / "eri_sc_metrics.csv"
+            final_csv = self.output_dir / "timeline_sgd.csv"
             assert final_csv.exists()
 
             # Check metadata was created
@@ -253,7 +253,7 @@ class TestERIExperimentHooks:
         assert len(df) == 8  # 2 epochs × 4 splits
 
         # Check required columns
-        required_cols = ['method', 'seed', 'epoch_eff', 'split', 'acc']
+        required_cols = ['method', 'seed', 'epoch_eff', 'split', 'acc', 'top5', 'loss']
         for col in required_cols:
             assert col in df.columns
 

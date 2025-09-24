@@ -100,18 +100,20 @@ class Interleaved(ContinualModel):
                     if self._combined_iter is None:
                         self._combined_iter = iter(self.combined_loader)
 
-                    combined_inputs, combined_labels = next(self._combined_iter)
+                    batch = next(self._combined_iter)
                 except StopIteration:
                     # Reset iterator when exhausted
                     self._combined_iter = iter(self.combined_loader)
-                    combined_inputs, combined_labels = next(self._combined_iter)
+                    batch = next(self._combined_iter)
 
-                combined_inputs = combined_inputs.to(self.device)
-                combined_labels = combined_labels.to(self.device)
+                combined_inputs, combined_labels = self._extract_inputs_and_labels(batch)
+
+                combined_inputs = combined_inputs.to(self.device, non_blocking=True)
+                combined_labels = combined_labels.to(self.device, dtype=torch.long, non_blocking=True)
 
                 self.opt.zero_grad()
                 outputs = self.net(combined_inputs)
-                loss = self.loss(outputs, combined_labels.long())
+                loss = self.loss(outputs, combined_labels)
                 loss.backward()
                 self.opt.step()
                 return loss.item()
@@ -120,9 +122,9 @@ class Interleaved(ContinualModel):
                 self.opt.zero_grad()
                 outputs = self.net(inputs)
                 loss = self.loss(outputs, labels.long())
-                loss.backward()
-                self.opt.step()
-                return loss.item()
+            loss.backward()
+            self.opt.step()
+            return loss.item()
 
         else:
             # For any other tasks, train normally
@@ -132,6 +134,25 @@ class Interleaved(ContinualModel):
             loss.backward()
             self.opt.step()
             return loss.item()
+
+    @staticmethod
+    def _extract_inputs_and_labels(batch):
+        """Support tuples with auxiliary fields when mixing loaders."""
+        if isinstance(batch, dict):
+            # Prefer explicit keys when available
+            inputs = batch.get('inputs') or batch.get('x')
+            labels = batch.get('labels') or batch.get('y')
+            if inputs is None or labels is None:
+                raise ValueError("Combined batch dictionary missing required keys 'inputs'/'labels'.")
+            return inputs, labels
+
+        if not isinstance(batch, (list, tuple)):
+            raise ValueError(f"Unexpected batch type from combined loader: {type(batch)!r}")
+
+        if len(batch) < 2:
+            raise ValueError("Combined loader must return at least (inputs, labels).")
+
+        return batch[0], batch[1]
 
     def should_skip_current_task(self):
         """

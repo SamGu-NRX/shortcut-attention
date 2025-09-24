@@ -198,6 +198,16 @@ class Dgr(ContinualModel):
         self.prev_generator: Optional[nn.Module] = None
         self.seen_classes: List[int] = []
 
+        # Dataset normalisation statistics used to align replay samples with live batches
+        if hasattr(self.dataset, "MEAN") and hasattr(self.dataset, "STD"):
+            mean = torch.tensor(self.dataset.MEAN, dtype=torch.float32).view(1, self.image_channels, 1, 1)
+            std = torch.tensor(self.dataset.STD, dtype=torch.float32).view(1, self.image_channels, 1, 1)
+            self.register_buffer("_data_mean", mean)
+            self.register_buffer("_data_std", std)
+        else:
+            self._data_mean: Optional[torch.Tensor] = None
+            self._data_std: Optional[torch.Tensor] = None
+
         logger.info("Initialized original DGR wrapper with %d classes", self.total_classes)
 
     # ------------------------------------------------------------------
@@ -234,19 +244,44 @@ class Dgr(ContinualModel):
         self.seen_classes.sort()
 
     def _replay_ratio(self) -> float:
-        if hasattr(self.args, "dgr_replay_ratio") and getattr(self.args, "dgr_replay_ratio") is not None:
-            return float(getattr(self.args, "dgr_replay_ratio"))
-        return float(getattr(self.args, "dgr_replay_weight", 0.5))
+        ratio = getattr(self.args, "dgr_replay_ratio", None)
+        if ratio is None:
+            ratio = getattr(self.args, "dgr_replay_weight", None)
+        if ratio is not None:
+            return float(ratio)
+        # Default: original implementation uses 1 / context index (1-based)
+        return 1.0 / float(self.current_task + 1)
+
+    # ------------------------------------------------------------------
+    # normalisation helpers
+    # ------------------------------------------------------------------
+    def _has_normalization(self) -> bool:
+        return isinstance(getattr(self, "_data_mean", None), torch.Tensor) and isinstance(getattr(self, "_data_std", None), torch.Tensor)
+
+    def _denormalize(self, tensor: torch.Tensor) -> torch.Tensor:
+        if not self._has_normalization():
+            return tensor
+        mean = self._data_mean.to(tensor.device) if self._data_mean.device != tensor.device else self._data_mean
+        std = self._data_std.to(tensor.device) if self._data_std.device != tensor.device else self._data_std
+        return torch.clamp(tensor * std + mean, 0.0, 1.0)
+
+    def _normalize(self, tensor: torch.Tensor) -> torch.Tensor:
+        if not self._has_normalization():
+            return tensor
+        mean = self._data_mean.to(tensor.device) if self._data_mean.device != tensor.device else self._data_mean
+        std = self._data_std.to(tensor.device) if self._data_std.device != tensor.device else self._data_std
+        return (tensor - mean) / std
 
     def _sample_replay(self, batch_size: int):
         if self.prev_generator is None or not self.seen_classes:
-            return None, None, None
-        replay_inputs, y_np, _ = self.prev_generator.sample(
+            return None, None, None, None
+
+        replay_raw, y_np, _ = self.prev_generator.sample(
             batch_size,
             allowed_classes=self.seen_classes,
             only_x=False,
         )
-        replay_inputs = replay_inputs.to(self.device)
+        replay_raw = replay_raw.to(self.device)
 
         # Handle case where y_np is None (when VAE doesn't use GMM prior or decoder gates)
         if y_np is None:
@@ -255,9 +290,10 @@ class Dgr(ContinualModel):
             y_np = np.random.choice(self.seen_classes, size=batch_size)
 
         replay_labels = torch.from_numpy(y_np).long().to(self.device)
+        replay_norm = self._normalize(replay_raw)
         with torch.no_grad():
-            replay_scores = self.prev_classifier.classify(replay_inputs)
-        return replay_inputs, replay_labels, replay_scores
+            replay_scores = self.prev_classifier.classify(replay_norm)
+        return replay_raw, replay_norm, replay_labels, replay_scores
 
     # ------------------------------------------------------------------
     def begin_task(self, dataset) -> None:
@@ -274,24 +310,27 @@ class Dgr(ContinualModel):
         inputs = inputs.to(self.device)
         labels = labels.to(self.device, dtype=torch.long)
 
-        replay_inputs, replay_labels, replay_scores = self._sample_replay(inputs.size(0))
+        inputs_raw = self._denormalize(inputs)
+
+        replay_raw, replay_norm, replay_labels, replay_scores = self._sample_replay(inputs.size(0))
+        rnt = self._replay_ratio()
 
         stats = self.classifier.train_a_batch(
             inputs,
             labels,
-            x_=replay_inputs,
+            x_=replay_norm,
             y_=replay_labels,
             scores_=replay_scores,
-            rnt=self._replay_ratio(),
+            rnt=rnt,
         )
 
         self.generator.train_a_batch(
-            inputs,
+            inputs_raw,
             y=labels,
-            x_=replay_inputs,
+            x_=replay_raw,
             y_=replay_labels,
             scores_=replay_scores,
-            rnt=self._replay_ratio(),
+            rnt=rnt,
         )
 
         self._update_seen_classes(labels)

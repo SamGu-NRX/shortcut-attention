@@ -192,27 +192,22 @@ class TestBaselineMethodExecution:
             results_dir = Path("einstellung_results")
             assert results_dir.exists(), "Results directory not created"
 
-            # Look for CSV files in any subdirectory
-            csv_files = list(results_dir.glob("**/eri_sc_metrics.csv"))
+            # Look for timeline CSV files in any subdirectory
+            csv_files = list(results_dir.glob("**/timeline_*.csv"))
 
-            if len(csv_files) > 0:
-                # Validate CSV structure if files exist
+            if csv_files:
                 csv_file = csv_files[0]
                 df = pd.read_csv(csv_file)
 
-                expected_columns = ['method', 'seed', 'epoch_eff', 'split', 'acc']
-                assert list(df.columns) == expected_columns, f"Invalid CSV columns: {list(df.columns)}"
+                expected_columns = {'method', 'seed', 'epoch_eff', 'split', 'acc', 'top5', 'loss'}
+                assert expected_columns.issubset(df.columns), f"Invalid CSV columns: {list(df.columns)}"
 
-                # Check that method name appears in the data
                 methods_in_csv = df['method'].unique()
-                assert 'scratch_t2' in methods_in_csv, f"scratch_t2 not found in CSV methods: {methods_in_csv}"
+                assert 'scratch_t2' in methods_in_csv, f"scratch_t2 not found in timeline methods: {methods_in_csv}"
 
-                # Validate expected splits
                 splits_in_csv = set(df['split'].unique())
                 expected_splits = {'T1_all', 'T2_shortcut_normal', 'T2_shortcut_masked', 'T2_nonshortcut_normal'}
-
-                # At least some expected splits should be present
-                assert len(splits_in_csv.intersection(expected_splits)) > 0, f"No expected splits found. Found: {splits_in_csv}"
+                assert splits_in_csv.issuperset(expected_splits), f"Missing expected splits. Found: {splits_in_csv}"
 
     def test_interleaved_experiment_execution(self):
         """Test that interleaved can be executed through the experiment script."""
@@ -242,11 +237,9 @@ class TestBaselineMethodExecution:
             results_dir = Path("einstellung_results")
             assert results_dir.exists(), "Results directory not created"
 
-            # Look for CSV files in any subdirectory
-            csv_files = list(results_dir.glob("**/eri_sc_metrics.csv"))
+            csv_files = list(results_dir.glob("**/timeline_*.csv"))
 
-            if len(csv_files) > 0:
-                # Find CSV file with interleaved results
+            if csv_files:
                 interleaved_csv = None
                 for csv_file in csv_files:
                     df = pd.read_csv(csv_file)
@@ -257,12 +250,11 @@ class TestBaselineMethodExecution:
                 if interleaved_csv:
                     df = pd.read_csv(interleaved_csv)
 
-                    expected_columns = ['method', 'seed', 'epoch_eff', 'split', 'acc']
-                    assert list(df.columns) == expected_columns, f"Invalid CSV columns: {list(df.columns)}"
+                    expected_columns = {'method', 'seed', 'epoch_eff', 'split', 'acc', 'top5', 'loss'}
+                    assert expected_columns.issubset(df.columns), f"Invalid CSV columns: {list(df.columns)}"
 
-                    # Check that method name appears in the data
                     methods_in_csv = df['method'].unique()
-                    assert 'interleaved' in methods_in_csv, f"interleaved not found in CSV methods: {methods_in_csv}"
+                    assert 'interleaved' in methods_in_csv, f"interleaved not found in timeline methods: {methods_in_csv}"
 
 
 class TestCSVOutputValidation:
@@ -271,7 +263,7 @@ class TestCSVOutputValidation:
     def test_existing_csv_structure_validation(self):
         """Test validation of existing CSV files from baseline methods."""
         # Check if there are any existing CSV files from baseline methods
-        csv_files = list(Path("einstellung_results").glob("**/eri_sc_metrics.csv"))
+        csv_files = list(Path("einstellung_results").glob("**/timeline_*.csv"))
 
         baseline_methods = ['scratch_t2', 'interleaved']
         found_baseline_results = False
@@ -287,8 +279,8 @@ class TestCSVOutputValidation:
                     found_baseline_results = True
 
                     # Validate CSV structure
-                    expected_columns = ['method', 'seed', 'epoch_eff', 'split', 'acc']
-                    assert list(df.columns) == expected_columns, f"Invalid CSV structure in {csv_file}: {list(df.columns)}"
+                    expected_columns = {'method', 'seed', 'epoch_eff', 'split', 'acc', 'top5', 'loss'}
+                    assert expected_columns.issubset(df.columns), f"Invalid CSV structure in {csv_file}: {list(df.columns)}"
 
                     # Validate data types
                     assert df['method'].dtype == 'object', f"Invalid method column type in {csv_file}"
@@ -296,6 +288,7 @@ class TestCSVOutputValidation:
                     assert df['epoch_eff'].dtype in ['float64', 'float32'], f"Invalid epoch_eff column type in {csv_file}"
                     assert df['split'].dtype == 'object', f"Invalid split column type in {csv_file}"
                     assert df['acc'].dtype in ['float64', 'float32'], f"Invalid acc column type in {csv_file}"
+                    assert df['top5'].dtype in ['float64', 'float32', 'float'], f"Invalid top5 column type in {csv_file}"
 
                     # Validate that accuracy values are reasonable (0-1 range)
                     assert df['acc'].min() >= 0.0, f"Negative accuracy values found in {csv_file}"
@@ -305,9 +298,7 @@ class TestCSVOutputValidation:
                     splits_in_csv = set(df['split'].unique())
                     expected_splits = {'T1_all', 'T2_shortcut_normal', 'T2_shortcut_masked', 'T2_nonshortcut_normal'}
 
-                    # At least some expected splits should be present
-                    common_splits = splits_in_csv.intersection(expected_splits)
-                    assert len(common_splits) > 0, f"No expected ERI splits found in {csv_file}. Found: {splits_in_csv}"
+                    assert splits_in_csv.issuperset(expected_splits), f"No expected ERI splits found in {csv_file}. Found: {splits_in_csv}"
 
                     print(f"✓ Validated CSV structure for {csv_file}")
                     print(f"  - Methods: {list(methods_in_csv)}")
@@ -328,13 +319,15 @@ class TestCSVOutputValidation:
             'seed': [42, 42, 42, 42],
             'epoch_eff': [1.0, 1.0, 1.0, 1.0],
             'split': ['T2_shortcut_normal', 'T2_shortcut_masked', 'T2_shortcut_normal', 'T2_shortcut_masked'],
-            'acc': [0.85, 0.80, 0.82, 0.78]
+            'acc': [0.85, 0.80, 0.82, 0.78],
+            'top5': [0.92, 0.88, 0.9, 0.86],
+            'loss': [0.5, 0.6, 0.55, 0.62]
         }
 
         df = pd.DataFrame(sample_data)
 
         # Validate structure matches ERI expectations
-        expected_columns = ['method', 'seed', 'epoch_eff', 'split', 'acc']
+        expected_columns = ['method', 'seed', 'epoch_eff', 'split', 'acc', 'top5', 'loss']
         assert list(df.columns) == expected_columns
 
         # Validate data types
@@ -343,6 +336,8 @@ class TestCSVOutputValidation:
         assert df['epoch_eff'].dtype in ['float64', 'float32']
         assert df['split'].dtype == 'object'
         assert df['acc'].dtype in ['float64', 'float32']
+        assert df['top5'].dtype in ['float64', 'float32']
+        assert df['loss'].dtype in ['float64', 'float32']
 
         # Validate method names match baseline method NAME attributes
         sys.path.append('.')

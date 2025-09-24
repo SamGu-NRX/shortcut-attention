@@ -140,7 +140,7 @@ class TestMammothERIIntegration(unittest.TestCase):
 
         # Verify CSV content
         df = pd.read_csv(csv_path)
-        expected_columns = ['method', 'seed', 'epoch_eff', 'split', 'acc']
+        expected_columns = ['method', 'seed', 'epoch_eff', 'split', 'acc', 'top5', 'loss']
         self.assertEqual(list(df.columns), expected_columns)
 
         # Check data content

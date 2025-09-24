@@ -53,6 +53,8 @@
 
 3. WHEN creating visualizations THEN the system SHALL include legends, axis labels, titles and save high-quality PDFs
 
+4. WHEN generating overall ERI figure THEN the system SHALL output fig_eri_overall.pdf showing composite ERI scores combining AD, PD, and SFR_rel into a single interpretable metric
+
 ### 1.2 Robustness Heatmap Visualization
 
 **User Story:** As a researcher validating ERI robustness, I want to see AD(τ) values across different threshold ranges, so that I can demonstrate the stability of the metric.
@@ -67,7 +69,69 @@
 
 4. WHEN handling incomplete data THEN the system SHALL handle right-censored runs (no crossing) by leaving cells blank (NaN) and annotating legend with "no-cross" handling
 
-### 1.3 Data Processing and Export
+5. 🚨 WHEN calculating AD, PD, and SFR_rel THEN the system SHALL use the EXACT formulations from the provided ERI specification:
+   - AD = E_CL(τ) - E_S(τ) where E_M(τ) is first effective epoch where smoothed accuracy ≥ τ
+   - PD = A*S_patch^* - A*CL_patch^* using final checkpoint accuracies selected by best Phase-2 validation
+   - SFR_rel = Δ_CL - Δ_S where Δ_M = A_M_patch - A_M_mask on final checkpoints
+   - Use macro-averaged accuracy over C_patch classes (equal weight per class, not frequency-weighted)
+   - Apply smoothing with window w=3 and trailing moving average for AD threshold detection
+
+### 1.2.1 🚨 CRITICAL: ERI Calculation Fixes
+
+**User Story:** As a researcher analyzing ERI results, I want the AD, PD, and SFR_rel calculations to be mathematically correct according to the paper specification, so that the heatmaps and visualizations accurately reflect method performance.
+
+#### Acceptance Criteria
+
+1. WHEN calculating effective epochs THEN the system SHALL track Phase-2 sample consumption divided by |Phase-2 training set| for replay normalization
+
+2. WHEN computing AD THEN the system SHALL:
+
+   - Apply smoothing with trailing moving average window w=3: smoothed_A[e] = mean(A_M[max(1,e-w+1) .. e])
+   - Find E_M(τ) = smallest effective epoch e where smoothed_A_M(e) ≥ τ
+   - Compute AD = E_CL(τ) - E_S(τ) only for seeds where both methods reach τ
+   - Mark as NaN and exclude from averaging when threshold never reached
+
+3. WHEN computing PD THEN the system SHALL:
+
+   - Use final checkpoint selected by best Phase-2 validation accuracy (same rule for all methods)
+   - Compute PD = A*S_patch^* - A*CL_patch^* using final selected checkpoint accuracies
+   - Use macro-averaged accuracy: compute per-class accuracy then average (not frequency-weighted)
+
+4. WHEN computing SFR_rel THEN the system SHALL:
+
+   - Use final checkpoint selected by best Phase-2 validation accuracy
+   - Compute Δ_M = A_M_patch - A_M_mask for final checkpoint
+   - Compute SFR_rel = Δ_CL - Δ_S using final checkpoint deltas
+   - Ensure paired test sets (same underlying images for patch vs mask)
+
+5. WHEN validating calculations THEN the system SHALL verify that DER++ shows better performance than scratch_t2 baseline in the provided data (einstellung_results/session_20250923-012304_seed42)
+
+### 1.3 Overall ERI Metric Visualization
+
+**User Story:** As a researcher presenting ERI results, I want a single composite visualization that combines AD, PD, and SFR_rel into an overall ERI metric, so that I can provide a clear summary of method rigidity.
+
+#### Acceptance Criteria
+
+1. WHEN computing overall ERI THEN the system SHALL combine the three facets using weighted formula:
+
+   - ERI_overall = w_AD × AD_norm + w_PD × PD + w_SFR × SFR_rel
+   - Default weights: w_AD = 0.4, w_PD = 0.4, w_SFR = 0.2
+   - AD_norm = min(AD / 50.0, 1.0) to normalize to [0,1] range
+
+2. WHEN generating overall ERI figure THEN the system SHALL output fig_eri_overall.pdf with:
+
+   - Bar chart showing ERI_overall scores for each method
+   - Error bars representing 95% confidence intervals across seeds
+   - Color coding: green (low rigidity) to red (high rigidity)
+   - Horizontal reference line at ERI_overall for Scratch_T2 baseline
+
+3. WHEN displaying overall ERI THEN the system SHALL include:
+   - Method names on x-axis sorted by ERI score (ascending)
+   - ERI score values on y-axis with appropriate scale
+   - Legend explaining ERI interpretation (higher = more rigid)
+   - Annotation showing component breakdown for top/bottom methods
+
+### 1.4 Data Processing and Export
 
 **User Story:** As a researcher with existing experiment logs, I want to convert my data into the required CSV format, so that I can generate the visualizations without re-running experiments.
 

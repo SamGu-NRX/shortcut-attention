@@ -167,7 +167,7 @@ class TestHooksIntegrationWithEvaluator:
         df = pd.read_csv(csv_path)
 
         # Check exact column names and order
-        expected_columns = ['method', 'seed', 'epoch_eff', 'split', 'acc']
+        expected_columns = ['method', 'seed', 'epoch_eff', 'split', 'acc', 'top5', 'loss']
         assert list(df.columns) == expected_columns
 
         # Check data types
@@ -199,7 +199,7 @@ class TestHooksIntegrationWithEvaluator:
                     assert prev_row['seed'] <= curr_row['seed']
 
     def test_experiment_end_produces_final_csv(self):
-        """Test that experiment end produces the required eri_sc_metrics.csv."""
+        """Test that experiment end produces the required timeline.csv."""
         # Add timeline data
         self.hooks.timeline_data = [
             {
@@ -221,8 +221,8 @@ class TestHooksIntegrationWithEvaluator:
         # Call experiment end
         result = self.hooks.on_experiment_end(evaluator)
 
-        # Check that eri_sc_metrics.csv was created
-        final_csv = self.output_dir / "eri_sc_metrics.csv"
+        # Check that timeline.csv was created
+        final_csv = self.output_dir / "timeline_sgd.csv"
         assert final_csv.exists()
         assert 'csv' in result
         assert result['csv'] == str(final_csv)
@@ -230,6 +230,7 @@ class TestHooksIntegrationWithEvaluator:
         # Verify CSV content
         df = pd.read_csv(final_csv)
         assert len(df) == 4  # 1 epoch × 4 splits
+        assert {'method', 'seed', 'epoch_eff', 'split', 'acc', 'top5', 'loss'}.issubset(df.columns)
 
         # Check metadata was also created
         metadata_file = self.output_dir / "eri_experiment_metadata.json"

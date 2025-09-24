@@ -246,7 +246,7 @@ class TestCSVOutputValidation:
         # This test validates the CSV format structure that would be produced
         # by the EinstellungEvaluator when used with baseline methods
 
-        expected_columns = ['method', 'seed', 'epoch_eff', 'split', 'acc']
+        expected_columns = ['method', 'seed', 'epoch_eff', 'split', 'acc', 'top5', 'loss']
 
         # Sample CSV data that should be produced by baseline methods
         sample_data = {
@@ -254,7 +254,9 @@ class TestCSVOutputValidation:
             'seed': [42, 42, 42, 42],
             'epoch_eff': [0.0, 0.0, 0.0, 0.0],
             'split': ['T2_shortcut_normal', 'T2_shortcut_masked', 'T2_shortcut_normal', 'T2_shortcut_masked'],
-            'acc': [0.85, 0.80, 0.82, 0.78]
+            'acc': [0.85, 0.80, 0.82, 0.78],
+            'top5': [0.92, 0.88, 0.90, 0.86],
+            'loss': [0.5, 0.6, 0.55, 0.62]
         }
 
         df = pd.DataFrame(sample_data)
@@ -266,6 +268,8 @@ class TestCSVOutputValidation:
         assert df['epoch_eff'].dtype in ['float64', 'float32']
         assert df['split'].dtype == 'object'
         assert df['acc'].dtype in ['float64', 'float32']
+        assert df['top5'].dtype in ['float64', 'float32']
+        assert df['loss'].dtype in ['float64', 'float32']
 
         # Validate method names match baseline method NAME attributes
         unique_methods = df['method'].unique()

@@ -2,14 +2,22 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Iterable, List, Tuple
+import shutil
 
-from .analysis import build_comparative_table, combine_summaries, write_aggregated_outputs
+from .analysis import (
+    build_comparative_table,
+    combine_summaries,
+    combine_timelines,
+    write_aggregated_outputs,
+)
 from .config import ExperimentConfig
 from .reporting import write_comparative_report
 from .runner import EinstellungRunner
+from .visualization import generate_comparative_plots
 
 
 @dataclass
@@ -41,8 +49,10 @@ def run_comparative_suite(
             seed=plan.seed,
             epochs=plan.epochs if plan.epochs is not None else base_config.epochs,
         )
+        cfg.output_prefix = strategy
 
         result = runner.run(cfg)
+        result.setdefault('output_dir', result.get('results_dir'))
         results.append(result)
 
     summary_df = combine_summaries(results)
@@ -54,8 +64,47 @@ def run_comparative_suite(
         output_dir=output_root,
     )
 
-    for key, path in aggregated_paths.items():
-        for result in results:
-            result.setdefault("comparative_outputs", {})[key] = str(path)
+    timeline_df = combine_timelines(results)
+    plot_paths = {}
+    if not timeline_df.empty:
+        session_dir = base_config.session_dir or output_root
+        plots_dir = session_dir / "plots"
+        try:
+            plot_paths = generate_comparative_plots(timeline_df, plots_dir)
+        except Exception as exc:  # pragma: no cover - defensive
+            logging.getLogger("einstellung.batch").warning(
+                "Comparative plot generation failed: %s", exc
+            )
+
+    combined_outputs = {k: str(v) for k, v in aggregated_paths.items()}
+    combined_outputs.update({k: str(v) for k, v in plot_paths.items()})
+
+    session_dir = base_config.session_dir
+    if session_dir:
+        session_dir.mkdir(parents=True, exist_ok=True)
+
+        for path in aggregated_paths.values():
+            try:
+                target = session_dir / Path(path).name
+                shutil.copy2(path, target)
+            except (OSError, IOError):  # pragma: no cover
+                logging.getLogger("einstellung.batch").debug("Unable to copy %s", path)
+
+        try:
+            if report_path:
+                shutil.copy2(report_path, session_dir / Path(report_path).name)
+        except (OSError, IOError):
+            logging.getLogger("einstellung.batch").debug("Unable to copy report %s", report_path)
+
+        for path in plot_paths.values():
+            try:
+                target = session_dir / Path(path).name
+                shutil.copy2(path, target)
+            except (OSError, IOError):
+                logging.getLogger("einstellung.batch").debug("Unable to copy plot %s", path)
+
+    for result in results:
+        if combined_outputs:
+            result.setdefault("comparative_outputs", {}).update(combined_outputs)
 
     return results, report_path

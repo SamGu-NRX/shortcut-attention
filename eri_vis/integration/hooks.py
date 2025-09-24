@@ -106,12 +106,30 @@ class ERIExperimentHooks:
 
                 # Verify this is the current epoch
                 if latest_entry.get('epoch') == epoch:
-                    # Extract subset accuracies
-                    subset_accuracies = latest_entry.get('subset_accuracies', {})
+                    # Extract subset metrics (supports legacy structure)
+                    subset_metrics = latest_entry.get('subset_metrics') or latest_entry.get('subset_accuracies', {})
+                    subset_losses = latest_entry.get('subset_losses', {})
+
+                    def _top1(value):
+                        if isinstance(value, dict):
+                            return float(value.get('top1', value.get('accuracy', 0.0)))
+                        return float(value)
+
+                    def _top5(value):
+                        if isinstance(value, dict):
+                            top5_val = value.get('top5')
+                            if top5_val is not None:
+                                return float(top5_val)
+                        return None
+
+                    subset_accuracies_map = {
+                        split: _top1(metrics)
+                        for split, metrics in subset_metrics.items()
+                    }
 
                     # Focus on shortcut-related metrics
-                    sc_patched = subset_accuracies.get('T2_shortcut_normal', 0.0)
-                    sc_masked = subset_accuracies.get('T2_shortcut_masked', 0.0)
+                    sc_patched = subset_accuracies_map.get('T2_shortcut_normal', 0.0)
+                    sc_masked = subset_accuracies_map.get('T2_shortcut_masked', 0.0)
 
                     # Store timeline entry in our format
                     timeline_entry = {
@@ -120,7 +138,9 @@ class ERIExperimentHooks:
                         'task_id': self.current_task,
                         'method': self.current_method,
                         'seed': self.current_seed,
-                        'subset_accuracies': subset_accuracies,
+                        'subset_metrics': subset_metrics,
+                        'subset_accuracies': subset_accuracies_map,
+                        'subset_losses': subset_losses,
                         'timestamp': time.time()
                     }
 
@@ -202,7 +222,8 @@ class ERIExperimentHooks:
             self.logger.info("Experiment completed - generating final exports and visualizations")
 
             # Export final comprehensive CSV
-            final_csv_path = self.output_dir / "eri_sc_metrics.csv"
+            method_name = (self.current_method or 'method').replace('/', '_')
+            final_csv_path = self.output_dir / f"timeline_{method_name}.csv"
             self._export_timeline_csv(final_csv_path)
             generated_files['csv'] = str(final_csv_path)
 
@@ -250,18 +271,33 @@ class ERIExperimentHooks:
             epoch_eff = entry.get('epoch_eff', entry.get('epoch', 0))
             method = entry.get('method', self.current_method)
             seed = entry.get('seed', self.current_seed)
-            subset_accuracies = entry.get('subset_accuracies', {})
+            subset_metrics = entry.get('subset_metrics') or entry.get('subset_accuracies', {})
+            subset_losses = entry.get('subset_losses', {})
 
-            # Add row for each valid subset
-            for split, acc in subset_accuracies.items():
-                if split in self.data_loader.VALID_SPLITS:
-                    csv_rows.append({
-                        'method': method,
-                        'seed': seed,
-                        'epoch_eff': float(epoch_eff),
-                        'split': split,
-                        'acc': float(acc)
-                    })
+            for split, metrics in subset_metrics.items():
+                if split not in self.data_loader.VALID_SPLITS:
+                    continue
+
+                if isinstance(metrics, dict):
+                    top1 = float(metrics.get('top1', metrics.get('accuracy', 0.0)))
+                    top5 = metrics.get('top5')
+                    top5 = float(top5) if top5 is not None else top1
+                else:
+                    top1 = float(metrics)
+                    top5 = top1
+
+                loss = subset_losses.get(split)
+                loss = float(loss) if loss is not None else max(0.0, 1.0 - top1)
+
+                csv_rows.append({
+                    'method': method,
+                    'seed': seed,
+                    'epoch_eff': float(epoch_eff),
+                    'split': split,
+                    'acc': top1,
+                    'top5': top5,
+                    'loss': loss
+                })
 
         if not csv_rows:
             self.logger.warning("No valid CSV rows generated")

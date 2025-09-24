@@ -172,14 +172,8 @@ def _patched_train(model, dataset, args):
             import os
             os.makedirs(output_path, exist_ok=True)
 
-            results_file = f"{output_path}/einstellung_final_results.json"
-            _einstellung_evaluator.export_results(results_file)
-            logger.info(f"✓ Exported Einstellung results to: {results_file}")
-
-            # ALSO export CSV in the expected location for visualization
-            csv_file = f"{output_path}/eri_sc_metrics.csv"
-            _einstellung_evaluator.export_csv_for_visualization(csv_file)
-            logger.info(f"✓ Exported Einstellung CSV for visualization: {csv_file}")
+            _einstellung_evaluator.export_results(output_path)
+            logger.info(f"✓ Exported Einstellung artefacts to: {output_path}")
         except Exception as e:
             logger.error(f"❌ Error exporting Einstellung results: {e}")
             logger.exception("Full traceback:")

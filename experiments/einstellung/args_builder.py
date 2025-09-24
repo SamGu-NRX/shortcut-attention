@@ -89,6 +89,8 @@ def build_mammoth_args(
         str(resolve_learning_rate(config)),
         "--num_workers",
         str(config.num_workers if config.num_workers is not None else 4),
+        "--non_verbose",
+        "0",
         "--results_path",
         str(results_path),
         "--savecheck",

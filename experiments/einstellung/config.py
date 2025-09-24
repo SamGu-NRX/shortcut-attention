@@ -56,6 +56,8 @@ class ExperimentConfig:
 
     # Output + reporting
     results_root: Path = Path("einstellung_results")
+    session_dir: Optional[Path] = None
+    output_prefix: Optional[str] = None
     reference_top1: float = 0.35
     reference_top5: float = 0.65
 
@@ -89,6 +91,8 @@ def dataclass_replace(config: ExperimentConfig) -> ExperimentConfig:
         enable_cache=config.enable_cache,
         code_optimization=config.code_optimization,
         results_root=config.results_root,
+        session_dir=config.session_dir,
+        output_prefix=config.output_prefix,
         reference_top1=config.reference_top1,
         reference_top5=config.reference_top5,
         extra_args=dict(config.extra_args),

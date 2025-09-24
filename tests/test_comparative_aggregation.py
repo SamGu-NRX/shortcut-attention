@@ -49,18 +49,28 @@ class TestComparativeAggregation(unittest.TestCase):
             base_acc = 0.6 + 0.2 * (1 - np.exp(-epoch))
             noise = np.random.normal(0, 0.02)
 
-            data_rows.extend([
-                [method, seed, epoch, "T1_all", max(0, min(1, base_acc * 0.8 + noise))],
-                [method, seed, epoch, "T2_shortcut_normal", max(0, min(1, base_acc * 1.1 + noise))],
-                [method, seed, epoch, "T2_shortcut_masked", max(0, min(1, base_acc * 0.9 + noise))],
-                [method, seed, epoch, "T2_nonshortcut_normal", max(0, min(1, base_acc + noise))]
-            ])
+            rows = []
+            rows.append(("T1_all", max(0, min(1, base_acc * 0.8 + noise))))
+            rows.append(("T2_shortcut_normal", max(0, min(1, base_acc * 1.1 + noise))))
+            rows.append(("T2_shortcut_masked", max(0, min(1, base_acc * 0.9 + noise))))
+            rows.append(("T2_nonshortcut_normal", max(0, min(1, base_acc + noise))))
 
-        df = pd.DataFrame(data_rows, columns=["method", "seed", "epoch_eff", "split", "acc"])
+            for split, acc in rows:
+                data_rows.append([
+                    method,
+                    seed,
+                    epoch,
+                    split,
+                    acc,
+                    min(0.99, acc + 0.08),
+                    max(0.0, 1.0 - acc)
+                ])
+
+        df = pd.DataFrame(data_rows, columns=["method", "seed", "epoch_eff", "split", "acc", "top5", "loss"])
 
         # Create output directory and save CSV
         output_dir.mkdir(parents=True, exist_ok=True)
-        csv_path = output_dir / "eri_sc_metrics.csv"
+        csv_path = output_dir / f"timeline_{method}.csv"
         df.to_csv(csv_path, index=False)
 
         return str(csv_path)

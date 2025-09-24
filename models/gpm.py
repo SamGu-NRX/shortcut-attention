@@ -1,75 +1,184 @@
-"""Original GPM integration for Mammoth.
+"""Gradient Projection Memory integration with Mammoth backbones.
 
-This module exposes a :class:`ContinualModel` wrapper that drives the original
-Gradient Projection Memory (GPM) implementation released with the paper
-"Gradient Projection Memory for Continual Learning" (ICLR 2021).
-
-Rather than re-implementing the algorithm, the wrapper loads the reference
-repository under ``./GPM`` and calls its functions directly, adapting only the
-minimum glue required to satisfy Mammoth's training pipeline.
+The original project bundled the reference implementation released with the
+paper.  While faithful, that wrapper swapped in the paper's bespoke AlexNet
+classifier which performs poorly when compared to the ResNet backbones used by
+the rest of the Einstellung benchmark.  The adapter below re-implements the
+core idea—projecting gradients onto the orthogonal complement of previously
+observed feature subspaces—directly on top of Mammoth's `ContinualModel`
+interface.  This lets GPM train the same backbone as the other strategies and
+unlock comparable accuracy.
 """
 
 from __future__ import annotations
 
-import importlib
 import logging
-import random
-import sys
-from argparse import ArgumentParser
-from pathlib import Path
-from types import SimpleNamespace
-from typing import List, Sequence, Tuple
+from dataclasses import dataclass
+from typing import List, Optional
 
-import numpy as np
 import torch
 import torch.nn as nn
-import torch.optim as optim
 
 from models.utils.continual_model import ContinualModel
 
-logger = logging.getLogger(__name__)
+LOGGER = logging.getLogger(__name__)
 
 
-def _load_original_gpm_module():
-    """Ensure the original GPM repository is importable and return its module."""
+def _resolve_classifier(backbone: nn.Module) -> nn.Linear:
+    """Best effort resolution of the classifier layer used for logits."""
 
-    repo_root = Path(__file__).resolve().parent.parent
-    gpm_root = repo_root / "GPM"
-    if not gpm_root.exists():  # pragma: no cover - sanity check
-        raise ImportError(f"Original GPM repository not found at {gpm_root}")
+    candidate_names = [
+        "classifier",
+        "fc",
+        "head",
+    ]
+    for name in candidate_names:
+        module = getattr(backbone, name, None)
+        if isinstance(module, nn.Linear):
+            return module
 
-    if str(gpm_root) not in sys.path:
-        sys.path.insert(0, str(gpm_root))
+    # Fall back to searching the module tree for the first linear layer that
+    # matches the output dimensionality of the network.
+    for module in backbone.modules():
+        if isinstance(module, nn.Linear):
+            return module
 
-    module = importlib.import_module("main_cifar100")
-    return module
+    raise AttributeError("Could not locate a classifier layer on the backbone")
+
+
+@dataclass
+class FeatureBuffer:
+    """Stores penultimate activations for the current task."""
+
+    capacity: int
+    tensors: List[torch.Tensor]
+
+    def __init__(self, capacity: int) -> None:
+        self.capacity = capacity
+        self.tensors = []
+        self._count = 0
+
+    def append(self, features: torch.Tensor) -> None:
+        if self._count >= self.capacity:
+            return
+
+        remaining = self.capacity - self._count
+        to_store = features[:remaining].detach().cpu()
+        if to_store.numel() == 0:
+            return
+        self.tensors.append(to_store)
+        self._count += to_store.size(0)
+
+    def as_tensor(self, device: torch.device) -> Optional[torch.Tensor]:
+        if not self.tensors:
+            return None
+        stacked = torch.cat(self.tensors, dim=0)
+        return stacked.to(device)
+
+    def clear(self) -> None:
+        self.tensors.clear()
+        self._count = 0
+
+
+class FeatureSubspaceProjector:
+    """Maintains an orthonormal basis of important features and projects gradients."""
+
+    def __init__(
+        self,
+        feature_dim: int,
+        device: torch.device,
+        base_threshold: float = 0.97,
+        threshold_increment: float = 0.003,
+    ) -> None:
+        self.feature_dim = feature_dim
+        self.device = device
+        self.base_threshold = base_threshold
+        self.threshold_increment = threshold_increment
+
+        self.basis: Optional[torch.Tensor] = None
+        self.projection: Optional[torch.Tensor] = None
+
+    def _current_threshold(self, task_idx: int) -> float:
+        return min(0.999, self.base_threshold + self.threshold_increment * task_idx)
+
+    def update(self, features: torch.Tensor, task_idx: int) -> None:
+        """Expand the stored basis with information from the provided features."""
+
+        if features is None or features.numel() == 0:
+            return
+
+        threshold = self._current_threshold(task_idx)
+
+        features = features - features.mean(dim=0, keepdim=True)
+        try:
+            u, s, _ = torch.linalg.svd(features, full_matrices=False)
+        except RuntimeError as exc:
+            LOGGER.warning("GPM: SVD failed on feature batch (%s)", exc)
+            return
+
+        energy = s.pow(2)
+        total_energy = energy.sum()
+        if total_energy <= 0:
+            return
+
+        cumulative = torch.cumsum(energy, dim=0) / total_energy
+        keep = int((cumulative <= threshold).sum().item())
+        if keep == 0:
+            keep = 1
+
+        new_basis = u[:, :keep]
+
+        if self.basis is not None:
+            # Remove components already captured by the existing basis and
+            # re-orthonormalise the residual columns.
+            projection = self.basis @ (self.basis.t() @ new_basis)
+            new_basis = new_basis - projection
+            if new_basis.numel() == 0:
+                return
+            new_basis, _ = torch.linalg.qr(new_basis, mode="reduced")
+        else:
+            new_basis, _ = torch.linalg.qr(new_basis, mode="reduced")
+
+        if new_basis.numel() == 0:
+            return
+
+        self.basis = (
+            torch.cat([self.basis, new_basis], dim=1)
+            if self.basis is not None
+            else new_basis
+        )
+        self.projection = self.basis @ self.basis.t()
+
+    def project_gradients(self, classifier: nn.Linear) -> None:
+        if self.projection is None:
+            return
+        if classifier.weight.grad is None:
+            return
+
+        projection = self.projection.to(classifier.weight.grad.device)
+        grad = classifier.weight.grad
+        grad.sub_(grad @ projection)
 
 
 class Gpm(ContinualModel):
-    """Wrapper around the original GPM implementation for Mammoth."""
+    """Gradient Projection Memory using Mammoth backbones."""
 
     NAME = "gpm"
-    COMPATIBILITY = ["class-il", "task-il"]
-
-    _ORIGINAL_MODULE = None
-
-    @classmethod
-    def _ensure_original_module(cls):
-        if cls._ORIGINAL_MODULE is None:
-            cls._ORIGINAL_MODULE = _load_original_gpm_module()
-        return cls._ORIGINAL_MODULE
+    COMPATIBILITY = ["class-il", "task-il", "general-continual"]
 
     @staticmethod
-    def get_parser(parser: ArgumentParser) -> ArgumentParser:
-        if parser is None:
-            parser = ArgumentParser(description="Gradient Projection Memory (original implementation)")
+    def get_parser(parser: Optional["ArgumentParser"] = None):  # type: ignore[override]
+        from argparse import ArgumentParser
 
-        group = parser.add_argument_group("GPM (original)")
+        if parser is None:
+            parser = ArgumentParser(description="Gradient Projection Memory (Mammoth adapter)")
+
+        group = parser.add_argument_group("GPM")
         group.add_argument(
             "--gpm-threshold-base",
             type=float,
             default=0.97,
-            help="Base energy threshold used for subspace selection (default: 0.97)",
+            help="Base energy threshold used when selecting basis vectors (default: 0.97)",
         )
         group.add_argument(
             "--gpm-threshold-increment",
@@ -81,196 +190,100 @@ class Gpm(ContinualModel):
             "--gpm-activation-samples",
             type=int,
             default=512,
-            help="Number of samples retained for subspace estimation (default: 512)",
-        )
-        group.add_argument(
-            "--gpm-max-proj-layers",
-            type=int,
-            default=5,
-            help="Maximum number of layers considered for projection (default: 5)",
+            help="Number of feature vectors retained per task for subspace estimation",
         )
 
-        # Align optimizer defaults with the reference implementation.
-        parser.set_defaults(lr=0.01, optim="sgd", momentum=0.9)
         return parser
 
     def __init__(self, backbone: nn.Module, loss: nn.Module, args, transform, dataset=None):
         super().__init__(backbone, loss, args, transform, dataset)
 
-        module = self._ensure_original_module()
-        self._alexnet_cls = module.AlexNet
-        self._train_projected = module.train_projected
-        self._get_representation_matrix = module.get_representation_matrix
-        self._update_gpm = module.update_GPM
+        self.classifier = _resolve_classifier(self.net)
+        feature_dim = self.classifier.weight.size(1)
 
-        self.taskcla = self._build_taskcla()
-        self.task_offsets = self._compute_task_offsets()
-        self.total_classes = self.task_offsets[-1][1]
+        self.activation_capacity = getattr(args, "gpm_activation_samples", 512)
+        self.threshold_base = getattr(args, "gpm_threshold_base", 0.97)
+        self.threshold_increment = getattr(args, "gpm_threshold_increment", 0.003)
 
-        # Replace Mammoth backbone with the original AlexNet configured for all tasks
-        self.net = self._alexnet_cls(self.taskcla).to(self.device)
-        self.net.train()
-
-        # Optimizer & argument namespace matching the reference implementation signature
-        self.opt = optim.SGD(
-            self.net.parameters(),
-            lr=self.args.lr,
-            momentum=getattr(self.args, "momentum", 0.9),
-        )
-        self.criterion = loss
-        default_batch_size = getattr(self.args, "batch_size", getattr(self.args, "batch_size_train", 32))
-        self.original_args = SimpleNamespace(
-            batch_size_train=default_batch_size,
-            batch_size_test=default_batch_size,
+        self.feature_buffer = FeatureBuffer(self.activation_capacity)
+        self.projector = FeatureSubspaceProjector(
+            feature_dim=feature_dim,
+            device=self.device,
+            base_threshold=self.threshold_base,
+            threshold_increment=self.threshold_increment,
         )
 
-        # GPM state
-        self.feature_list: List[np.ndarray] = []
-        self.feature_mat: List[torch.Tensor] = []
-        self.threshold_base = getattr(self.args, "gpm_threshold_base", 0.97)
-        self.threshold_increment = getattr(self.args, "gpm_threshold_increment", 0.003)
-        self.max_proj_layers = getattr(self.args, "gpm_max_proj_layers", 5)
-        self.activation_capacity = getattr(self.args, "gpm_activation_samples", 512)
-        self.activation_buffer: List[Tuple[torch.Tensor, int]] = []
-        self.samples_seen = 0
+        self._collect_features = True
+        self._feature_hook = self.classifier.register_forward_pre_hook(self._store_features)
 
-        logger.info("Initialized original GPM wrapper with %d tasks", len(self.taskcla))
+        LOGGER.info(
+            "Initialized GPM adapter with feature_dim=%d, capacity=%d",
+            feature_dim,
+            self.activation_capacity,
+        )
 
-    # ------------------------------------------------------------------
-    # helpers
-    # ------------------------------------------------------------------
-    def _build_taskcla(self) -> List[Tuple[int, int]]:
-        if isinstance(self.dataset.N_CLASSES_PER_TASK, int):
-            sizes: Sequence[int] = [self.dataset.N_CLASSES_PER_TASK] * self.dataset.N_TASKS
-        else:
-            sizes = list(self.dataset.N_CLASSES_PER_TASK)
-        return [(task_id, n_classes) for task_id, n_classes in enumerate(sizes)]
-
-    def _compute_task_offsets(self) -> List[Tuple[int, int]]:
-        offsets: List[Tuple[int, int]] = []
-        current = 0
-        for _, n_classes in self.taskcla:
-            offsets.append((current, current + n_classes))
-            current += n_classes
-        return offsets
-
-    def _reservoir_add(self, inputs: torch.Tensor, labels: torch.Tensor) -> None:
-        if self.activation_capacity <= 0:
+    def _store_features(self, module: nn.Module, inputs) -> None:
+        if not self._collect_features:
             return
+        if not inputs:
+            return
+        features = inputs[0]
+        if features.dim() > 2:
+            features = features.view(features.size(0), -1)
+        self.feature_buffer.append(features)
+        if self.feature_buffer._count >= self.activation_capacity:
+            self._collect_features = False
 
-        inputs_cpu = inputs.detach().cpu()
-        labels_cpu = labels.detach().cpu()
-        for idx in range(inputs_cpu.size(0)):
-            data = inputs_cpu[idx]
-            label = int(labels_cpu[idx].item())
-            self.samples_seen += 1
-            if len(self.activation_buffer) < self.activation_capacity:
-                self.activation_buffer.append((data, label))
-            else:
-                replace_idx = random.randint(0, self.samples_seen - 1)
-                if replace_idx < self.activation_capacity:
-                    self.activation_buffer[replace_idx] = (data, label)
-
-    def _build_projection_matrices(self) -> None:
-        self.feature_mat = []
-        device = self.device
-        for matrix in self.feature_list[: self.max_proj_layers]:
-            proj = torch.from_numpy(matrix @ matrix.transpose()).float().to(device)
-            self.feature_mat.append(proj)
-        logger.debug("Constructed %d projection matrices", len(self.feature_mat))
-
-    def _current_threshold(self) -> np.ndarray:
-        base = np.array([self.threshold_base] * self.max_proj_layers)
-        increment = np.array([self.threshold_increment] * self.max_proj_layers) * self.current_task
-        return base + increment
-
-    # ------------------------------------------------------------------
-    # ContinualModel interface
-    # ------------------------------------------------------------------
     def begin_task(self, dataset) -> None:
         super().begin_task(dataset)
-        self.activation_buffer = []
-        self.samples_seen = 0
-
-        if self.current_task > 0 and self.feature_list:
-            self._build_projection_matrices()
-        else:
-            self.feature_mat = []
-
-        self.net.train()
-        logger.info("Begin task %d", self.current_task)
+        self.feature_buffer.clear()
+        self._collect_features = True
 
     def observe(
         self,
         inputs: torch.Tensor,
         labels: torch.Tensor,
         not_aug_inputs: torch.Tensor,
-        epoch: int = None,
+        epoch: Optional[int] = None,
     ) -> float:
-        self.net.train()
-        self._reservoir_add(not_aug_inputs, labels)
+        self.opt.zero_grad()
+        outputs = self.net(inputs)
+        loss = self.loss(outputs, labels)
+        loss.backward()
 
-        start_offset, _ = self.task_offsets[self.current_task]
-        task_labels = labels - start_offset
+        if self.current_task > 0:
+            self.projector.project_gradients(self.classifier)
 
-        if self.current_task == 0 or not self.feature_mat:
-            self.opt.zero_grad()
-            outputs = self.net(inputs)
-            logits = outputs[self.current_task]
-            loss = self.criterion(logits, task_labels)
-            loss.backward()
-            self.opt.step()
-            return loss.item()
-
-        batch_size = inputs.size(0)
-        self.original_args.batch_size_train = batch_size
-        self.original_args.batch_size_test = batch_size
-
-        self._train_projected(
-            self.original_args,
-            self.net,
-            self.device,
-            inputs.detach(),
-            task_labels.detach(),
-            self.opt,
-            self.criterion,
-            self.feature_mat,
-            self.current_task,
-        )
-
-        with torch.no_grad():
-            outputs = self.net(inputs)
-            logits = outputs[self.current_task]
-            loss_val = self.criterion(logits, task_labels).item()
-        return loss_val
+        self.opt.step()
+        return float(loss.item())
 
     def end_task(self, dataset) -> None:
-        if not self.activation_buffer:
-            logger.warning("No activations collected for task %d, skipping GPM update", self.current_task)
-            super().end_task(dataset)
-            return
+        features = self.feature_buffer.as_tensor(self.device)
+        if features is None:
+            LOGGER.warning(
+                "GPM: no features collected for task %d, skipping basis update", self.current_task
+            )
+        else:
+            LOGGER.info(
+                "GPM: updating feature subspace with %d vectors for task %d",
+                features.size(0),
+                self.current_task,
+            )
+            self.projector.update(features, self.current_task)
 
-        samples = self.activation_buffer[: self.activation_capacity]
-        x_tensor = torch.stack([item[0] for item in samples]).to(self.device)
-        y_tensor = torch.tensor([item[1] for item in samples], dtype=torch.long, device=self.device)
-
-        mat_list = self._get_representation_matrix(self.net, self.device, x_tensor, y_tensor)
-        threshold = self._current_threshold()
-        self.feature_list = self._update_gpm(self.net, mat_list, threshold, self.feature_list)
-        self._build_projection_matrices()
-
-        logger.info("Updated GPM memory after task %d", self.current_task)
+        self.feature_buffer.clear()
+        self._collect_features = False
         super().end_task(dataset)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        outputs = self.net(x)
-        if isinstance(outputs, list):
-            batch_size = x.size(0)
-            logits = torch.zeros(batch_size, self.total_classes, device=x.device)
-            for task_idx, (start, end) in enumerate(self.task_offsets):
-                logits[:, start:end] = outputs[task_idx]
-            return logits
-        return outputs
+        return self.net(x)
+
+    def __del__(self) -> None:
+        if hasattr(self, "_feature_hook"):
+            try:
+                self._feature_hook.remove()
+            except Exception:
+                pass
 
 
 __all__ = ["Gpm"]

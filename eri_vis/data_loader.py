@@ -34,7 +34,7 @@ class ERIDataLoader:
     """
 
     # Required columns for CSV format
-    REQUIRED_COLS = ["method", "seed", "epoch_eff", "split", "acc"]
+    REQUIRED_COLS = ["method", "seed", "epoch_eff", "split", "acc", "top5", "loss"]
 
     # Valid split names
     VALID_SPLITS = {
@@ -116,7 +116,8 @@ class ERIDataLoader:
             for entry in timeline_data:
                 epoch = entry.get('epoch', 0)
                 task_id = entry.get('task_id', 0)
-                subset_accuracies = entry.get('subset_accuracies', {})
+                subset_metrics = entry.get('subset_metrics') or entry.get('subset_accuracies', {})
+                subset_losses = entry.get('subset_losses', {})
 
                 # Extract method from configuration or use default
                 method = self._extract_method_from_export(export)
@@ -128,14 +129,27 @@ class ERIDataLoader:
                 epoch_eff = float(epoch)
 
                 # Create rows for each split
-                for split, acc in subset_accuracies.items():
+                for split, value in subset_metrics.items():
                     if split in self.VALID_SPLITS:
+                        if isinstance(value, dict):
+                            top1 = float(value.get('top1', value.get('accuracy', 0.0)))
+                            top5 = value.get('top5')
+                            top5 = float(top5) if top5 is not None else top1
+                        else:
+                            top1 = float(value)
+                            top5 = top1
+
+                        loss = subset_losses.get(split)
+                        loss = float(loss) if loss is not None else max(0.0, 1.0 - top1)
+
                         rows.append({
                             'method': method,
                             'seed': seed,
                             'epoch_eff': epoch_eff,
                             'split': split,
-                            'acc': float(acc)
+                            'acc': top1,
+                            'top5': top5,
+                            'loss': loss
                         })
 
             if not rows:
@@ -349,6 +363,26 @@ class ERIDataLoader:
             except Exception:
                 errors.append("Column 'acc' must be numeric type")
 
+        # Check top5 column (numeric)
+        if 'top5' in df.columns and not pd.api.types.is_numeric_dtype(df['top5']):
+            try:
+                df['top5'] = pd.to_numeric(df['top5'], errors='coerce')
+                if df['top5'].isna().any():
+                    invalid_rows = df[df['top5'].isna()].index.tolist()
+                    errors.append(f"Column 'top5' contains non-numeric values at rows: {invalid_rows[:5]}")
+            except Exception:
+                errors.append("Column 'top5' must be numeric type")
+
+        # Check loss column (numeric)
+        if 'loss' in df.columns and not pd.api.types.is_numeric_dtype(df['loss']):
+            try:
+                df['loss'] = pd.to_numeric(df['loss'], errors='coerce')
+                if df['loss'].isna().any():
+                    invalid_rows = df[df['loss'].isna()].index.tolist()
+                    errors.append(f"Column 'loss' contains non-numeric values at rows: {invalid_rows[:5]}")
+            except Exception:
+                errors.append("Column 'loss' must be numeric type")
+
         if errors:
             raise ERIDataValidationError("Data type validation failed:\n" + "\n".join(errors))
 
@@ -374,6 +408,20 @@ class ERIDataLoader:
             invalid_rows = df[acc_invalid].index.tolist()
             invalid_values = df.loc[invalid_rows, 'acc'].tolist()
             errors.append(f"Accuracy values must be in [0, 1]. Invalid at rows {invalid_rows[:5]}: {invalid_values[:5]}")
+
+        if 'top5' in df.columns:
+            top5_invalid = (df['top5'] < 0) | (df['top5'] > 1)
+            if top5_invalid.any():
+                invalid_rows = df[top5_invalid].index.tolist()
+                invalid_values = df.loc[invalid_rows, 'top5'].tolist()
+                errors.append(f"Top-5 accuracy values must be in [0, 1]. Invalid at rows {invalid_rows[:5]}: {invalid_values[:5]}")
+
+        if 'loss' in df.columns:
+            loss_invalid = df['loss'] < 0
+            if loss_invalid.any():
+                invalid_rows = df[loss_invalid].index.tolist()
+                invalid_values = df.loc[invalid_rows, 'loss'].tolist()
+                errors.append(f"Loss values must be non-negative. Invalid at rows {invalid_rows[:5]}: {invalid_values[:5]}")
 
         # Validate method names (non-empty strings)
         empty_methods = df['method'].str.strip() == ''
@@ -465,12 +513,15 @@ class ERIDataLoader:
                 seed = legacy.get('seed', 42)
 
                 for epoch, acc in zip(epochs, accuracies):
+                    acc = float(acc)
                     rows.append({
                         'method': method,
                         'seed': seed,
                         'epoch_eff': float(epoch),
                         'split': subset_name,
-                        'acc': float(acc)
+                        'acc': acc,
+                        'top5': min(1.0, acc + 0.05),
+                        'loss': max(0.0, 1.0 - acc)
                     })
 
         if not rows:
@@ -498,12 +549,15 @@ class ERIDataLoader:
             epoch = result.get('epoch', 0)
             for split, acc in result.get('accuracies', {}).items():
                 if split in self.VALID_SPLITS:
+                    acc = float(acc)
                     rows.append({
                         'method': method,
                         'seed': seed,
                         'epoch_eff': float(epoch),
                         'split': split,
-                        'acc': float(acc)
+                        'acc': acc,
+                        'top5': min(1.0, acc + 0.05),
+                        'loss': max(0.0, 1.0 - acc)
                     })
 
         if not rows:

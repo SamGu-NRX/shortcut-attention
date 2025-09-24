@@ -92,22 +92,24 @@ python tools/plot_eri.py --csv sample_eri_data.csv --outdir results/ --quiet
 
 ## Expected CSV Format
 
-The CLI expects CSV files with the following columns:
+The CLI expects timeline CSV files with the following columns:
 
 - `method`: Method name (e.g., 'Scratch_T2', 'sgd', 'ewc_on')
 - `seed`: Random seed (integer)
 - `epoch_eff`: Effective epoch (float)
 - `split`: Data split (e.g., 'T2_shortcut_normal', 'T2_shortcut_masked')
-- `acc`: Accuracy value (float between 0 and 1)
+- `acc`: Top-1 accuracy value (float between 0 and 1)
+- `top5`: Top-5 accuracy value (float between 0 and 1)
+- `loss`: Evaluation loss for the split (non-negative float)
 
 Example CSV content:
 
 ```csv
-method,seed,epoch_eff,split,acc
-Scratch_T2,42,0.0,T2_shortcut_normal,0.10
-Scratch_T2,42,1.0,T2_shortcut_normal,0.25
-sgd,42,0.0,T2_shortcut_normal,0.20
-sgd,42,1.0,T2_shortcut_normal,0.30
+method,seed,epoch_eff,split,acc,top5,loss
+Scratch_T2,42,0.0,T2_shortcut_normal,0.10,0.18,0.90
+Scratch_T2,42,1.0,T2_shortcut_normal,0.25,0.33,0.75
+sgd,42,0.0,T2_shortcut_normal,0.20,0.28,0.80
+sgd,42,1.0,T2_shortcut_normal,0.30,0.38,0.70
 ```
 
 ## Error Handling
@@ -143,6 +145,11 @@ The CLI generates the following output files:
 
 - **File**: `{csv_name}_dynamics.pdf`
 - **Content**: 3-panel figure with accuracy trajectories, performance deficits, and shortcut forgetting rates
+
+### Accuracy Trajectories
+
+- **File**: `{csv_name}_accuracy.pdf`
+- **Content**: Single-panel shortcut accuracy plot with confidence intervals for all selected methods
 
 ### Robustness Heatmap (when --tau-grid specified)
 

@@ -1,5 +1,0 @@
-method,seed,epoch_eff,split,acc,top5,loss
-scratch_t2,42,0.0,T1_all,0.1245,0.43275,3.3791838665008544
-scratch_t2,42,0.0,T2_nonshortcut_normal,0.21,0.5266666666666666,3.0998686377207436
-scratch_t2,42,0.0,T2_shortcut_masked,0.094,0.386,3.4507745933532714
-scratch_t2,42,0.0,T2_shortcut_normal,0.026,0.148,4.099767316818237

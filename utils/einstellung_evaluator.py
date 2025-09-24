@@ -165,6 +165,7 @@ class EinstellungEvaluator:
         subset_losses = {}
         attention_metrics = {}
 
+        was_training = model.net.training
         model.net.eval()
 
         # OPTIMIZATION: Use memory-efficient evaluation
@@ -227,6 +228,9 @@ class EinstellungEvaluator:
 
         # Log evaluation completion
         self.logger.info(f"✓ Einstellung evaluation completed for epoch {epoch}")
+
+        if was_training:
+            model.net.train()
 
     def _get_evaluation_subsets(self, dataset) -> Dict[str, DataLoader]:
         """
@@ -397,61 +401,20 @@ class EinstellungEvaluator:
         """
         return self.metrics_calculator.calculate_comprehensive_metrics()
 
-    def export_results(self, filepath: str):
-        """
-        Export comprehensive results to file.
-
-        Args:
-            filepath: Path to save results
-        """
-        # Get final metrics
-        final_metrics = self.get_final_metrics()
-
-        # Prepare export data
-        export_data = {
-            'configuration': {
-                'dataset_name': self.dataset_name,
-                'adaptation_threshold': self.adaptation_threshold,
-                'extract_attention': self.extract_attention
-            },
-            'timeline_data': self.timeline_data,
-            'metrics_timeline': self.metrics_calculator.export_timeline_data(),
-            'final_metrics': {
-                'adaptation_delay': final_metrics.adaptation_delay,
-                'performance_deficit': final_metrics.performance_deficit,
-                'shortcut_feature_reliance': final_metrics.shortcut_feature_reliance,
-                'eri_score': final_metrics.eri_score,
-                'task1_accuracy_final': final_metrics.task1_accuracy_final,
-                'task2_shortcut_accuracy': final_metrics.task2_shortcut_accuracy,
-                'task2_masked_accuracy': final_metrics.task2_masked_accuracy,
-                'task2_nonshortcut_accuracy': final_metrics.task2_nonshortcut_accuracy
-            }
-        }
-
-        # Add attention analysis if available
-        if self.attention_analyzer:
-            export_data['attention_analysis'] = self.attention_analyzer.get_attention_timeline_summary()
-
-        # Export to JSON
-        import json
-        with open(filepath, 'w') as f:
-            json.dump(export_data, f, indent=2, default=str)
-
-        self.logger.info(f"Exported Einstellung results to {filepath}")
-
-        # ALSO export structured CSV outputs
+    def export_results(self, output_dir: str):
+        """Persist timeline + summary CSV artefacts for downstream analysis."""
         import os
 
-        base_dir = os.path.dirname(filepath)
-        timeline_csv = os.path.join(base_dir, 'timeline.csv')
-        summary_csv = os.path.join(base_dir, 'summary.csv')
+        os.makedirs(output_dir, exist_ok=True)
+
+        method = getattr(self.args, 'model', 'unknown') if hasattr(self, 'args') else 'unknown'
+        safe_method = method.replace('/', '_')
+
+        timeline_csv = os.path.join(output_dir, f'timeline_{safe_method}.csv')
+        summary_csv = os.path.join(output_dir, f'summary_{safe_method}.csv')
 
         self.export_csv_for_visualization(timeline_csv)
         self.export_summary_csv(summary_csv)
-
-        # Backwards compatibility: legacy eri_sc_metrics.csv export
-        legacy_csv = filepath.replace('.json', '_eri_sc_metrics.csv')
-        self.export_csv_for_visualization(legacy_csv)
 
     def export_csv_for_visualization(self, csv_filepath: str):
         """
@@ -516,20 +479,29 @@ class EinstellungEvaluator:
             for split, metrics in subset_metrics.items():
                 # Only include valid splits for ERI visualization
                 if split in ['T1_all', 'T2_shortcut_normal', 'T2_shortcut_masked', 'T2_nonshortcut_normal']:
-                    top1 = metrics.get('top1') if isinstance(metrics, dict) else metrics
-                    top5 = metrics.get('top5') if isinstance(metrics, dict) else None
-                    loss = entry.get('subset_losses', {}).get(split)
+                    if isinstance(metrics, dict):
+                        top1 = metrics.get('top1', metrics.get('accuracy', None))
+                        top5_val = metrics.get('top5')
+                    else:
+                        top1 = metrics
+                        top5_val = None
+
                     if top1 is None:
                         continue
+
+                    top1 = float(top1)
+                    top5 = float(top5_val) if top5_val is not None else top1
+                    loss_val = entry.get('subset_losses', {}).get(split)
+                    loss = float(loss_val) if loss_val is not None else max(0.0, 1.0 - top1)
 
                     csv_rows.append({
                         'method': method,
                         'seed': seed,
                         'epoch_eff': epoch_eff,
                         'split': split,
-                        'acc': float(top1),
-                        'top5': float(top5) if top5 is not None else None,
-                        'loss': float(loss) if loss is not None else None
+                        'acc': top1,
+                        'top5': top5,
+                        'loss': loss
                     })
 
         if not csv_rows:

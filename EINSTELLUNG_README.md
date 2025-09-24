@@ -70,7 +70,7 @@ run_einstellung_experiment.py # Thin CLI + legacy-shim functions
 
 Every run now produces a **single source of truth** inside its results directory:
 
-- `timeline.csv` per-epoch subset metrics (top-1 in `acc`, top-5 in `top5`)
+- `timeline_<method>.csv` per-epoch subset metrics (top-1 in `acc`, top-5 in `top5`)
 - `summary.csv` final snapshot with reference deltas (35% top-1 / 65% top-5)
 - `reports/report.html` human-readable summary synced with the CSVs
 
