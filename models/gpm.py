@@ -109,9 +109,12 @@ class FeatureSubspaceProjector:
 
         threshold = self._current_threshold(task_idx)
 
-        features = features - features.mean(dim=0, keepdim=True)
+        work_features = features.detach()
+        if work_features.device.type != "cpu":
+            work_features = work_features.to("cpu")
+        work_features = work_features - work_features.mean(dim=0, keepdim=True)
         try:
-            u, s, _ = torch.linalg.svd(features, full_matrices=False)
+            u, s, _ = torch.linalg.svd(work_features, full_matrices=False)
         except RuntimeError as exc:
             LOGGER.warning("GPM: SVD failed on feature batch (%s)", exc)
             return
@@ -128,25 +131,25 @@ class FeatureSubspaceProjector:
 
         new_basis = u[:, :keep]
 
+        existing_basis = None
         if self.basis is not None:
-            # Remove components already captured by the existing basis and
-            # re-orthonormalise the residual columns.
-            projection = self.basis @ (self.basis.t() @ new_basis)
+            existing_basis = self.basis.to(new_basis.device)
+
+        if existing_basis is not None:
+            projection = existing_basis @ (existing_basis.t() @ new_basis)
             new_basis = new_basis - projection
             if new_basis.numel() == 0:
                 return
             new_basis, _ = torch.linalg.qr(new_basis, mode="reduced")
+            combined_basis = torch.cat([existing_basis, new_basis], dim=1)
         else:
             new_basis, _ = torch.linalg.qr(new_basis, mode="reduced")
+            combined_basis = new_basis
 
-        if new_basis.numel() == 0:
+        if combined_basis.numel() == 0:
             return
 
-        self.basis = (
-            torch.cat([self.basis, new_basis], dim=1)
-            if self.basis is not None
-            else new_basis
-        )
+        self.basis = combined_basis.contiguous()
         self.projection = self.basis @ self.basis.t()
 
     def project_gradients(self, classifier: nn.Linear) -> None:

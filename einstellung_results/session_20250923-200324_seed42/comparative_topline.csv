@@ -1,0 +1,3 @@
+method,seed,subset,epoch,top1,top5,top1_reference,top5_reference,top1_delta,top5_delta,loss,adaptation_delay,performance_deficit,shortcut_feature_reliance,eri_score,strategy,backbone
+scratch_t2,42,T2_shortcut_normal,49,0.498,0.818,0.35,0.65,0.148,0.1679999999999999,2.119543991088867,,0.0,0.412251655629139,,scratch_t2,resnet18
+sgd,42,T2_shortcut_normal,49,0.652,0.874,0.35,0.65,0.302,0.2239999999999999,1.729233609199524,,0.0,0.4338902147971361,,sgd,resnet18

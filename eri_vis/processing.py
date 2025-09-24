@@ -95,7 +95,10 @@ class ERITimelineProcessor:
 
     def smooth_curve(self, values: np.ndarray, window: Optional[int] = None) -> np.ndarray:
         """
-        Apply smoothing to a curve using centered moving average with edge padding.
+        Apply smoothing to a curve using TRAILING moving average as per ERI specification.
+
+        CORRECTED: Now uses trailing moving average instead of centered.
+        smoothed_A[e] = mean(A_M[max(1,e-w+1) .. e])
 
         Args:
             values: Array of values to smooth
@@ -113,12 +116,15 @@ class ERITimelineProcessor:
         if len(values) == 0:
             return values.copy()
 
-        # Use pandas rolling mean with center=True for centered window
-        # and min_periods=1 to handle edges
-        series = pd.Series(values)
-        smoothed = series.rolling(window=window, center=True, min_periods=1).mean()
+        # CORRECTED: Use trailing moving average (not centered)
+        smoothed = np.zeros_like(values)
+        for i in range(len(values)):
+            # Trailing window: max(0, i-w+1) to i (inclusive)
+            start_idx = max(0, i - window + 1)
+            end_idx = i + 1  # +1 because slice is exclusive
+            smoothed[i] = np.mean(values[start_idx:end_idx])
 
-        return smoothed.values
+        return smoothed
 
     def compute_confidence_interval(self, data: np.ndarray, axis: int = 0,
                                   confidence: float = 0.95) -> Tuple[np.ndarray, np.ndarray]:
@@ -339,7 +345,9 @@ class ERITimelineProcessor:
 
     def _find_threshold_crossing(self, curve: AccuracyCurve, threshold: float) -> float:
         """
-        Find the first epoch where the curve crosses the threshold.
+        Find the first epoch where the SMOOTHED curve crosses the threshold.
+
+        CORRECTED: Now applies trailing smoothing before threshold detection.
 
         Args:
             curve: AccuracyCurve object
@@ -351,8 +359,11 @@ class ERITimelineProcessor:
         if len(curve.mean_accuracy) == 0:
             return np.nan
 
-        # Find first index where accuracy >= threshold
-        crossing_indices = np.where(curve.mean_accuracy >= threshold)[0]
+        # CORRECTED: Apply trailing smoothing before threshold detection
+        smoothed_accuracy = self.smooth_curve(curve.mean_accuracy)
+
+        # Find first index where smoothed accuracy >= threshold
+        crossing_indices = np.where(smoothed_accuracy >= threshold)[0]
 
         if len(crossing_indices) == 0:
             return np.nan  # No crossing found (censored)

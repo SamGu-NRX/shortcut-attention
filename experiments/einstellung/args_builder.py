@@ -129,13 +129,13 @@ def build_mammoth_args(
         ])
     elif config.strategy == "dgr":
         args.extend([
-            "--dgr-z-dim",
+            "--dgr_z_dim",
             "100",
-            "--dgr-vae-lr",
+            "--dgr_vae_lr",
             "0.001",
-            "--dgr-replay-ratio",
+            "--dgr_replay_weight",
             "0.5",
-            "--dgr-temperature",
+            "--dgr_distill_temperature",
             "2.0",
         ])
 

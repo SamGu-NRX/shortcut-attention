@@ -10,8 +10,11 @@ inside Mammoth's training loop.
 from __future__ import annotations
 
 import copy
+import importlib
 import logging
+import sys
 from pathlib import Path
+from types import ModuleType
 from typing import Dict, Optional, Tuple, Any, List
 
 import torch
@@ -27,6 +30,61 @@ try:  # pragma: no cover - optional dependency
     VISUALIZATION_AVAILABLE = True
 except ImportError:  # pragma: no cover - optional dependency
     VISUALIZATION_AVAILABLE = False
+
+
+def _ensure_dgr_imports() -> Path:
+    repo_root = Path(__file__).resolve().parent.parent
+    dgr_root = repo_root / "DGR"
+    if not dgr_root.exists():  # pragma: no cover - sanity check
+        raise ImportError(f"Original DGR repository not found at {dgr_root}")
+    if str(dgr_root) not in sys.path:
+        sys.path.insert(0, str(dgr_root))
+    return dgr_root
+
+
+def _import_dgr_module(module_name: str):
+    repo_root = _ensure_dgr_imports()
+
+    preserved = {name: sys.modules[name] for name in list(sys.modules)
+                 if name == "models" or name.startswith("models.") or name == "utils" or name.startswith("utils.")}
+    for name in preserved:
+        sys.modules.pop(name)
+
+    shim_utils = ModuleType("utils")
+
+    def _checkattr(args, attr):
+        return hasattr(args, attr) and isinstance(getattr(args, attr), bool) and getattr(args, attr)
+
+    def _get_data_loader(dataset, batch_size, cuda=False, drop_last=False, augment=False):
+        loader_kwargs = {}
+        if cuda:
+            loader_kwargs.update({'num_workers': 0, 'pin_memory': True})
+        return torch.utils.data.DataLoader(
+            dataset,
+            batch_size=batch_size,
+            shuffle=True,
+            drop_last=drop_last,
+            **loader_kwargs,
+        )
+
+    shim_utils.checkattr = _checkattr
+    shim_utils.get_data_loader = _get_data_loader
+
+    sys.modules['utils'] = shim_utils
+
+    sys.path.insert(0, str(repo_root))
+    try:
+        module = importlib.import_module(module_name)
+    finally:
+        sys.path.remove(str(repo_root))
+        sys.modules.pop('utils', None)
+        for name in list(sys.modules):
+            if name == "models" or name.startswith("models."):
+                sys.modules.pop(name)
+        for name, mod in preserved.items():
+            sys.modules[name] = mod
+
+    return module
 
 
 class DGRVAE(nn.Module):
@@ -226,55 +284,113 @@ class DGRMammothAdapter(ContinualModel):
 
     @staticmethod
     def get_parser(parser: ArgumentParser) -> ArgumentParser:
-        parser.add_argument("--dgr_z_dim", type=int, default=100,
-                            help="Latent dimension for the VAE generator")
-        parser.add_argument("--dgr_vae_lr", type=float, default=1e-3,
-                            help="Learning rate for the VAE optimizer")
-        parser.add_argument("--dgr_vae_fc_layers", type=int, default=3,
-                            help="Number of fully connected layers in the VAE")
-        parser.add_argument("--dgr_vae_fc_units", type=int, default=400,
-                            help="Hidden units in each VAE FC layer")
-        parser.add_argument("--dgr_replay_targets", type=str, default="hard",
-                            choices=["hard", "soft"],
-                            help="Use hard labels or distillation targets for replay")
-        parser.add_argument("--dgr_distill_temperature", type=float, default=2.0,
-                            help="Temperature for knowledge distillation when using soft targets")
-        parser.add_argument("--dgr_replay_batch_size", type=int, default=0,
-                            help="Batch size for replay samples (0 = match current batch)")
-        parser.add_argument("--dgr_monitor_frequency", type=int, default=5,
-                            help="Epoch frequency for replay visualizations")
-        parser.add_argument("--dgr_disable_monitoring", action="store_true",
-                            help="Disable saving replay sample visualizations")
+        parser.add_argument(
+            "--dgr_z_dim",
+            "--dgr-z-dim",
+            type=int,
+            default=100,
+            help="Latent dimension for the VAE generator",
+        )
+        parser.add_argument(
+            "--dgr_vae_lr",
+            "--dgr-vae-lr",
+            type=float,
+            default=1e-3,
+            help="Learning rate for the VAE optimizer",
+        )
+        parser.add_argument(
+            "--dgr_vae_fc_layers",
+            "--dgr-vae-fc-layers",
+            type=int,
+            default=3,
+            help="Number of fully connected layers in the VAE",
+        )
+        parser.add_argument(
+            "--dgr_vae_fc_units",
+            "--dgr-vae-fc-units",
+            type=int,
+            default=400,
+            help="Hidden units in each VAE FC layer",
+        )
+        parser.add_argument(
+            "--dgr_replay_weight",
+            "--dgr-replay-ratio",
+            type=float,
+            default=0.5,
+            dest="dgr_replay_weight",
+            help="Replay mixing weight (alias: --dgr-replay-ratio)",
+        )
+        parser.add_argument(
+            "--dgr_replay_targets",
+            "--dgr-replay-targets",
+            type=str,
+            default="hard",
+            choices=["hard", "soft"],
+            help="Use hard labels or distillation targets for replay",
+        )
+        parser.add_argument(
+            "--dgr_distill_temperature",
+            "--dgr-temperature",
+            type=float,
+            default=2.0,
+            help="Temperature for knowledge distillation when using soft targets",
+        )
+        parser.add_argument(
+            "--dgr_replay_batch_size",
+            "--dgr-replay-batch-size",
+            type=int,
+            default=0,
+            help="Batch size for replay samples (0 = match current batch)",
+        )
+        parser.add_argument(
+            "--dgr_monitor_frequency",
+            "--dgr-monitor-frequency",
+            type=int,
+            default=5,
+            help="Epoch frequency for replay visualizations",
+        )
+        parser.add_argument(
+            "--dgr_disable_monitoring",
+            "--dgr-disable-monitoring",
+            action="store_true",
+            help="Disable saving replay sample visualizations",
+        )
         return parser
 
     def __init__(self, backbone, loss, args, transform, dataset=None):
         super().__init__(backbone, loss, args, transform, dataset)
 
+        self.total_classes = self.dataset.N_CLASSES
+        if isinstance(self.dataset.N_CLASSES_PER_TASK, int):
+            self._classes_per_task_seq = [self.dataset.N_CLASSES_PER_TASK for _ in range(self.dataset.N_TASKS)]
+        else:
+            self._classes_per_task_seq = list(self.dataset.N_CLASSES_PER_TASK)
+        self._class_offsets: List[Tuple[int, int]] = []
+        start = 0
+        for count in self._classes_per_task_seq:
+            self._class_offsets.append((start, start + count))
+            start += count
+
         self.image_channels, self.image_size = 3, 32
         self.image_shape: Tuple[int, int, int] = (self.image_channels, self.image_size, self.image_size)
 
-        if dataset is not None:
-            if hasattr(dataset, "SIZE"):
-                size = dataset.SIZE
-                if len(size) >= 3:
-                    self.image_channels = int(size[0])
-                    height = int(size[-2])
-                    width = int(size[-1])
-                    self.image_size = max(height, width)
-                    self.image_shape = (self.image_channels, height, width)
-            elif hasattr(dataset, "get_data_loaders"):
-                try:
-                    loader, _ = dataset.get_data_loaders()
-                    batch = next(iter(loader))
-                    sample = batch[0] if isinstance(batch, (list, tuple)) else batch
-                    if sample.ndim >= 4:
-                        self.image_channels = int(sample.shape[1])
-                        height = int(sample.shape[2])
-                        width = int(sample.shape[3]) if sample.ndim > 3 else height
-                        self.image_size = max(height, width)
-                        self.image_shape = (self.image_channels, height, width)
-                except Exception:
-                    pass
+        if dataset is not None and hasattr(dataset, "SIZE"):
+            size = tuple(dataset.SIZE)
+            if len(size) >= 3:
+                self.image_channels = int(size[0])
+                height = int(size[-2])
+                width = int(size[-1])
+                self.image_size = max(height, width)
+                self.image_shape = (self.image_channels, height, width)
+
+        if hasattr(self.dataset, "MEAN") and hasattr(self.dataset, "STD"):
+            mean = torch.tensor(self.dataset.MEAN, dtype=torch.float32).view(1, self.image_channels, 1, 1)
+            std = torch.tensor(self.dataset.STD, dtype=torch.float32).view(1, self.image_channels, 1, 1)
+            self.register_buffer("_data_mean", mean)
+            self.register_buffer("_data_std", std)
+        else:
+            self._data_mean = None  # type: ignore[assignment]
+            self._data_std = None   # type: ignore[assignment]
 
         self.z_dim = getattr(args, "dgr_z_dim", 100)
         self.vae_lr = getattr(args, "dgr_vae_lr", 1e-3)
@@ -284,29 +400,29 @@ class DGRMammothAdapter(ContinualModel):
         self.distill_temperature = getattr(args, "dgr_distill_temperature", 2.0)
         self.replay_batch_size = getattr(args, "dgr_replay_batch_size", 0)
 
-        self.replay_weight = getattr(args, "dgr_replay_weight", 0.5)
+        replay_weight = getattr(args, "dgr_replay_weight", None)
+        if replay_weight is None:
+            replay_weight = getattr(args, "dgr_replay_ratio", 0.5)
+        else:
+            setattr(args, "dgr_replay_ratio", replay_weight)
+        self.replay_weight = float(replay_weight)
         self.vae_train_epochs = getattr(args, "dgr_vae_train_epochs", 1)
         self.buffer_size = getattr(args, "dgr_buffer_size", getattr(args, "buffer_size", 0))
 
-        height, width = self.image_shape[1], self.image_shape[2]
-        self.generator = DGRVAE(
-            image_size=self.image_size,
-            image_channels=self.image_channels,
-            z_dim=self.z_dim,
-            fc_layers=self.vae_fc_layers,
-            fc_units=self.vae_fc_units,
-            lr=self.vae_lr,
-            device=self.device,
-            image_height=height,
-            image_width=width,
-        )
-        self.prev_generator: Optional[DGRVAE] = None
+        if self.__class__._COND_VAE_CLS is None:
+            cond_module = _import_dgr_module("models.cond_vae")
+            self.__class__._COND_VAE_CLS = cond_module.CondVAE
+
+        self.generator = self._build_generator()
+
+        self.prev_generator: Optional[nn.Module] = None
         self.prev_classifier: Optional[nn.Module] = None
         # Backwards compatibility aliases expected by existing tests/utilities.
         self.vae = self.generator
-        self.previous_vae: Optional[DGRVAE] = None
-        self.current_vae: Optional[DGRVAE] = self.generator
-        self.current_task_buffer: List[torch.Tensor] = []
+        self.previous_vae: Optional[nn.Module] = None
+        self.current_vae: Optional[nn.Module] = self.generator
+        self.current_task_buffer: List[Tuple[torch.Tensor, torch.Tensor]] = []
+        self.seen_classes: List[int] = []
 
         self.enable_monitoring = not getattr(args, "dgr_disable_monitoring", False)
         self.monitor_frequency = getattr(args, "dgr_monitor_frequency", 5)
@@ -330,29 +446,47 @@ class DGRMammothAdapter(ContinualModel):
     # Training flow
     # ------------------------------------------------------------------
 
+    def _has_normalization(self) -> bool:
+        return isinstance(getattr(self, "_data_mean", None), torch.Tensor) and isinstance(
+            getattr(self, "_data_std", None), torch.Tensor
+        )
+
+    def _normalize(self, tensor: torch.Tensor) -> torch.Tensor:
+        if not self._has_normalization():
+            return tensor
+        mean = self._data_mean.to(tensor.device)  # type: ignore[union-attr]
+        std = self._data_std.to(tensor.device)    # type: ignore[union-attr]
+        return (tensor - mean) / std
+
+    def _denormalize(self, tensor: torch.Tensor) -> torch.Tensor:
+        if not self._has_normalization():
+            return tensor
+        mean = self._data_mean.to(tensor.device)  # type: ignore[union-attr]
+        std = self._data_std.to(tensor.device)    # type: ignore[union-attr]
+        return torch.clamp(tensor * std + mean, 0.0, 1.0)
+
+    def _active_classes(self) -> List[List[int]]:
+        active: List[List[int]] = []
+        for idx in range(self.current_task + 1):
+            start, end = self._class_offsets[idx]
+            active.append(list(range(start, end)))
+        return active
+
+    def _update_seen_classes(self, labels: torch.Tensor) -> None:
+        unique = torch.unique(labels).tolist()
+        for cls in unique:
+            if cls not in self.seen_classes:
+                self.seen_classes.append(cls)
+        self.seen_classes.sort()
+
     def begin_task(self, dataset) -> None:
         previous = getattr(self, "current_vae", None)
         if previous is not None:
-            if hasattr(previous, "clone_frozen"):
-                self.prev_generator = previous.clone_frozen()
-                self.previous_vae = self.prev_generator
-            else:
-                self.previous_vae = previous
+            self.prev_generator = self._freeze_generator(previous)
+            self.previous_vae = self.prev_generator
 
-        height, width = self.image_shape[1], self.image_shape[2]
-        self.generator = DGRVAE(
-            image_size=self.image_size,
-            image_channels=self.image_channels,
-            z_dim=self.z_dim,
-            fc_layers=self.vae_fc_layers,
-            fc_units=self.vae_fc_units,
-            lr=self.vae_lr,
-            device=self.device,
-            image_height=height,
-            image_width=width,
-        ).to(self.device)
+        self.generator = self._build_generator()
         self.current_vae = self.generator
-        self.vae = self.generator
         self.vae = self.generator
 
         super().begin_task(dataset)
@@ -369,15 +503,19 @@ class DGRMammothAdapter(ContinualModel):
         batch_size = inputs.size(0)
         rnt = 1.0 / float(max(1, self.current_task + 1))
 
-        replay_inputs, replay_labels, replay_logits = self._generate_replay_batch(batch_size)
+        inputs = inputs.to(self.device)
+        labels = labels.to(self.device, dtype=torch.long)
+        inputs_raw = self._denormalize(inputs.detach())
+
+        replay_raw, replay_norm, replay_labels, replay_logits = self._generate_replay_batch(batch_size)
 
         self.opt.zero_grad()
         current_logits = self.net(inputs)
         loss_current = self.loss(current_logits, labels)
         total_loss = loss_current
 
-        if replay_inputs is not None:
-            replay_logits_current = self.net(replay_inputs)
+        if replay_norm is not None:
+            replay_logits_current = self.net(replay_norm)
             loss_replay = self._compute_replay_loss(
                 replay_logits_current, replay_labels, replay_logits
             )
@@ -385,18 +523,31 @@ class DGRMammothAdapter(ContinualModel):
         total_loss.backward()
         self.opt.step()
 
+        self._update_seen_classes(labels)
+
         if self.buffer_size > 0 and not_aug_inputs is not None:
             remaining = self.buffer_size - len(self.current_task_buffer)
             if remaining > 0:
-                self.current_task_buffer.extend([x.cpu() for x in not_aug_inputs[:remaining]])
+                imgs = not_aug_inputs[:remaining].detach().cpu()
+                labs = labels[:remaining].detach().cpu()
+                self.current_task_buffer.extend([(img, lab) for img, lab in zip(imgs, labs)])
 
-        generator_current = not_aug_inputs if not_aug_inputs is not None else inputs.detach()
-        generator_current = generator_current.detach()
-        generator_replay = replay_inputs.detach() if replay_inputs is not None else None
-        self._last_generator_losses = self.generator.train_batch(generator_current, generator_replay, rnt)
+        generator_current = inputs_raw
+        generator_replay = replay_raw if replay_raw is not None else None
+        generator_replay_labels = replay_labels if replay_labels is not None else None
+        generator_scores = replay_logits if (self.replay_targets == "soft") else None
+        self._last_generator_losses = self.generator.train_a_batch(
+            generator_current,
+            y=labels.detach(),
+            x_=generator_replay,
+            y_=generator_replay_labels,
+            scores_=generator_scores,
+            rnt=rnt,
+            context=self.current_task + 1,
+        )
 
         if self.enable_monitoring and epoch is not None:
-            self._maybe_monitor(epoch, replay_inputs)
+            self._maybe_monitor(epoch, replay_raw)
 
         return float(total_loss.item())
 
@@ -410,7 +561,7 @@ class DGRMammothAdapter(ContinualModel):
         for param in self.prev_classifier.parameters():
             param.requires_grad_(False)
 
-        self.prev_generator = self.generator.clone_frozen()
+        self.prev_generator = self._freeze_generator(self.generator)
         self.previous_vae = self.prev_generator
         logging.info("DGR: stored frozen generator and classifier for replay")
 
@@ -421,17 +572,38 @@ class DGRMammothAdapter(ContinualModel):
     def _generate_replay_batch(
         self,
         batch_size: int,
-    ) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor], Optional[torch.Tensor]]:
+    ) -> Tuple[
+        Optional[torch.Tensor],
+        Optional[torch.Tensor],
+        Optional[torch.Tensor],
+        Optional[torch.Tensor],
+    ]:
         if self.prev_generator is None or self.prev_classifier is None:
-            return None, None, None
+            return None, None, None, None
 
         replay_bs = batch_size if self.replay_batch_size <= 0 else self.replay_batch_size
+        allowed = self.seen_classes if self.seen_classes else None
         with torch.no_grad():
-            replay_inputs = self.prev_generator.generate_samples(replay_bs, device=self.device)
-            prev_outputs = self.prev_classifier(replay_inputs)
-            replay_logits = prev_outputs.detach()
-            replay_labels = prev_outputs.argmax(dim=1)
-        return replay_inputs, replay_labels, replay_logits
+            sample = self.prev_generator.sample(replay_bs, allowed_classes=allowed, only_x=False)
+        if isinstance(sample, tuple):
+            replay_raw, y_used, _ = sample
+        else:
+            replay_raw = sample
+            y_used = None
+
+        replay_raw = replay_raw.to(self.device)
+        if y_used is not None:
+            replay_labels = torch.tensor(y_used, device=self.device, dtype=torch.long)
+        else:
+            replay_labels = None
+
+        replay_norm = self._normalize(replay_raw)
+        with torch.no_grad():
+            replay_logits = self.prev_classifier(replay_norm)
+        if replay_labels is None:
+            replay_labels = replay_logits.argmax(dim=1)
+
+        return replay_raw.detach(), replay_norm.detach(), replay_labels.detach(), replay_logits.detach()
 
     def _compute_replay_loss(
         self,
@@ -452,6 +624,35 @@ class DGRMammothAdapter(ContinualModel):
         assert replay_labels is not None
         return self.loss(replay_logits_current, replay_labels)
 
+    def _build_generator(self) -> nn.Module:
+        generator = self.__class__._COND_VAE_CLS(
+            image_size=self.image_size,
+            image_channels=self.image_channels,
+            classes=self.total_classes,
+            fc_layers=self.vae_fc_layers,
+            fc_units=self.vae_fc_units,
+            z_dim=self.z_dim,
+            recon_loss="BCE",
+            network_output="sigmoid",
+            device=str(self.device),
+            scenario="class",
+            contexts=getattr(self.dataset, "N_TASKS", self.current_task + 1),
+        ).to(self.device)
+        generator.scenario = "class"
+        generator.classes_per_context = self.classes_per_task
+        generator.optimizer = torch.optim.Adam(
+            filter(lambda p: p.requires_grad, generator.parameters()), lr=self.vae_lr
+        )
+        generator.lamda_pl = 1.0
+        return generator
+
+    def _freeze_generator(self, generator: nn.Module) -> nn.Module:
+        frozen = copy.deepcopy(generator).to(self.device)
+        frozen.eval()
+        for param in frozen.parameters():
+            param.requires_grad_(False)
+        return frozen
+
     # ------------------------------------------------------------------
     # Monitoring
     # ------------------------------------------------------------------
@@ -460,16 +661,37 @@ class DGRMammothAdapter(ContinualModel):
         if not self.current_task_buffer:
             return
 
-        tensor_data = torch.stack(self.current_task_buffer).to(self.device)
-        dataset = data.TensorDataset(tensor_data)
+        images = torch.stack([item[0] for item in self.current_task_buffer]).to(self.device)
+        labels = torch.stack([item[1] for item in self.current_task_buffer]).to(self.device)
+
+        dataset = data.TensorDataset(images, labels)
         dataloader = data.DataLoader(dataset, batch_size=min(128, len(dataset)), shuffle=True)
 
         for _ in range(self.vae_train_epochs):
-            for batch, in dataloader:
-                replay = None
+            for batch_imgs, batch_labels in dataloader:
+                replay_inputs = replay_labels = None
                 if self.previous_vae is not None:
-                    replay = self.previous_vae.generate_samples(batch.size(0), device=self.device)
-                self.vae.train_on_batch(batch, replay, self.replay_weight)
+                    sample = self.previous_vae.sample(
+                        batch_imgs.size(0), allowed_classes=self.seen_classes or None, only_x=False
+                    )
+                    if isinstance(sample, tuple):
+                        replay_raw, y_used, _ = sample
+                    else:
+                        replay_raw = sample
+                        y_used = None
+                    replay_inputs = replay_raw.to(self.device)
+                    if y_used is not None:
+                        replay_labels = torch.tensor(y_used, device=self.device, dtype=torch.long)
+
+                self.vae.train_a_batch(
+                    batch_imgs,
+                    y=batch_labels,
+                    x_=replay_inputs,
+                    y_=replay_labels,
+                    scores_=None,
+                    rnt=self.replay_weight,
+                    context=self.current_task + 1,
+                )
 
         self.current_task_buffer.clear()
 

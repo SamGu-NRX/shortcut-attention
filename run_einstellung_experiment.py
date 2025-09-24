@@ -45,7 +45,7 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run Einstellung Effect experiments")
 
     parser.add_argument("--comparative", action="store_true", help="Run comparative suite")
-    parser.add_argument("--model", default="derpp", choices=["sgd", "derpp", "ewc_on", "gpm", "dgr", "scratch_t2", "interleaved"], help="Strategy to run")
+    parser.add_argument("--model", default="derpp", help="Strategy or comma-separated list of strategies to run (e.g., sgd,dgr,gpm)")
     parser.add_argument("--backbone", default="resnet18", choices=["resnet18", "vit"], help="Backbone architecture")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--epochs", type=int, help="Override training epochs")
@@ -105,7 +105,7 @@ def run_single(args: argparse.Namespace) -> Dict[str, any]:
     return result
 
 
-def run_comparative(args: argparse.Namespace) -> List[Dict[str, any]]:
+def run_comparative(args: argparse.Namespace, models: List[str]) -> List[Dict[str, any]]:
     config = build_config(args)
     runner = EinstellungRunner(project_root=Path.cwd())
 
@@ -114,7 +114,7 @@ def run_comparative(args: argparse.Namespace) -> List[Dict[str, any]]:
 
     plan = ComparativeExperimentPlan(
         baselines=["scratch_t2"],
-        continual_methods=["sgd", "derpp", "ewc_on", "gpm", "dgr"],
+        continual_methods=models,
         backbone=args.backbone,
         seed=args.seed,
         epochs=args.epochs,
@@ -185,7 +185,8 @@ def run_comparative_experiment(
         results_root="einstellung_results",
         verbose=False,
     )
-    return run_comparative(args)
+    default_models = ["sgd", "derpp", "ewc_on", "gpm", "dgr"]
+    return run_comparative(args, default_models)
 
 
 def create_einstellung_args(strategy: str, backbone: str, seed: int, debug: bool = False, epochs: Optional[int] = None) -> List[str]:
@@ -311,22 +312,43 @@ def main(argv: Optional[List[str]] = None) -> int:
     ]:
         logging.getLogger(name).setLevel(logging.WARNING)
 
+    models = [model.strip() for model in args.model.split(',')]
+
     if args.comparative:
-        results = run_comparative(args)
+        if not models:
+            LOGGER.error("Must specify at least one model for comparative run.")
+            return 1
+        
+        continual_methods = [m for m in models if m != "scratch_t2"]
+        
+        results = run_comparative(args, continual_methods)
         successes = sum(1 for r in results if r.get("success"))
         LOGGER.info("Comparative run finished – %d/%d successful", successes, len(results))
         return 0 if successes else 1
 
-    result = run_single(args)
-    if result.get("success"):
-        final_top1 = result.get("final_top1")
-        if final_top1 is not None:
-            LOGGER.info("Run complete: top-1=%.2f%%", final_top1 * 100)
+    results = []
+    success_count = 0
+    for model in models:
+        model_args = argparse.Namespace(**vars(args))
+        model_args.model = model
+        result = run_single(model_args)
+        results.append(result)
+        if result.get("success"):
+            success_count += 1
+            final_top1 = result.get("final_top1")
+            if final_top1 is not None:
+                LOGGER.info("Run for model '%s' complete: top-1=%.2f%%", model, final_top1 * 100)
+            else:
+                LOGGER.info("Run for model '%s' complete.", model)
         else:
-            LOGGER.info("Run complete.")
+            LOGGER.error("Run for model '%s' failed with return code %s", model, result.get("return_code"))
+    
+    if success_count == len(models):
+        if len(models) > 1:
+            LOGGER.info("All runs completed successfully.")
         return 0
-
-    LOGGER.error("Run failed with return code %s", result.get("return_code"))
+    
+    LOGGER.error("%d/%d runs failed.", len(models) - success_count, len(models))
     return 1
 
 

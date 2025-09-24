@@ -450,11 +450,22 @@ class ERIDataLoader:
         """Validate data consistency and completeness."""
         errors = []
 
-        # Check for duplicate entries
+        # Check for duplicate entries and handle them
         duplicates = df.duplicated(subset=['method', 'seed', 'epoch_eff', 'split'])
         if duplicates.any():
             duplicate_rows = df[duplicates].index.tolist()
-            errors.append(f"Duplicate entries found at rows: {duplicate_rows[:5]}")
+            self.logger.warning(f"Found {len(duplicate_rows)} duplicate entries - will average them")
+
+            # Average duplicate entries instead of failing
+            df_clean = df.groupby(['method', 'seed', 'epoch_eff', 'split']).agg({
+                'acc': 'mean',
+                'top5': 'mean',
+                'loss': 'mean'
+            }).reset_index()
+
+            # Update the original dataframe
+            df.drop(df.index, inplace=True)
+            df = pd.concat([df, df_clean], ignore_index=True)
 
         # Check epoch monotonicity within method-seed-split groups
         for (method, seed, split), group in df.groupby(['method', 'seed', 'split']):

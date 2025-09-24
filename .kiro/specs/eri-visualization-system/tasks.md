@@ -334,7 +334,45 @@ Tasks are organized into logical phases with clear dependencies. Each task inclu
     - Regression test ensures existing methods continue to work unchanged
   - _Requirements: 1.9.6, 1.10.7, 1.11.6, 1.7.4_
 
-- [ ] **17. Error Handling and Robustness — Comprehensive Exception Management**
+- [ ] **17. 🚨 CRITICAL: ERI Calculation Fixes — Correct Mathematical Implementation**
+
+  - Files: eri_vis/processing.py, eri_vis/metrics_calculator.py, tests/eri_vis/test_calculation_fixes.py
+  - **URGENT**: Fix the incorrect ERI calculations identified in current implementation:
+    - Fix AD calculation: implement proper smoothing with trailing moving average window w=3
+    - Fix PD calculation: use final checkpoint selected by best Phase-2 validation accuracy
+    - Fix SFR_rel calculation: use final checkpoint deltas, not time series
+    - Implement macro-averaged accuracy (per-class then average, not frequency-weighted)
+    - Add effective epoch tracking for replay method normalization
+    - Ensure calculations match the provided ERI specification exactly
+  - DoD:
+    - AD calculation uses smoothed_A[e] = mean(A_M[max(1,e-w+1) .. e]) with w=3
+    - PD calculation uses final checkpoint: PD = A*S_patch^* - A*CL_patch^*
+    - SFR_rel calculation uses final checkpoint: SFR_rel = Δ_CL - Δ_S where Δ_M = A_M_patch - A_M_mask
+    - Validation test confirms DER++ outperforms scratch_t2 in provided data
+    - Unit tests verify calculations match paper specification exactly
+    - Integration test with einstellung_results/session_20250923-012304_seed42 data produces correct results
+  - _Requirements: 1.2.1.1, 1.2.1.2, 1.2.1.3, 1.2.1.4, 1.2.1.5_
+
+- [ ] **18. Overall ERI Metric Implementation — Composite Score Visualization**
+
+  - Files: eri_vis/plot_overall_eri.py, eri_vis/eri_composite.py, tests/eri_vis/test_overall_eri.py
+  - Implement overall ERI metric combining AD, PD, and SFR_rel:
+    - ERI_overall = w_AD × AD_norm + w_PD × PD + w_SFR × SFR_rel
+    - AD normalization: AD_norm = min(AD / 50.0, 1.0)
+    - Default weights: w_AD = 0.4, w_PD = 0.4, w_SFR = 0.2
+    - Bar chart visualization with confidence intervals
+    - Color coding from green (low rigidity) to red (high rigidity)
+    - Component breakdown annotations for interpretation
+  - DoD:
+    - Overall ERI calculation correctly combines three facets with proper normalization
+    - Bar chart shows methods sorted by ERI score with error bars
+    - Color coding provides intuitive interpretation of rigidity levels
+    - Component breakdown helps understand which facets drive overall score
+    - Integration with existing visualization pipeline works seamlessly
+    - Validation test confirms overall ERI scores are reasonable and interpretable
+  - _Requirements: 1.3.1, 1.3.2, 1.3.3_
+
+- [ ] **19. Error Handling and Robustness — Comprehensive Exception Management**
 
   - Files: eri_vis/errors.py, models/integration_errors.py, tests/eri_vis/test_errors.py, tests/models/test_integration_errors.py
   - Implement comprehensive error handling for adapted methods:
@@ -353,7 +391,7 @@ Tasks are organized into logical phases with clear dependencies. Each task inclu
     - Documentation includes troubleshooting guide for common integration error scenarios
   - _Requirements: 2.1.1, 2.1.2, 2.1.6_
 
-- [ ] **18. Performance Optimization and Scalability — Enhanced System Performance**
+- [ ] **20. Performance Optimization and Scalability — Enhanced System Performance**
 
   - Files: eri_vis/utils.py (caching), models/integration_performance_utils.py, plot modules (parallel)
   - Implement performance optimizations for adapted methods:
@@ -372,7 +410,7 @@ Tasks are organized into logical phases with clear dependencies. Each task inclu
     - Scalability tests confirm system handles 10+ methods and 10+ seeds efficiently
   - _Requirements: 2.2.1, 2.2.2, 2.2.5_
 
-- [ ] **19. Comprehensive Documentation — User Guide and Integration Documentation**
+- [ ] **21. Comprehensive Documentation — User Guide and Integration Documentation**
   - Files: docs/README_eri_vis.md, docs/README_integrated_methods.md, docs/integration_guide.md
   - Create comprehensive documentation for adapted methods:
     - Updated ERI visualization guide including adapted methods
@@ -394,7 +432,7 @@ Tasks are organized into logical phases with clear dependencies. Each task inclu
 
 ## Phase 6: Experimental Validation and Enhanced Coverage
 
-- [ ] **20. Integrated Methods Experimental Validation — Comprehensive Method Evaluation**
+- [ ] **22. Integrated Methods Experimental Validation — Comprehensive Method Evaluation**
 
   - Files: experiments/configs/integrated_methods_comparison.yaml, experiments/runners/run_integrated_methods_comparison.py
   - Implement comprehensive experimental validation of adapted methods:
@@ -413,7 +451,7 @@ Tasks are organized into logical phases with clear dependencies. Each task inclu
     - Results validate that adaptations maintain effectiveness of original implementations
   - _Requirements: 1.8.1, 1.8.2, 1.8.3, 1.8.4, 1.8.5_
 
-- [ ] **21. Enhanced Baseline Integration — Extended Method Support**
+- [ ] **23. Enhanced Baseline Integration — Extended Method Support**
 
   - Files: experiments/configs/enhanced_baselines.yaml, models/config/enhanced_derpp.yaml, models/config/enhanced_gpm.yaml
   - Integrate enhanced versions of existing methods for comprehensive comparison:
@@ -430,7 +468,7 @@ Tasks are organized into logical phases with clear dependencies. Each task inclu
     - Enhanced methods integrate seamlessly with existing experimental infrastructure
   - _Requirements: 1.3.2, 4.2, 1.8.1, 1.8.2_
 
-- [ ] **22. Dataset Variant Support and Generalizability — Enhanced Experimental Scope**
+- [ ] **24. Dataset Variant Support and Generalizability — Enhanced Experimental Scope**
 
   - Files: experiments/configs/dataset_variants.yaml, datasets/seq_cifar100_einstellung_variants.py (optional)
   - Implement support for additional dataset variants and generalizability studies:
@@ -447,7 +485,7 @@ Tasks are organized into logical phases with clear dependencies. Each task inclu
     - Variant experiments maintain compatibility with existing ERI evaluation framework
   - _Requirements: 4.1, 4.4, 1.5.1_
 
-- [ ] **23. Advanced Analysis and Supplementary Metrics — Enhanced Evaluation**
+- [ ] **25. Advanced Analysis and Supplementary Metrics — Enhanced Evaluation**
   - Files: eri_vis/advanced_analysis.py, tests/eri_vis/test_advanced_analysis.py
   - Implement advanced analysis tools for deeper method understanding:
     - Expected Calibration Error (ECE) computation under shortcut masking

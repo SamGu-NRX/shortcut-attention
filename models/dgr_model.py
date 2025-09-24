@@ -19,6 +19,7 @@ class DGRModel(DGRMammothAdapter):
     """Deep Generative Replay using the Mammoth-native adapter."""
 
     NAME = "dgr"
+    _COND_VAE_CLS = None
 
 
 __all__ = ["DGRModel"]
