@@ -161,7 +161,7 @@ class EinstellungEvaluator:
         self.logger.info(f"📊 Found {len(evaluation_subsets)} evaluation subsets: {list(evaluation_subsets.keys())}")
 
         # Evaluate each subset
-        subset_accuracies = {}
+        subset_metrics = {}
         subset_losses = {}
         attention_metrics = {}
 
@@ -171,8 +171,8 @@ class EinstellungEvaluator:
         with torch.no_grad():
             for subset_name, subset_loader in evaluation_subsets.items():
                 # Basic accuracy evaluation (always run)
-                acc, loss = self._evaluate_subset(model, subset_loader)
-                subset_accuracies[subset_name] = acc
+                metrics, loss = self._evaluate_subset(model, subset_loader)
+                subset_metrics[subset_name] = metrics
                 subset_losses[subset_name] = loss
 
                 # OPTIMIZATION: Attention analysis with strict controls
@@ -202,19 +202,19 @@ class EinstellungEvaluator:
         self.metrics_calculator.add_timeline_data(
             epoch=epoch,
             task_id=self.current_task,
-            subset_accuracies=subset_accuracies,
+            subset_accuracies=subset_metrics,
             subset_losses=subset_losses,
             timestamp=time.time()
         )
 
         # Log to Mammoth's logging system
-        self._log_metrics_to_mammoth(model, epoch, subset_accuracies, attention_metrics)
+        self._log_metrics_to_mammoth(model, epoch, subset_metrics, attention_metrics)
 
         # Store for later analysis
         timeline_entry = {
             'epoch': epoch,
             'task_id': self.current_task,
-            'subset_accuracies': subset_accuracies,
+            'subset_metrics': subset_metrics,
             'subset_losses': subset_losses,
             'attention_metrics': attention_metrics,
             'timestamp': time.time()
@@ -222,7 +222,7 @@ class EinstellungEvaluator:
         self.timeline_data.append(timeline_entry)
 
         # DEBUG: Log timeline data storage
-        self.logger.info(f"📊 Stored timeline entry: task={self.current_task}, epoch={epoch}, subsets={len(subset_accuracies)}")
+        self.logger.info(f"📊 Stored timeline entry: task={self.current_task}, epoch={epoch}, subsets={len(subset_metrics)}")
         self.logger.info(f"📊 Total timeline entries: {len(self.timeline_data)}")
 
         # Log evaluation completion
@@ -264,7 +264,7 @@ class EinstellungEvaluator:
             self.logger.exception("Full traceback:")
             return {}
 
-    def _evaluate_subset(self, model, subset_loader: DataLoader) -> Tuple[float, float]:
+    def _evaluate_subset(self, model, subset_loader: DataLoader) -> Tuple[Dict[str, float], float]:
         """
         Evaluate model on a specific subset.
 
@@ -278,7 +278,8 @@ class EinstellungEvaluator:
         if not subset_loader:
             return 0.0, 0.0
 
-        total_correct = 0
+        top1_correct = 0
+        top5_correct = 0
         total_samples = 0
         total_loss = 0.0
 
@@ -303,10 +304,14 @@ class EinstellungEvaluator:
                     if isinstance(outputs, tuple):
                         outputs = outputs[0]  # Handle models that return tuples
 
-                    # Calculate accuracy
-                    _, predicted = torch.max(outputs.data, 1)
+                    # Calculate accuracies
+                    _, top1_preds = torch.max(outputs.data, 1)
+                    topk = min(5, outputs.size(1))
+                    topk_preds = outputs.topk(topk, dim=1).indices
+
                     total_samples += labels.size(0)
-                    total_correct += (predicted == labels).sum().item()
+                    top1_correct += (top1_preds == labels).sum().item()
+                    top5_correct += topk_preds.eq(labels.unsqueeze(1)).any(dim=1).sum().item()
 
                     # Calculate loss
                     loss = model.loss(outputs, labels)
@@ -316,15 +321,18 @@ class EinstellungEvaluator:
                     self.logger.debug(f"Error in subset evaluation: {e}")
                     continue
 
-        accuracy = total_correct / max(total_samples, 1)
+        metrics = {
+            'top1': top1_correct / max(total_samples, 1),
+            'top5': top5_correct / max(total_samples, 1)
+        }
         avg_loss = total_loss / max(total_samples, 1)
 
-        return accuracy, avg_loss
+        return metrics, avg_loss
 
     def _log_metrics_to_mammoth(self,
                               model,
                               epoch: int,
-                              subset_accuracies: Dict[str, float],
+                              subset_metrics: Dict[str, Dict[str, float]],
                               attention_metrics: Dict[str, float]):
         """
         Log metrics to Mammoth's logging system.
@@ -332,24 +340,31 @@ class EinstellungEvaluator:
         Args:
             model: The continual learning model
             epoch: Current epoch
-            subset_accuracies: Dictionary of subset accuracies
+            subset_metrics: Dictionary of subset metrics (top-1/top-5)
             attention_metrics: Dictionary of attention metrics
         """
         # Log to TensorBoard/WandB if available
         if hasattr(model, 'writer') and model.writer is not None:
-            for subset_name, accuracy in subset_accuracies.items():
-                model.writer.add_scalar(f'einstellung/accuracy/{subset_name}', accuracy, epoch)
+            for subset_name, metrics in subset_metrics.items():
+                if 'top1' in metrics:
+                    model.writer.add_scalar(f'einstellung/accuracy_top1/{subset_name}', metrics['top1'], epoch)
+                if 'top5' in metrics:
+                    model.writer.add_scalar(f'einstellung/accuracy_top5/{subset_name}', metrics['top5'], epoch)
 
             for metric_name, value in attention_metrics.items():
                 model.writer.add_scalar(f'einstellung/attention/{metric_name}', value, epoch)
 
         # Log critical metrics at info level
-        if 'T1_all' in subset_accuracies:
-            self.logger.info(f"Epoch {epoch}: T1_all accuracy = {subset_accuracies['T1_all']:.4f}")
+        if 'T1_all' in subset_metrics:
+            t1 = subset_metrics['T1_all']
+            if 'top1' in t1:
+                self.logger.info(f"Epoch {epoch}: T1_all top-1 = {t1['top1']:.4f}")
+            if 'top5' in t1:
+                self.logger.info(f"Epoch {epoch}: T1_all top-5 = {t1['top5']:.4f}")
 
-        if 'T2_shortcut_normal' in subset_accuracies and 'T2_shortcut_masked' in subset_accuracies:
-            shortcut_acc = subset_accuracies['T2_shortcut_normal']
-            masked_acc = subset_accuracies['T2_shortcut_masked']
+        if 'T2_shortcut_normal' in subset_metrics and 'T2_shortcut_masked' in subset_metrics:
+            shortcut_acc = subset_metrics['T2_shortcut_normal'].get('top1', 0.0)
+            masked_acc = subset_metrics['T2_shortcut_masked'].get('top1', 0.0)
             deficit = (shortcut_acc - masked_acc) / max(shortcut_acc, 1e-8)
             self.logger.info(f"Epoch {epoch}: Performance Deficit = {deficit:.4f}")
 
@@ -424,9 +439,19 @@ class EinstellungEvaluator:
 
         self.logger.info(f"Exported Einstellung results to {filepath}")
 
-        # ALSO export CSV format for ERI visualization system
-        csv_filepath = filepath.replace('.json', '_eri_sc_metrics.csv')
-        self.export_csv_for_visualization(csv_filepath)
+        # ALSO export structured CSV outputs
+        import os
+
+        base_dir = os.path.dirname(filepath)
+        timeline_csv = os.path.join(base_dir, 'timeline.csv')
+        summary_csv = os.path.join(base_dir, 'summary.csv')
+
+        self.export_csv_for_visualization(timeline_csv)
+        self.export_summary_csv(summary_csv)
+
+        # Backwards compatibility: legacy eri_sc_metrics.csv export
+        legacy_csv = filepath.replace('.json', '_eri_sc_metrics.csv')
+        self.export_csv_for_visualization(legacy_csv)
 
     def export_csv_for_visualization(self, csv_filepath: str):
         """
@@ -449,7 +474,7 @@ class EinstellungEvaluator:
             # Create an empty CSV file to prevent synthetic data fallback
             try:
                 import pandas as pd
-                empty_df = pd.DataFrame(columns=['method', 'seed', 'epoch_eff', 'split', 'acc'])
+                empty_df = pd.DataFrame(columns=['method', 'seed', 'epoch_eff', 'split', 'acc', 'top5', 'loss'])
 
                 # Ensure parent directory exists
                 import os
@@ -479,24 +504,32 @@ class EinstellungEvaluator:
 
         for i, entry in enumerate(self.timeline_data):
             epoch = entry.get('epoch', 0)
-            subset_accuracies = entry.get('subset_accuracies', {})
+            subset_metrics = entry.get('subset_metrics', entry.get('subset_accuracies', {}))
 
             # DEBUG: Log each entry
-            self.logger.debug(f"   Entry {i}: epoch={epoch}, subsets={list(subset_accuracies.keys())}")
+            self.logger.debug(f"   Entry {i}: epoch={epoch}, subsets={list(subset_metrics.keys())}")
 
             # Use actual epoch number as epoch_eff (not fractional values)
             epoch_eff = float(epoch)
 
             # Add row for each valid subset
-            for split, acc in subset_accuracies.items():
+            for split, metrics in subset_metrics.items():
                 # Only include valid splits for ERI visualization
                 if split in ['T1_all', 'T2_shortcut_normal', 'T2_shortcut_masked', 'T2_nonshortcut_normal']:
+                    top1 = metrics.get('top1') if isinstance(metrics, dict) else metrics
+                    top5 = metrics.get('top5') if isinstance(metrics, dict) else None
+                    loss = entry.get('subset_losses', {}).get(split)
+                    if top1 is None:
+                        continue
+
                     csv_rows.append({
                         'method': method,
                         'seed': seed,
                         'epoch_eff': epoch_eff,
                         'split': split,
-                        'acc': float(acc)
+                        'acc': float(top1),
+                        'top5': float(top5) if top5 is not None else None,
+                        'loss': float(loss) if loss is not None else None
                     })
 
         if not csv_rows:
@@ -507,7 +540,8 @@ class EinstellungEvaluator:
             # DEBUG: Show what subsets we actually have
             all_subsets = set()
             for entry in self.timeline_data:
-                all_subsets.update(entry.get('subset_accuracies', {}).keys())
+                metrics = entry.get('subset_metrics', entry.get('subset_accuracies', {}))
+                all_subsets.update(metrics.keys())
             self.logger.warning(f"   Found subsets: {sorted(all_subsets)}")
             return
 
@@ -533,6 +567,62 @@ class EinstellungEvaluator:
             sample_splits = sorted(df['split'].unique())
             self.logger.info(f"   Splits: {sample_splits}")
 
+    def export_summary_csv(self,
+                           summary_filepath: str,
+                           top1_reference: float = 0.35,
+                           top5_reference: float = 0.65) -> None:
+        """Export final snapshot metrics with reference deltas."""
+
+        try:
+            import pandas as pd
+        except ImportError:
+            self.logger.error("pandas not available for summary export")
+            return
+
+        method = getattr(self.args, 'model', 'unknown') if hasattr(self, 'args') else 'unknown'
+        seed = getattr(self.args, 'seed', 42) if hasattr(self, 'args') else 42
+
+        final_metrics = self.metrics_calculator.get_final_subset_metrics()
+        comprehensive = self.metrics_calculator.calculate_comprehensive_metrics()
+
+        rows = []
+        for subset, values in final_metrics.items():
+            top1 = values.get('top1')
+            top5 = values.get('top5')
+
+            if top1 is None:
+                continue
+
+            rows.append({
+                'method': method,
+                'seed': seed,
+                'subset': subset,
+                'epoch': values.get('epoch'),
+                'top1': top1,
+                'top5': top5,
+                'top1_reference': top1_reference,
+                'top5_reference': top5_reference,
+                'top1_delta': top1 - top1_reference,
+                'top5_delta': (top5 - top5_reference) if top5 is not None else None,
+                'loss': values.get('loss'),
+                'adaptation_delay': comprehensive.adaptation_delay,
+                'performance_deficit': comprehensive.performance_deficit,
+                'shortcut_feature_reliance': comprehensive.shortcut_feature_reliance,
+                'eri_score': comprehensive.eri_score
+            })
+
+        if not rows:
+            self.logger.warning("❌ No rows generated for summary CSV")
+            return
+
+        df = pd.DataFrame(rows)
+        df = df.sort_values(['method', 'seed', 'subset']).reset_index(drop=True)
+
+        import os
+        os.makedirs(os.path.dirname(summary_filepath), exist_ok=True)
+        df.to_csv(summary_filepath, index=False)
+        self.logger.info(f"✅ Exported summary CSV: {summary_filepath}")
+
     def get_accuracy_curves(self) -> Dict[str, Tuple[List[int], List[float]]]:
         """
         Get accuracy curves for visualization.
@@ -546,11 +636,15 @@ class EinstellungEvaluator:
         subset_data = {}
         for entry in self.timeline_data:
             epoch = entry['epoch']
-            for subset_name, accuracy in entry['subset_accuracies'].items():
+            metrics = entry.get('subset_metrics', entry.get('subset_accuracies', {}))
+            for subset_name, subset_metrics in metrics.items():
+                top1 = subset_metrics.get('top1') if isinstance(subset_metrics, dict) else subset_metrics
+                if top1 is None:
+                    continue
                 if subset_name not in subset_data:
                     subset_data[subset_name] = {'epochs': [], 'accuracies': []}
                 subset_data[subset_name]['epochs'].append(epoch)
-                subset_data[subset_name]['accuracies'].append(accuracy)
+                subset_data[subset_name]['accuracies'].append(top1)
 
         # Convert to required format
         for subset_name, data in subset_data.items():

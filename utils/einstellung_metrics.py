@@ -17,6 +17,7 @@ Core Metrics:
 
 import numpy as np
 import torch
+import time
 from typing import Dict, List, Tuple, Optional, Union
 from dataclasses import dataclass
 import logging
@@ -28,7 +29,8 @@ class EinstellungTimelineData:
     epoch: int
     task_id: int
     subset_name: str  # e.g., 'T1_all', 'T2_shortcut_normal', etc.
-    accuracy: float
+    top1_accuracy: float
+    top5_accuracy: Optional[float]
     loss: float
     timestamp: float
 
@@ -107,7 +109,7 @@ class EinstellungMetricsCalculator:
     def add_timeline_data(self,
                          epoch: int,
                          task_id: int,
-                         subset_accuracies: Dict[str, float],
+                         subset_accuracies: Dict[str, Union[float, Dict[str, float]]],
                          subset_losses: Dict[str, float],
                          timestamp: float = None) -> None:
         """
@@ -121,16 +123,26 @@ class EinstellungMetricsCalculator:
             timestamp: Unix timestamp (auto-generated if None)
         """
         if timestamp is None:
-            timestamp = torch.time()
+            timestamp = time.time()
 
-        for subset_name, accuracy in subset_accuracies.items():
+        for subset_name, value in subset_accuracies.items():
             loss = subset_losses.get(subset_name, 0.0)
+
+            if isinstance(value, dict):
+                top1 = float(value.get('top1', value.get('accuracy', 0.0)))
+                top5 = value.get('top5')
+                if top5 is not None:
+                    top5 = float(top5)
+            else:
+                top1 = float(value)
+                top5 = None
 
             self.timeline_data.append(EinstellungTimelineData(
                 epoch=epoch,
                 task_id=task_id,
                 subset_name=subset_name,
-                accuracy=accuracy,
+                top1_accuracy=top1,
+                top5_accuracy=top5,
                 loss=loss,
                 timestamp=timestamp
             ))
@@ -154,7 +166,7 @@ class EinstellungMetricsCalculator:
         subset_data.sort(key=lambda x: x.epoch)
 
         for data_point in subset_data:
-            if data_point.accuracy >= self.adaptation_threshold:
+            if data_point.top1_accuracy >= self.adaptation_threshold:
                 return float(data_point.epoch)
 
         # Threshold never reached
@@ -244,7 +256,7 @@ class EinstellungMetricsCalculator:
 
         # Return accuracy from the latest epoch
         latest_data = max(subset_data, key=lambda x: x.epoch)
-        return latest_data.accuracy
+        return latest_data.top1_accuracy
 
     def _get_final_loss(self, subset_name: str) -> Optional[float]:
         """Get loss for the final epoch of a specific subset."""
@@ -278,7 +290,7 @@ class EinstellungMetricsCalculator:
 
         for i in range(window_size, len(subset_data)):
             # Check if accuracy has been stable over the window
-            window_accuracies = [subset_data[j].accuracy for j in range(i-window_size, i)]
+            window_accuracies = [subset_data[j].top1_accuracy for j in range(i-window_size, i)]
             accuracy_range = max(window_accuracies) - min(window_accuracies)
 
             if accuracy_range <= stability_threshold:
@@ -298,7 +310,9 @@ class EinstellungMetricsCalculator:
                 'epoch': d.epoch,
                 'task_id': d.task_id,
                 'subset_name': d.subset_name,
-                'accuracy': d.accuracy,
+                'accuracy': d.top1_accuracy,
+                'top1_accuracy': d.top1_accuracy,
+                'top5_accuracy': d.top5_accuracy,
                 'loss': d.loss,
                 'timestamp': d.timestamp
             }
@@ -325,10 +339,31 @@ class EinstellungMetricsCalculator:
         for subset_name, data_points in subset_groups.items():
             data_points.sort(key=lambda x: x.epoch)
             epochs = [d.epoch for d in data_points]
-            accuracies = [d.accuracy for d in data_points]
+            accuracies = [d.top1_accuracy for d in data_points]
             curves[subset_name] = (epochs, accuracies)
 
         return curves
+
+    def get_final_subset_metrics(self) -> Dict[str, Dict[str, Optional[float]]]:
+        """
+        Retrieve the latest recorded metrics for each evaluation subset.
+
+        Returns:
+            Dictionary mapping subset name -> {"epoch": int, "top1": float, "top5": Optional[float], "loss": float}
+        """
+        latest: Dict[str, Dict[str, Optional[float]]] = {}
+
+        for data_point in self.timeline_data:
+            entry = latest.get(data_point.subset_name)
+            if entry is None or data_point.epoch >= entry['epoch']:
+                latest[data_point.subset_name] = {
+                    'epoch': data_point.epoch,
+                    'top1': data_point.top1_accuracy,
+                    'top5': data_point.top5_accuracy,
+                    'loss': data_point.loss
+                }
+
+        return latest
 
 
 def calculate_cross_experiment_eri_statistics(metrics_list: List[EinstellungMetrics]) -> Dict[str, float]:

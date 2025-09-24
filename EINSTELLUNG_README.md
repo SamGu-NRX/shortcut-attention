@@ -53,19 +53,28 @@ The **Einstellung Effect** is a cognitive rigidity phenomenon where prior experi
 ### Core Components
 
 ```
-einstellung_integration/
-├── datasets/
-│   ├── seq_cifar100_einstellung.py     # Dataset with patch injection
-│   └── configs/seq-cifar100/einstellung.yaml  # Configuration
-├── utils/
-│   ├── einstellung_metrics.py          # ERI calculation framework
-│   ├── einstellung_attention.py        # Attention analysis (ViT)
-│   ├── einstellung_evaluator.py        # Plugin-based evaluator
-│   └── einstellung_integration.py      # Mammoth integration hooks
-├── experiments/
-│   └── einstellung_runner.py           # Comprehensive experiment orchestration
-└── run_einstellung_experiment.py       # Simple experiment runner
+experiments/
+└── einstellung/
+    ├── config.py            # Dataclasses & execution modes
+    ├── args_builder.py      # Canonical Mammoth CLI argument construction
+    ├── runner.py            # Subprocess orchestration + artifact loading
+    ├── batch.py             # Comparative plans and aggregation
+    ├── analysis.py          # Summary/timeline consolidation helpers
+    └── reporting.py         # HTML generation (single + comparative)
+
+utils/
+└── einstellung_evaluator.py # Collects timeline data (top-1/top-5) + exports
+
+run_einstellung_experiment.py # Thin CLI + legacy-shim functions
 ```
+
+Every run now produces a **single source of truth** inside its results directory:
+
+- `timeline.csv` per-epoch subset metrics (top-1 in `acc`, top-5 in `top5`)
+- `summary.csv` final snapshot with reference deltas (35% top-1 / 65% top-5)
+- `reports/report.html` human-readable summary synced with the CSVs
+
+A backwards-compatible `*_eri_sc_metrics.csv` is still emitted for older tooling.
 
 ### 1. Dataset Implementation (`seq_cifar100_einstellung.py`)
 

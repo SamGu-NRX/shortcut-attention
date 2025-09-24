@@ -306,7 +306,8 @@ class ERITimelineProcessor:
         # Find Scratch_T2 crossing epoch for reference
         scratch_key = None
         for key in curves.keys():
-            if key.startswith('Scratch_T2_') and 'shortcut_normal' in key:
+            key_lower = key.lower()
+            if key_lower.startswith('scratch_t2_') and 'shortcut_normal' in key_lower:
                 scratch_key = key
                 break
 
@@ -322,7 +323,7 @@ class ERITimelineProcessor:
                 continue  # Only compute AD for shortcut_normal split
 
             method = curve.method
-            if method == 'Scratch_T2':
+            if method.lower() == 'scratch_t2':
                 continue  # Skip scratch baseline
 
             method_crossing = self._find_threshold_crossing(curve, self.tau)
@@ -379,8 +380,10 @@ class ERITimelineProcessor:
 
         # Find scratch baseline curve for shortcut_normal split
         scratch_curve = None
+        scratch_key_lower = scratch_key.lower()
         for key, curve in curves.items():
-            if key.startswith(scratch_key) and 'shortcut_normal' in key:
+            key_lower = key.lower()
+            if key_lower.startswith(scratch_key_lower) and 'shortcut_normal' in key_lower:
                 scratch_curve = curve
                 break
 
@@ -390,11 +393,12 @@ class ERITimelineProcessor:
 
         # Compute PD_t for each continual learning method
         for key, curve in curves.items():
-            if not 'shortcut_normal' in key:
+            key_lower = key.lower()
+            if 'shortcut_normal' not in key_lower:
                 continue  # Only compute PD_t for shortcut_normal split
 
             method = curve.method
-            if method == scratch_key:
+            if method.lower() == scratch_key_lower:
                 continue  # Skip scratch baseline
 
             try:
@@ -445,12 +449,14 @@ class ERITimelineProcessor:
         # Find scratch baseline curves
         scratch_patched = None
         scratch_masked = None
+        scratch_key_lower = scratch_key.lower()
 
         for key, curve in curves.items():
-            if key.startswith(scratch_key):
-                if 'shortcut_normal' in key:
+            key_lower = key.lower()
+            if key_lower.startswith(scratch_key_lower):
+                if 'shortcut_normal' in key_lower:
                     scratch_patched = curve
-                elif 'shortcut_masked' in key:
+                elif 'shortcut_masked' in key_lower:
                     scratch_masked = curve
 
         if scratch_patched is None or scratch_masked is None:
@@ -474,7 +480,7 @@ class ERITimelineProcessor:
 
         # Compute SFR_rel for each continual learning method
         for method in set(curve.method for curve in curves.values()):
-            if method == scratch_key:
+            if method.lower() == scratch_key_lower:
                 continue  # Skip scratch baseline
 
             # Find method curves
@@ -482,10 +488,11 @@ class ERITimelineProcessor:
             method_masked = None
 
             for key, curve in curves.items():
+                key_lower = key.lower()
                 if curve.method == method:
-                    if 'shortcut_normal' in key:
+                    if 'shortcut_normal' in key_lower:
                         method_patched = curve
-                    elif 'shortcut_masked' in key:
+                    elif 'shortcut_masked' in key_lower:
                         method_masked = curve
 
             if method_patched is None or method_masked is None:
