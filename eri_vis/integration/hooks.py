@@ -110,6 +110,11 @@ class ERIExperimentHooks:
                     subset_metrics = latest_entry.get('subset_metrics') or latest_entry.get('subset_accuracies', {})
                     subset_losses = latest_entry.get('subset_losses', {})
 
+                    epoch_eff = latest_entry.get('epoch_eff')
+                    if epoch_eff is None:
+                        # Skip pre-Phase-2 evaluations for ERI visualisation
+                        return
+
                     def _top1(value):
                         if isinstance(value, dict):
                             return float(value.get('top1', value.get('accuracy', 0.0)))
@@ -134,7 +139,7 @@ class ERIExperimentHooks:
                     # Store timeline entry in our format
                     timeline_entry = {
                         'epoch': epoch,
-                        'epoch_eff': float(epoch),  # Could be enhanced with proper Phase 2 normalization
+                        'epoch_eff': float(epoch_eff),
                         'task_id': self.current_task,
                         'method': self.current_method,
                         'seed': self.current_seed,

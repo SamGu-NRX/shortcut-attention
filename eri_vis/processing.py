@@ -35,6 +35,7 @@ class AccuracyCurve:
         split: Split name (e.g., 'T2_shortcut_normal', 'T2_shortcut_masked')
         n_seeds: Number of seeds used to compute statistics
         raw_data: Optional raw per-seed data for debugging
+        std_dev: Optional per-epoch standard deviation across seeds
     """
     epochs: np.ndarray
     mean_accuracy: np.ndarray
@@ -43,6 +44,8 @@ class AccuracyCurve:
     split: str
     n_seeds: int = 0
     raw_data: Optional[np.ndarray] = None  # shape: (n_seeds, n_epochs)
+    std_dev: Optional[np.ndarray] = None
+    seed_ids: Optional[np.ndarray] = None
 
 
 @dataclass
@@ -76,7 +79,14 @@ class ERITimelineProcessor:
     - Computing Shortcut Forgetting Rate relative (SFR_rel) time series
     """
 
-    def __init__(self, smoothing_window: int = 3, tau: float = 0.6):
+    def __init__(
+        self,
+        smoothing_window: int = 3,
+        tau: float = 0.6,
+        *,
+        baseline_method: str = "Scratch_T2",
+        use_smoothing: bool = True,
+    ):
         """
         Initialize the processor.
 
@@ -86,7 +96,10 @@ class ERITimelineProcessor:
         """
         self.smoothing_window = smoothing_window
         self.tau = tau
+        self.baseline_method = baseline_method
+        self.use_smoothing = use_smoothing
         self.logger = logging.getLogger(__name__)
+        self._ad_seedwise: Dict[str, Dict[str, Union[np.ndarray, bool]]] = {}
 
         if smoothing_window < 1:
             raise ValueError("smoothing_window must be >= 1")
@@ -110,7 +123,7 @@ class ERITimelineProcessor:
         if window is None:
             window = self.smoothing_window
 
-        if window <= 1:
+        if not self.use_smoothing or window <= 1:
             return values.copy()
 
         if len(values) == 0:
@@ -283,6 +296,11 @@ class ERITimelineProcessor:
         # Compute mean and confidence intervals
         mean_acc, ci_half_width = self.compute_confidence_interval(smoothed_matrix, axis=0)
 
+        if smoothed_matrix.shape[0] > 1:
+            std_dev = np.std(smoothed_matrix, axis=0, ddof=1)
+        else:
+            std_dev = np.zeros(smoothed_matrix.shape[1])
+
         return AccuracyCurve(
             epochs=unique_epochs,
             mean_accuracy=mean_acc,
@@ -290,7 +308,9 @@ class ERITimelineProcessor:
             method=method,
             split=split,
             n_seeds=len(valid_seeds),
-            raw_data=smoothed_matrix
+            raw_data=smoothed_matrix,
+            std_dev=std_dev,
+            seed_ids=valid_seeds,
         )
 
     def compute_adaptation_delays(self, curves: Dict[str, AccuracyCurve]) -> Dict[str, float]:
@@ -307,21 +327,30 @@ class ERITimelineProcessor:
         Returns:
             Dictionary mapping method names to AD values (NaN if censored)
         """
-        ad_values = {}
+        ad_values: Dict[str, float] = {}
+        self._ad_seedwise = {}
 
-        # Find Scratch_T2 crossing epoch for reference
-        scratch_key = None
-        for key in curves.keys():
-            key_lower = key.lower()
-            if key_lower.startswith('scratch_t2_') and 'shortcut_normal' in key_lower:
-                scratch_key = key
+        # Find baseline crossing epoch for reference
+        baseline_key = None
+        baseline_lower = self.baseline_method.lower()
+        for key, curve in curves.items():
+            if curve.method.lower() == baseline_lower and 'shortcut_normal' in key.lower():
+                baseline_key = key
                 break
 
-        if scratch_key is None:
-            self.logger.warning("No Scratch_T2 shortcut_normal curve found for AD computation")
+        if baseline_key is None:
+            self.logger.warning(
+                "No %s shortcut_normal curve found for AD computation",
+                self.baseline_method,
+            )
             return ad_values  # Return empty dict
         else:
-            scratch_crossing = self._find_threshold_crossing(curves[scratch_key], self.tau)
+            baseline_curve = curves[baseline_key]
+            baseline_crossing = self._find_threshold_crossing(baseline_curve, self.tau)
+
+        baseline_seed_ids = None
+        if baseline_curve.seed_ids is not None:
+            baseline_seed_ids = np.array(baseline_curve.seed_ids)
 
         # Compute AD for each method
         for key, curve in curves.items():
@@ -329,19 +358,96 @@ class ERITimelineProcessor:
                 continue  # Only compute AD for shortcut_normal split
 
             method = curve.method
-            if method.lower() == 'scratch_t2':
+            if method.lower() == baseline_lower:
                 continue  # Skip scratch baseline
 
-            method_crossing = self._find_threshold_crossing(curve, self.tau)
+            seedwise_ads: List[float] = []
+            censored_seeds: List[int] = []
 
-            if np.isnan(method_crossing) or np.isnan(scratch_crossing):
-                ad_values[method] = np.nan
-                if np.isnan(method_crossing):
-                    self.logger.warning(f"Censored run detected for {method} (no threshold crossing)")
+            successful_seed_ids: List[int] = []
+
+            use_seedwise = (
+                curve.raw_data is not None and
+                baseline_curve.raw_data is not None and
+                baseline_seed_ids is not None and
+                curve.seed_ids is not None and
+                len(baseline_seed_ids) > 0 and
+                len(curve.seed_ids) > 0
+            )
+
+            if use_seedwise:
+                method_seed_ids = np.array(curve.seed_ids)
+                common_seeds = np.intersect1d(method_seed_ids, baseline_seed_ids)
+
+                if common_seeds.size == 0:
+                    self.logger.warning(
+                        "No overlapping seeds between baseline and %s for AD computation",
+                        method,
+                    )
+
+                for seed in common_seeds:
+                    baseline_idx = int(np.where(baseline_seed_ids == seed)[0][0])
+                    method_idx = int(np.where(method_seed_ids == seed)[0][0])
+
+                    baseline_series = baseline_curve.raw_data[baseline_idx]
+                    method_series = curve.raw_data[method_idx]
+
+                    baseline_cross = self._find_threshold_crossing_series(
+                        baseline_curve.epochs,
+                        baseline_series,
+                        self.tau,
+                    )
+                    method_cross = self._find_threshold_crossing_series(
+                        curve.epochs,
+                        method_series,
+                        self.tau,
+                    )
+
+                    if np.isnan(baseline_cross) or np.isnan(method_cross):
+                        censored_seeds.append(int(seed))
+                        continue
+
+                    seedwise_ads.append(method_cross - baseline_cross)
+                    successful_seed_ids.append(int(seed))
+
+                if not seedwise_ads:
+                    ad_values[method] = np.nan
+                else:
+                    ad_values[method] = float(np.nanmean(seedwise_ads))
+
+                if censored_seeds:
+                    self.logger.warning(
+                        "Censored AD computation for %s seeds: %s",
+                        method,
+                        ', '.join(str(s) for s in censored_seeds),
+                    )
+
             else:
-                ad_values[method] = method_crossing - scratch_crossing
+                method_crossing = self._find_threshold_crossing(curve, self.tau)
+
+                if np.isnan(method_crossing) or np.isnan(baseline_crossing):
+                    ad_values[method] = np.nan
+                    if np.isnan(method_crossing):
+                        self.logger.warning(
+                            "Censored run detected for %s (no threshold crossing)",
+                            method,
+                        )
+                else:
+                    ad_values[method] = method_crossing - baseline_crossing
+                    seedwise_ads.append(ad_values[method])
+
+            self._ad_seedwise[method] = {
+                'values': np.array(seedwise_ads, dtype=float) if seedwise_ads else np.array([], dtype=float),
+                'seed_ids': np.array(successful_seed_ids, dtype=int) if use_seedwise and seedwise_ads else np.array([], dtype=int),
+                'censored': np.array(censored_seeds, dtype=int) if censored_seeds else np.array([], dtype=int),
+                'used_seedwise': use_seedwise,
+            }
 
         return ad_values
+
+    def get_seedwise_ad(self) -> Dict[str, Dict[str, Union[np.ndarray, bool]]]:
+        """Return per-method seedwise AD diagnostics computed in the last AD pass."""
+        return self._ad_seedwise
 
     def _find_threshold_crossing(self, curve: AccuracyCurve, threshold: float) -> float:
         """
@@ -360,7 +466,11 @@ class ERITimelineProcessor:
             return np.nan
 
         # CORRECTED: Apply trailing smoothing before threshold detection
-        smoothed_accuracy = self.smooth_curve(curve.mean_accuracy)
+        smoothed_accuracy = (
+            self.smooth_curve(curve.mean_accuracy)
+            if self.use_smoothing
+            else curve.mean_accuracy
+        )
 
         # Find first index where smoothed accuracy >= threshold
         crossing_indices = np.where(smoothed_accuracy >= threshold)[0]
@@ -371,8 +481,33 @@ class ERITimelineProcessor:
         crossing_idx = crossing_indices[0]
         return curve.epochs[crossing_idx]
 
-    def compute_performance_deficits(self, curves: Dict[str, AccuracyCurve],
-                                   scratch_key: str = "Scratch_T2") -> Dict[str, TimeSeries]:
+    @staticmethod
+    def _find_threshold_crossing_series(
+        epochs: np.ndarray,
+        values: np.ndarray,
+        threshold: float,
+    ) -> float:
+        """Find threshold crossing for a single seed accuracy trajectory."""
+        if values is None or epochs is None:
+            return np.nan
+
+        if len(values) == 0 or len(epochs) == 0:
+            return np.nan
+
+        if len(values) != len(epochs):
+            return np.nan
+
+        indices = np.where(values >= threshold)[0]
+        if len(indices) == 0:
+            return np.nan
+
+        return float(epochs[indices[0]])
+
+    def compute_performance_deficits(
+        self,
+        curves: Dict[str, AccuracyCurve],
+        scratch_key: str = "Scratch_T2",
+    ) -> Dict[str, TimeSeries]:
         """
         Compute Performance Deficit (PD_t) time series.
 
@@ -389,33 +524,32 @@ class ERITimelineProcessor:
         """
         pd_series = {}
 
-        # Find scratch baseline curve for shortcut_normal split
-        scratch_curve = None
-        scratch_key_lower = scratch_key.lower()
-        for key, curve in curves.items():
-            key_lower = key.lower()
-            if key_lower.startswith(scratch_key_lower) and 'shortcut_normal' in key_lower:
-                scratch_curve = curve
+        baseline_lower = self.baseline_method.lower()
+        shortcut_curves = [curve for curve in curves.values() if 'shortcut_normal' in curve.split.lower()]
+
+        baseline_curve = None
+        for curve in shortcut_curves:
+            if curve.method.lower() == baseline_lower:
+                baseline_curve = curve
                 break
 
-        if scratch_curve is None:
-            self.logger.warning(f"No {scratch_key} shortcut_normal curve found for PD_t computation")
+        if baseline_curve is None:
+            self.logger.warning(
+                "No %s shortcut_normal curve found for PD_t computation",
+                self.baseline_method,
+            )
             return pd_series
 
         # Compute PD_t for each continual learning method
-        for key, curve in curves.items():
-            key_lower = key.lower()
-            if 'shortcut_normal' not in key_lower:
-                continue  # Only compute PD_t for shortcut_normal split
-
+        for curve in shortcut_curves:
             method = curve.method
-            if method.lower() == scratch_key_lower:
+            if method.lower() == baseline_lower:
                 continue  # Skip scratch baseline
 
             try:
                 # Align epochs between scratch and method curves
-                aligned_epochs, scratch_aligned, method_aligned = self._align_curves(
-                    scratch_curve, curve
+                aligned_epochs, baseline_aligned, method_aligned = self._align_curves(
+                    baseline_curve, curve
                 )
 
                 if len(aligned_epochs) == 0:
@@ -423,7 +557,7 @@ class ERITimelineProcessor:
                     continue
 
                 # Compute PD_t = A_S - A_CL
-                pd_values = scratch_aligned - method_aligned
+                pd_values = baseline_aligned - method_aligned
 
                 pd_series[method] = TimeSeries(
                     epochs=aligned_epochs,
@@ -439,8 +573,11 @@ class ERITimelineProcessor:
 
         return pd_series
 
-    def compute_sfr_relative(self, curves: Dict[str, AccuracyCurve],
-                           scratch_key: str = "Scratch_T2") -> Dict[str, TimeSeries]:
+    def compute_sfr_relative(
+        self,
+        curves: Dict[str, AccuracyCurve],
+        scratch_key: str = "Scratch_T2",
+    ) -> Dict[str, TimeSeries]:
         """
         Compute Shortcut Forgetting Rate relative (SFR_rel) time series.
 
@@ -457,27 +594,23 @@ class ERITimelineProcessor:
         """
         sfr_series = {}
 
-        # Find scratch baseline curves
-        scratch_patched = None
-        scratch_masked = None
-        scratch_key_lower = scratch_key.lower()
+        baseline_lower = self.baseline_method.lower()
+        patched_curves = [curve for curve in curves.values() if 'shortcut_normal' in curve.split.lower()]
+        masked_curves = [curve for curve in curves.values() if 'shortcut_masked' in curve.split.lower()]
 
-        for key, curve in curves.items():
-            key_lower = key.lower()
-            if key_lower.startswith(scratch_key_lower):
-                if 'shortcut_normal' in key_lower:
-                    scratch_patched = curve
-                elif 'shortcut_masked' in key_lower:
-                    scratch_masked = curve
+        baseline_patched = next((curve for curve in patched_curves if curve.method.lower() == baseline_lower), None)
+        baseline_masked = next((curve for curve in masked_curves if curve.method.lower() == baseline_lower), None)
 
-        if scratch_patched is None or scratch_masked is None:
-            self.logger.warning(f"Missing {scratch_key} curves for SFR_rel computation")
+        if baseline_patched is None or baseline_masked is None:
+            self.logger.warning(
+                "Missing %s curves for SFR_rel computation", self.baseline_method
+            )
             return sfr_series
 
         # Compute Δ_S(e) for scratch baseline
         try:
             aligned_epochs_s, patched_s, masked_s = self._align_curves(
-                scratch_patched, scratch_masked
+                baseline_patched, baseline_masked
             )
             if len(aligned_epochs_s) == 0:
                 self.logger.warning("No overlapping epochs for scratch Δ computation")
@@ -490,21 +623,15 @@ class ERITimelineProcessor:
             return sfr_series
 
         # Compute SFR_rel for each continual learning method
-        for method in set(curve.method for curve in curves.values()):
-            if method.lower() == scratch_key_lower:
+        methods = sorted({curve.method for curve in patched_curves})
+
+        for method in methods:
+            if method.lower() == baseline_lower:
                 continue  # Skip scratch baseline
 
             # Find method curves
-            method_patched = None
-            method_masked = None
-
-            for key, curve in curves.items():
-                key_lower = key.lower()
-                if curve.method == method:
-                    if 'shortcut_normal' in key_lower:
-                        method_patched = curve
-                    elif 'shortcut_masked' in key_lower:
-                        method_masked = curve
+            method_patched = next((curve for curve in patched_curves if curve.method == method), None)
+            method_masked = next((curve for curve in masked_curves if curve.method == method), None)
 
             if method_patched is None or method_masked is None:
                 self.logger.warning(f"Missing curves for {method} SFR_rel computation")

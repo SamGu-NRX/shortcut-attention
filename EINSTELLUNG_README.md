@@ -8,6 +8,36 @@ This document describes the complete implementation of Einstellung Effect testin
 python run_einstellung_experiment.py --model derpp --backbone resnet18 --auto_checkpoint
 ```
 
+To share a single session across multiple random seeds, pass the new `--seeds`
+flag (space- or comma-separated values). Outputs for each (model, seed) pair are
+stored in nested directories while aggregate plots (mean ± 95% CI and AD markers)
+are written once under the session root:
+
+```bash
+python run_einstellung_experiment.py --model scratch_t2,sgd,ewc_on --seeds 42 43 44
+```
+
+You can regenerate plots from any existing session (and compare smoothed vs.
+unsmoothed trajectories) with:
+
+```bash
+python tools/replot_einstellung_session.py \
+  --input einstellung_results/session_20250923-012304_seed42 \
+  --baseline sgd \
+  --separate-panels
+```
+
+The replot tool now emits:
+
+- `eri_panel_A.pdf` – shorthand accuracy (patched/masked average) with AD markers
+- `eri_panel_B.pdf` – performance deficit trajectories (PDₜ)
+- `eri_panel_C.pdf` – relative shortcut forgetting (SFR_rel)
+- `eri_patched_accuracy.pdf` and `eri_masked_accuracy.pdf` – supplementary views
+- Optional `_raw` variants (unsmoothed) alongside the smoothed defaults
+
+All artefacts are written to the session root by default (additional metrics are
+stored in subfolders when requested).
+
 ## Scientific Background
 
 The **Einstellung Effect** is a cognitive rigidity phenomenon where prior experience creates a mental "set" that prevents finding simpler or better solutions. In continual learning, this manifests as:

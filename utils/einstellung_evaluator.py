@@ -66,6 +66,8 @@ class EinstellungEvaluator:
         # Timeline storage
         self.timeline_data = []
         self.current_task = 0
+        self.phase2_task_id = 0 if getattr(args, 'model', '').lower() == 'scratch_t2' else 1
+        self.phase2_epoch_counter = -1
 
         # Logging
         self.logger = logging.getLogger(__name__)
@@ -100,6 +102,9 @@ class EinstellungEvaluator:
         if dataset.NAME == self.dataset_name:
             self.current_task = dataset.i if hasattr(dataset, 'i') else 0
             self.logger.info(f"Starting Einstellung evaluation for task {self.current_task}")
+
+            if self.current_task >= self.phase2_task_id:
+                self.phase2_epoch_counter = -1
 
             # Initialize attention analyzer if not done yet
             if self.extract_attention and self.attention_analyzer is None:
@@ -199,22 +204,38 @@ class EinstellungEvaluator:
                     except Exception as e:
                         self.logger.debug(f"Could not extract attention for {subset_name}: {e}")
 
+        # Determine effective epoch (Phase-2 only)
+        if self.current_task >= self.phase2_task_id:
+            self.phase2_epoch_counter += 1
+            epoch_eff = float(self.phase2_epoch_counter)
+        else:
+            epoch_eff = None
+
         # Store timeline data
         self.metrics_calculator.add_timeline_data(
             epoch=epoch,
             task_id=self.current_task,
             subset_accuracies=subset_metrics,
             subset_losses=subset_losses,
-            timestamp=time.time()
+            timestamp=time.time(),
+            effective_epoch=epoch_eff,
+            phase=self.current_task,
         )
 
         # Log to Mammoth's logging system
         self._log_metrics_to_mammoth(model, epoch, subset_metrics, attention_metrics)
 
         # Store for later analysis
+        method_name = getattr(self.args, 'model', 'unknown') if hasattr(self, 'args') else 'unknown'
+        seed_value = getattr(self.args, 'seed', 42) if hasattr(self, 'args') else 42
+
         timeline_entry = {
             'epoch': epoch,
             'task_id': self.current_task,
+            'phase': self.current_task,
+            'epoch_eff': epoch_eff,
+            'method': method_name,
+            'seed': seed_value,
             'subset_metrics': subset_metrics,
             'subset_losses': subset_losses,
             'attention_metrics': attention_metrics,
@@ -262,6 +283,17 @@ class EinstellungEvaluator:
                     except Exception as e:
                         self.logger.debug(f"   Subset '{subset_name}': Could not determine size ({e})")
 
+            allowed = set(self._allowed_subsets_for_task(self.current_task))
+            if allowed:
+                filtered = {name: loader for name, loader in subsets.items() if name in allowed}
+                missing = allowed - set(filtered.keys())
+                if missing:
+                    self.logger.warning(
+                        "⚠️  Missing evaluation subsets for task %s: %s",
+                        self.current_task,
+                        ", ".join(sorted(missing)),
+                    )
+                return filtered
             return subsets
         except Exception as e:
             self.logger.error(f"❌ Error getting evaluation subsets: {e}")
@@ -332,6 +364,11 @@ class EinstellungEvaluator:
         avg_loss = total_loss / max(total_samples, 1)
 
         return metrics, avg_loss
+
+    def _allowed_subsets_for_task(self, task_id: int) -> List[str]:
+        if task_id < self.phase2_task_id:
+            return ['T1_all']
+        return ['T1_all', 'T2_shortcut_normal', 'T2_shortcut_masked', 'T2_nonshortcut_normal']
 
     def _log_metrics_to_mammoth(self,
                               model,
@@ -466,14 +503,19 @@ class EinstellungEvaluator:
         self.logger.info(f"📊 Processing {len(self.timeline_data)} timeline entries for CSV export...")
 
         for i, entry in enumerate(self.timeline_data):
+            phase = entry.get('phase', entry.get('task_id', 0))
+            epoch_eff_val = entry.get('epoch_eff')
+            if epoch_eff_val is None:
+                # Skip pre-phase-2 evaluations from CSV export
+                continue
+
             epoch = entry.get('epoch', 0)
             subset_metrics = entry.get('subset_metrics', entry.get('subset_accuracies', {}))
 
             # DEBUG: Log each entry
             self.logger.debug(f"   Entry {i}: epoch={epoch}, subsets={list(subset_metrics.keys())}")
 
-            # Use actual epoch number as epoch_eff (not fractional values)
-            epoch_eff = float(epoch)
+            epoch_eff = float(epoch_eff_val)
 
             # Add row for each valid subset
             for split, metrics in subset_metrics.items():

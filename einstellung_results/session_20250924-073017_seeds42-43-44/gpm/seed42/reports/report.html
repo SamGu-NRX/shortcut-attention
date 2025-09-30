@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Einstellung Run – gpm / resnet18 (seed=42)</title>
+<style>
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 32px; }
+h1, h2 { color: #222; }
+table { border-collapse: collapse; width: 100%; margin-bottom: 24px; }
+th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+th { background: #f5f5f5; }
+.bad { color: #c0392b; }
+.good { color: #27ae60; }
+.small { color: #555; font-size: 0.9em; }
+</style>
+</head>
+<body>
+
+<h1>Einstellung Run – gpm / resnet18 (seed=42)</h1>
+<p class='small'>Generated: 2025-09-24T20:58:37</p>
+<h2>Final Metrics</h2>
+<table>
+<tr><th>Metric</th><th>Value</th></tr>
+<tr><td>Top-1</td><td>0.6280 (62.80%)</td></tr>
+<tr><td>Top-5</td><td>0.8620 (86.20%)</td></tr>
+<tr><td>Δ Top-1 vs 0.35</td><td>0.2780</td></tr>
+<tr><td>Δ Top-5 vs 0.65</td><td>0.2120</td></tr>
+<tr><td>Performance Deficit</td><td>0.0</td></tr>
+<tr><td>Shortcut Reliance</td><td>0.4334600760456273</td></tr>
+<tr><td>Adaptation Delay</td><td>nan</td></tr>
+</table>
+<h2>Subset Summary</h2>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>method</th>
+      <th>seed</th>
+      <th>subset</th>
+      <th>epoch</th>
+      <th>top1</th>
+      <th>top5</th>
+      <th>top1_reference</th>
+      <th>top5_reference</th>
+      <th>top1_delta</th>
+      <th>top5_delta</th>
+      <th>loss</th>
+      <th>adaptation_delay</th>
+      <th>performance_deficit</th>
+      <th>shortcut_feature_reliance</th>
+      <th>eri_score</th>
+      <th>top1_pct</th>
+      <th>top5_pct</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>gpm</td>
+      <td>42</td>
+      <td>T1_all</td>
+      <td>49</td>
+      <td>0.6843</td>
+      <td>0.9067</td>
+      <td>0.3500</td>
+      <td>0.6500</td>
+      <td>0.3342</td>
+      <td>0.2567</td>
+      <td>1.5291</td>
+      <td>NaN</td>
+      <td>0.0000</td>
+      <td>0.4335</td>
+      <td>NaN</td>
+      <td>68.4200</td>
+      <td>90.6800</td>
+    </tr>
+    <tr>
+      <td>gpm</td>
+      <td>42</td>
+      <td>T2_nonshortcut_normal</td>
+      <td>49</td>
+      <td>0.8000</td>
+      <td>0.9527</td>
+      <td>0.3500</td>
+      <td>0.6500</td>
+      <td>0.4500</td>
+      <td>0.3027</td>
+      <td>0.9318</td>
+      <td>NaN</td>
+      <td>0.0000</td>
+      <td>0.4335</td>
+      <td>NaN</td>
+      <td>80.0000</td>
+      <td>95.2700</td>
+    </tr>
+    <tr>
+      <td>gpm</td>
+      <td>42</td>
+      <td>T2_shortcut_masked</td>
+      <td>49</td>
+      <td>0.7140</td>
+      <td>0.9320</td>
+      <td>0.3500</td>
+      <td>0.6500</td>
+      <td>0.3640</td>
+      <td>0.2820</td>
+      <td>1.2457</td>
+      <td>NaN</td>
+      <td>0.0000</td>
+      <td>0.4335</td>
+      <td>NaN</td>
+      <td>71.4000</td>
+      <td>93.2000</td>
+    </tr>
+    <tr>
+      <td>gpm</td>
+      <td>42</td>
+      <td>T2_shortcut_normal</td>
+      <td>49</td>
+      <td>0.6280</td>
+      <td>0.8620</td>
+      <td>0.3500</td>
+      <td>0.6500</td>
+      <td>0.2780</td>
+      <td>0.2120</td>
+      <td>1.7876</td>
+      <td>NaN</td>
+      <td>0.0000</td>
+      <td>0.4335</td>
+      <td>NaN</td>
+      <td>62.8000</td>
+      <td>86.2000</td>
+    </tr>
+  </tbody>
+</table>
+</body></html>

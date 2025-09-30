@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Iterable, List, Tuple
+from typing import Iterable, List, Optional, Tuple
 import shutil
 
 from .analysis import (
@@ -25,11 +25,24 @@ class ComparativeExperimentPlan:
     baselines: List[str]
     continual_methods: List[str]
     backbone: str = "resnet18"
-    seed: int = 42
+    seeds: Tuple[int, ...] = (42,)
     epochs: int | None = None
 
     def strategies(self) -> Iterable[str]:
         return [*self.baselines, *self.continual_methods]
+
+
+def _resolve_run_directory(
+    root: Optional[Path],
+    strategy: str,
+    seed: int,
+    nested: bool,
+) -> Optional[Path]:
+    if root is None:
+        return None
+    if not nested:
+        return root
+    return root / strategy / f"seed{seed}"
 
 
 def run_comparative_suite(
@@ -41,19 +54,30 @@ def run_comparative_suite(
     """Run the comparative suite and return individual results + report path."""
     results: List[dict] = []
 
-    for strategy in plan.strategies():
-        cfg = replace(
-            base_config,
-            strategy=strategy,
-            backbone=plan.backbone,
-            seed=plan.seed,
-            epochs=plan.epochs if plan.epochs is not None else base_config.epochs,
-        )
-        cfg.output_prefix = strategy
+    strategies = list(plan.strategies())
+    seeds = plan.seeds if plan.seeds else (base_config.seed,)
+    nested = len(strategies) > 1 or len(seeds) > 1
 
-        result = runner.run(cfg)
-        result.setdefault('output_dir', result.get('results_dir'))
-        results.append(result)
+    for seed in seeds:
+        for strategy in strategies:
+            cfg = replace(
+                base_config,
+                strategy=strategy,
+                backbone=plan.backbone,
+                seed=seed,
+                epochs=plan.epochs if plan.epochs is not None else base_config.epochs,
+                session_dir=_resolve_run_directory(
+                    base_config.session_dir,
+                    strategy,
+                    seed,
+                    nested,
+                ),
+            )
+            cfg.output_prefix = strategy
+
+            result = runner.run(cfg)
+            result.setdefault('output_dir', result.get('results_dir'))
+            results.append(result)
 
     summary_df = combine_summaries(results)
     aggregated_paths = write_aggregated_outputs(summary_df, output_root)

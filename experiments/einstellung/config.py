@@ -68,6 +68,22 @@ class ExperimentConfig:
         """Compute the directory where this run stores artefacts."""
         return self.results_root / f"{self.strategy}_{self.backbone}_seed{self.seed}"
 
+    def __post_init__(self) -> None:
+        """Apply strategy-specific defaults without mutating shared state."""
+        self.extra_args = dict(self.extra_args)
+
+        if self.strategy == "scratch_t2":
+            if "--start_from" not in self.extra_args:
+                self.extra_args["--start_from"] = "1"
+
+            if "--stop_after" not in self.extra_args:
+                start_token = self.extra_args.get("--start_from", "1")
+                try:
+                    start_idx = int(start_token)
+                except (TypeError, ValueError):
+                    start_idx = 1
+                self.extra_args["--stop_after"] = str(start_idx + 1)
+
     def with_epoch_override(self, epochs: Optional[int]) -> "ExperimentConfig":
         """Return a new config overriding the number of epochs."""
         clone = dataclass_replace(self)

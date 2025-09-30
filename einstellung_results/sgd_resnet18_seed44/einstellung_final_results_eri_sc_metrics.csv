@@ -1,5 +1,0 @@
-method,seed,epoch_eff,split,acc
-sgd,44,0.0,T1_all,0.2725
-sgd,44,0.0,T2_nonshortcut_normal,0.0
-sgd,44,0.0,T2_shortcut_masked,0.0
-sgd,44,0.0,T2_shortcut_normal,0.0

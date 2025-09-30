@@ -33,6 +33,8 @@ class EinstellungTimelineData:
     top5_accuracy: Optional[float]
     loss: float
     timestamp: float
+    effective_epoch: Optional[float] = None
+    phase: Optional[int] = None
 
 
 @dataclass
@@ -111,7 +113,10 @@ class EinstellungMetricsCalculator:
                          task_id: int,
                          subset_accuracies: Dict[str, Union[float, Dict[str, float]]],
                          subset_losses: Dict[str, float],
-                         timestamp: float = None) -> None:
+                         timestamp: float = None,
+                         *,
+                         effective_epoch: Optional[float] = None,
+                         phase: Optional[int] = None) -> None:
         """
         Add timeline data for a training epoch.
 
@@ -144,7 +149,9 @@ class EinstellungMetricsCalculator:
                 top1_accuracy=top1,
                 top5_accuracy=top5,
                 loss=loss,
-                timestamp=timestamp
+                timestamp=timestamp,
+                effective_epoch=effective_epoch,
+                phase=phase
             ))
 
     def calculate_adaptation_delay(self, subset_name: str = 'T1_all') -> Optional[float]:
@@ -163,11 +170,12 @@ class EinstellungMetricsCalculator:
             return None
 
         # Sort by epoch to ensure chronological order
-        subset_data.sort(key=lambda x: x.epoch)
+        subset_data.sort(key=lambda x: (x.effective_epoch if x.effective_epoch is not None else x.epoch))
 
         for data_point in subset_data:
             if data_point.top1_accuracy >= self.adaptation_threshold:
-                return float(data_point.epoch)
+                effective = data_point.effective_epoch if data_point.effective_epoch is not None else data_point.epoch
+                return float(effective)
 
         # Threshold never reached
         return None
@@ -254,8 +262,13 @@ class EinstellungMetricsCalculator:
         if not subset_data:
             return None
 
-        # Return accuracy from the latest epoch
-        latest_data = max(subset_data, key=lambda x: x.epoch)
+        latest_data = max(
+            subset_data,
+            key=lambda x: (
+                x.effective_epoch if x.effective_epoch is not None else x.epoch,
+                x.epoch,
+            ),
+        )
         return latest_data.top1_accuracy
 
     def _get_final_loss(self, subset_name: str) -> Optional[float]:
@@ -264,7 +277,13 @@ class EinstellungMetricsCalculator:
         if not subset_data:
             return None
 
-        latest_data = max(subset_data, key=lambda x: x.epoch)
+        latest_data = max(
+            subset_data,
+            key=lambda x: (
+                x.effective_epoch if x.effective_epoch is not None else x.epoch,
+                x.epoch,
+            ),
+        )
         return latest_data.loss
 
     def _calculate_convergence_epoch(self,
@@ -286,7 +305,10 @@ class EinstellungMetricsCalculator:
         if len(subset_data) < window_size:
             return None
 
-        subset_data.sort(key=lambda x: x.epoch)
+        subset_data.sort(key=lambda x: (
+            x.effective_epoch if x.effective_epoch is not None else x.epoch,
+            x.epoch,
+        ))
 
         for i in range(window_size, len(subset_data)):
             # Check if accuracy has been stable over the window
@@ -314,7 +336,9 @@ class EinstellungMetricsCalculator:
                 'top1_accuracy': d.top1_accuracy,
                 'top5_accuracy': d.top5_accuracy,
                 'loss': d.loss,
-                'timestamp': d.timestamp
+                'timestamp': d.timestamp,
+                'effective_epoch': d.effective_epoch,
+                'phase': d.phase,
             }
             for d in self.timeline_data
         ]

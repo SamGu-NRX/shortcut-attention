@@ -8,7 +8,7 @@ import logging
 import re
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Sequence
 
 import pandas as pd
 
@@ -19,17 +19,27 @@ from experiments.einstellung import (
     EinstellungRunner,
     run_comparative_suite,
 )
+from experiments.einstellung.analysis import combine_timelines
+from experiments.einstellung.visualization import generate_comparative_plots
 from experiments.einstellung.args_builder import build_mammoth_args, determine_dataset
 from experiments.einstellung.reporting import write_single_run_report
 
 LOGGER = logging.getLogger("einstellung.cli")
 
 
-def create_session_dir(root: Path, seed: int) -> Path:
+def create_session_dir(root: Path, seeds: Sequence[int]) -> Path:
     from datetime import datetime
 
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    session_dir = root / f"session_{timestamp}_seed{seed}"
+    suffix = ""
+    if seeds:
+        unique_seeds = sorted({int(s) for s in seeds})
+        if len(unique_seeds) == 1:
+            suffix = f"_seed{unique_seeds[0]}"
+        else:
+            seed_fragment = "-".join(str(s) for s in unique_seeds)
+            suffix = f"_seeds{seed_fragment}"
+    session_dir = root / f"session_{timestamp}{suffix}"
     session_dir.mkdir(parents=True, exist_ok=True)
     return session_dir
 
@@ -48,6 +58,11 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     parser.add_argument("--model", default="derpp", help="Strategy or comma-separated list of strategies to run (e.g., sgd,dgr,gpm)")
     parser.add_argument("--backbone", default="resnet18", choices=["resnet18", "vit"], help="Backbone architecture")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    parser.add_argument(
+        "--seeds",
+        nargs="+",
+        help="List of seeds to run (supports space or comma separated values)",
+    )
     parser.add_argument("--epochs", type=int, help="Override training epochs")
 
     parser.add_argument("--skip_training", action="store_true", help="Skip training and evaluate existing checkpoint")
@@ -72,11 +87,16 @@ def execution_mode_from_args(args: argparse.Namespace) -> ExecutionMode:
     )
 
 
-def build_config(args: argparse.Namespace) -> ExperimentConfig:
+def build_config(
+    args: argparse.Namespace,
+    *,
+    strategy: Optional[str] = None,
+    seed: Optional[int] = None,
+) -> ExperimentConfig:
     return ExperimentConfig(
-        strategy=args.model,
+        strategy=strategy if strategy is not None else args.model,
         backbone=args.backbone,
-        seed=args.seed,
+        seed=seed if seed is not None else args.seed,
         epochs=args.epochs,
         debug=args.debug,
         enable_cache=args.enable_cache and not args.disable_cache,
@@ -86,46 +106,153 @@ def build_config(args: argparse.Namespace) -> ExperimentConfig:
     )
 
 
-def run_single(args: argparse.Namespace) -> Dict[str, any]:
-    config = build_config(args)
-    session_dir = create_session_dir(config.results_root, config.seed)
-    config.session_dir = session_dir
-    config.output_prefix = args.model
+def parse_seed_values(args: argparse.Namespace) -> List[int]:
+    if args.seeds:
+        tokens: List[str] = []
+        for item in args.seeds:
+            tokens.extend(re.split(r"[\s,]+", item.strip()))
 
-    log_command(session_dir, [sys.executable] + (sys.argv or []))
+        seeds: List[int] = []
+        for token in tokens:
+            if not token:
+                continue
+            try:
+                seeds.append(int(token))
+            except ValueError as exc:  # pragma: no cover - defensive
+                raise ValueError(f"Invalid seed value '{token}'") from exc
 
-    runner = EinstellungRunner(project_root=Path.cwd())
-    result = runner.run(config)
+        if not seeds:
+            raise ValueError("No valid seeds provided")
 
-    if result.get("success"):
-        summary_df = pd.read_csv(result["summary_path"]) if result.get("summary_path") else pd.DataFrame()
-        report_dir = Path(result["results_dir"]) / "reports"
-        write_single_run_report(result=result, summary_df=summary_df, output_dir=report_dir)
+        return seeds
 
-    return result
+    return [int(args.seed)]
 
 
-def run_comparative(args: argparse.Namespace, models: List[str]) -> List[Dict[str, any]]:
-    config = build_config(args)
-    runner = EinstellungRunner(project_root=Path.cwd())
+def resolve_run_directory(
+    session_root: Path,
+    model: str,
+    seed: int,
+    *,
+    use_nested_layout: bool,
+) -> Path:
+    if not use_nested_layout:
+        return session_root
+    return session_root / model / f"seed{seed}"
 
-    session_dir = create_session_dir(config.results_root, args.seed)
-    log_command(session_dir, [sys.executable] + (sys.argv or []))
+
+def generate_session_plots(session_dir: Path, results: Iterable[Dict[str, Any]]) -> Dict[str, Path]:
+    timeline_df = combine_timelines(results)
+    if timeline_df.empty:
+        return {}
+
+    plots_dir = session_dir / "plots"
+    try:
+        return generate_comparative_plots(timeline_df, plots_dir)
+    except Exception as exc:  # pragma: no cover - defensive
+        LOGGER.warning("Session plot generation failed: %s", exc)
+        return {}
+
+
+def run_models(
+    args: argparse.Namespace,
+    models: List[str],
+    seeds: List[int],
+    *,
+    session_dir: Path,
+    runner: EinstellungRunner,
+) -> List[Dict[str, Any]]:
+    results: List[Dict[str, Any]] = []
+
+    use_nested_layout = len(models) > 1 or len(seeds) > 1
+
+    for model in models:
+        for seed in seeds:
+            config = build_config(args, strategy=model, seed=seed)
+            config.output_prefix = model
+
+            run_dir = resolve_run_directory(
+                session_dir,
+                model,
+                seed,
+                use_nested_layout=use_nested_layout,
+            )
+            config.session_dir = run_dir
+
+            result = runner.run(config)
+            results.append(result)
+
+            if result.get("success"):
+                summary_path = result.get("summary_path")
+                if summary_path:
+                    summary_df = pd.read_csv(summary_path)
+                else:
+                    summary_df = pd.DataFrame()
+                report_dir = Path(result["results_dir"]) / "reports"
+                write_single_run_report(result=result, summary_df=summary_df, output_dir=report_dir)
+
+                final_top1 = result.get("final_top1")
+                if final_top1 is not None:
+                    LOGGER.info(
+                        "Run complete – model='%s', seed=%s, top-1=%.2f%%",
+                        model,
+                        seed,
+                        final_top1 * 100,
+                    )
+                else:
+                    LOGGER.info("Run complete – model='%s', seed=%s", model, seed)
+            else:
+                LOGGER.error(
+                    "Run failed – model='%s', seed=%s, return_code=%s",
+                    model,
+                    seed,
+                    result.get("return_code"),
+                )
+
+    generated = generate_session_plots(session_dir, results)
+    if generated:
+        LOGGER.info(
+            "Generated session plots: %s",
+            ", ".join(f"{name}:{path}" for name, path in generated.items()),
+        )
+
+    return results
+
+
+def run_comparative(
+    args: argparse.Namespace,
+    models: List[str],
+    seeds: List[int],
+    *,
+    session_dir: Path,
+    runner: EinstellungRunner,
+) -> List[Dict[str, any]]:
+    base_strategy = models[0] if models else "scratch_t2"
+    base_seed = seeds[0] if seeds else args.seed
+    base_config = build_config(args, strategy=base_strategy, seed=base_seed)
+    base_config.session_dir = session_dir
 
     plan = ComparativeExperimentPlan(
         baselines=["scratch_t2"],
         continual_methods=models,
         backbone=args.backbone,
-        seed=args.seed,
+        seeds=tuple(seeds),
         epochs=args.epochs,
     )
 
     output_root = Path("comparative_results")
-    # ensure shared session for all executions
-    config.session_dir = session_dir
-    results, report_path = run_comparative_suite(runner, config, plan, output_root)
+    results, report_path = run_comparative_suite(runner, base_config, plan, output_root)
 
-    LOGGER.info("Comparative report: %s", report_path)
+    if report_path:
+        LOGGER.info("Comparative report: %s", report_path)
+
+    aggregate_plots = generate_session_plots(session_dir, results)
+    if aggregate_plots:
+        LOGGER.info(
+            "Generated comparative session plots: %s",
+            ", ".join(f"{name}:{path}" for name, path in aggregate_plots.items()),
+        )
+
     return results
 
 
@@ -146,6 +273,7 @@ def run_einstellung_experiment(
         model=strategy,
         backbone=backbone,
         seed=seed,
+        seeds=None,
         epochs=epochs,
         skip_training=skip_training,
         force_retrain=force_retrain,
@@ -157,7 +285,24 @@ def run_einstellung_experiment(
         results_root="einstellung_results",
         verbose=False,
     )
-    return run_single(args)
+
+    runner = EinstellungRunner(project_root=Path.cwd())
+    seeds_list = [seed]
+    session_dir = create_session_dir(Path(args.results_root), seeds_list)
+    log_command(
+        session_dir,
+        [
+            sys.executable,
+            __file__,
+            "--model",
+            strategy,
+            "--seed",
+            str(seed),
+        ],
+    )
+
+    results = run_models(args, [strategy], seeds_list, session_dir=session_dir, runner=runner)
+    return results[0] if results else {}
 
 
 def run_comparative_experiment(
@@ -174,6 +319,7 @@ def run_comparative_experiment(
         model="derpp",
         backbone="resnet18",
         seed=42,
+        seeds=None,
         epochs=epochs,
         skip_training=skip_training,
         force_retrain=force_retrain,
@@ -186,7 +332,26 @@ def run_comparative_experiment(
         verbose=False,
     )
     default_models = ["sgd", "derpp", "ewc_on", "gpm", "dgr"]
-    return run_comparative(args, default_models)
+    runner = EinstellungRunner(project_root=Path.cwd())
+    seeds_list = [args.seed]
+    session_dir = create_session_dir(Path(args.results_root), seeds_list)
+    log_command(
+        session_dir,
+        [
+            sys.executable,
+            __file__,
+            "--comparative",
+            "--seed",
+            str(args.seed),
+        ],
+    )
+    return run_comparative(
+        args,
+        default_models,
+        seeds_list,
+        session_dir=session_dir,
+        runner=runner,
+    )
 
 
 def create_einstellung_args(strategy: str, backbone: str, seed: int, debug: bool = False, epochs: Optional[int] = None) -> List[str]:
@@ -312,43 +477,58 @@ def main(argv: Optional[List[str]] = None) -> int:
     ]:
         logging.getLogger(name).setLevel(logging.WARNING)
 
-    models = [model.strip() for model in args.model.split(',')]
+    models = [model.strip() for model in args.model.split(',') if model.strip()]
+    if not models:
+        LOGGER.error("Must specify at least one model to run.")
+        return 1
+
+    try:
+        seeds = parse_seed_values(args)
+    except ValueError as exc:
+        LOGGER.error("%s", exc)
+        return 1
+
+    runner = EinstellungRunner(project_root=Path.cwd())
+    session_dir = create_session_dir(Path(args.results_root), seeds)
+
+    invocation = [sys.executable, Path(__file__).name]
+    invocation.extend(argv if argv is not None else sys.argv[1:])
+    log_command(session_dir, invocation)
 
     if args.comparative:
-        if not models:
-            LOGGER.error("Must specify at least one model for comparative run.")
-            return 1
-        
         continual_methods = [m for m in models if m != "scratch_t2"]
-        
-        results = run_comparative(args, continual_methods)
+        results = run_comparative(
+            args,
+            continual_methods,
+            seeds,
+            session_dir=session_dir,
+            runner=runner,
+        )
         successes = sum(1 for r in results if r.get("success"))
-        LOGGER.info("Comparative run finished – %d/%d successful", successes, len(results))
-        return 0 if successes else 1
+        LOGGER.info(
+            "Comparative run finished – %d/%d successful",
+            successes,
+            len(results),
+        )
+        return 0 if successes == len(results) else 1
 
-    results = []
-    success_count = 0
-    for model in models:
-        model_args = argparse.Namespace(**vars(args))
-        model_args.model = model
-        result = run_single(model_args)
-        results.append(result)
-        if result.get("success"):
-            success_count += 1
-            final_top1 = result.get("final_top1")
-            if final_top1 is not None:
-                LOGGER.info("Run for model '%s' complete: top-1=%.2f%%", model, final_top1 * 100)
-            else:
-                LOGGER.info("Run for model '%s' complete.", model)
-        else:
-            LOGGER.error("Run for model '%s' failed with return code %s", model, result.get("return_code"))
-    
-    if success_count == len(models):
-        if len(models) > 1:
-            LOGGER.info("All runs completed successfully.")
+    results = run_models(
+        args,
+        models,
+        seeds,
+        session_dir=session_dir,
+        runner=runner,
+    )
+
+    successes = sum(1 for r in results if r.get("success"))
+    total_runs = len(results)
+
+    if successes == total_runs:
+        if total_runs > 1:
+            LOGGER.info("All %d runs completed successfully.", total_runs)
         return 0
-    
-    LOGGER.error("%d/%d runs failed.", len(models) - success_count, len(models))
+
+    LOGGER.error("%d/%d runs failed.", total_runs - successes, total_runs)
     return 1
 
 
