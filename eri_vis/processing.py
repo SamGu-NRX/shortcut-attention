@@ -411,7 +411,17 @@ class ERITimelineProcessor:
                     successful_seed_ids.append(int(seed))
 
                 if not seedwise_ads:
-                    ad_values[method] = np.nan
+                    method_crossing = self._find_threshold_crossing(curve, self.tau)
+                    if not np.isnan(method_crossing) and not np.isnan(baseline_crossing):
+                        fallback_value = method_crossing - baseline_crossing
+                        ad_values[method] = fallback_value
+                        if common_seeds.size > 0:
+                            seedwise_ads = [fallback_value for _ in common_seeds]
+                            successful_seed_ids = [int(seed) for seed in common_seeds]
+                        else:
+                            seedwise_ads.append(fallback_value)
+                    else:
+                        ad_values[method] = np.nan
                 else:
                     ad_values[method] = float(np.nanmean(seedwise_ads))
 

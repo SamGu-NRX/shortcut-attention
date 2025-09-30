@@ -76,7 +76,7 @@ class PlotStyleConfig:
     save_format: str = "pdf"
     save_kwargs: Dict[str, Any] = field(default_factory=lambda: {
         "bbox_inches": "tight",
-        "pad_inches": 0.1,
+        "pad_inches": 0.2,
         "facecolor": "white",
         "edgecolor": "none",
     })

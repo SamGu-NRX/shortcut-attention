@@ -80,7 +80,12 @@ def run_comparative_suite(
             results.append(result)
 
     summary_df = combine_summaries(results)
-    aggregated_paths = write_aggregated_outputs(summary_df, output_root)
+    timeline_df = combine_timelines(results)
+    aggregated_paths = write_aggregated_outputs(
+        summary_df,
+        output_root,
+        timeline_df=timeline_df,
+    )
     table = build_comparative_table(summary_df)
     report_path = write_comparative_report(
         comparative_table=table,
@@ -88,7 +93,6 @@ def run_comparative_suite(
         output_dir=output_root,
     )
 
-    timeline_df = combine_timelines(results)
     plot_paths = {}
     if not timeline_df.empty:
         session_dir = base_config.session_dir or output_root

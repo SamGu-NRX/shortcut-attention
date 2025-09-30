@@ -21,7 +21,7 @@ import matplotlib.patches as patches
 from matplotlib.colors import TwoSlopeNorm
 import seaborn as sns
 
-from .processing import AccuracyCurve
+from .processing import AccuracyCurve, ERITimelineProcessor
 from .styles import PlotStyleConfig, DEFAULT_STYLE
 
 
@@ -68,7 +68,10 @@ class ERIHeatmapPlotter:
         self,
         curves: Dict[str, AccuracyCurve],
         taus: List[float],
-        baseline_method: str = "Scratch_T2"
+        baseline_method: str = "Scratch_T2",
+        *,
+        smoothing_window: int = 3,
+        use_smoothing: bool = True,
     ) -> TauSensitivityResult:
         """
         Compute AD(τ) sensitivity matrix across different tau values.
@@ -123,29 +126,40 @@ class ERIHeatmapPlotter:
         ad_matrix = np.full((len(cl_methods), len(taus)), np.nan)
         n_censored = {method: 0 for method in cl_methods}
 
-        # Compute AD for each method and tau combination
-        for i, method in enumerate(cl_methods):
-            method_curve = cl_curves[method]
+        # Compute AD for each tau using the timeline processor to ensure
+        # consistency with bar chart calculations (seedwise relative to baseline).
+        for j, tau in enumerate(taus):
+            tau_processor = ERITimelineProcessor(
+                smoothing_window=smoothing_window,
+                tau=float(tau),
+                baseline_method=baseline_method,
+                use_smoothing=use_smoothing,
+            )
 
-            for j, tau in enumerate(taus):
-                try:
-                    # Find threshold crossings
-                    baseline_crossing = self._find_threshold_crossing(baseline_curve, tau)
-                    method_crossing = self._find_threshold_crossing(method_curve, tau)
+            try:
+                ad_results = tau_processor.compute_adaptation_delays(curves)
+                seedwise_info = tau_processor.get_seedwise_ad()
+            except Exception as exc:
+                self.logger.warning(
+                    "Failed to compute AD values for τ=%.3f: %s",
+                    tau,
+                    exc,
+                )
+                continue
 
-                    if np.isnan(baseline_crossing) or np.isnan(method_crossing):
-                        # Censored run - leave as NaN
-                        ad_matrix[i, j] = np.nan
-                        if np.isnan(method_crossing):
-                            n_censored[method] += 1
-                    else:
-                        # Compute AD = E_CL(τ) - E_S(τ)
-                        ad_matrix[i, j] = method_crossing - baseline_crossing
+            for i, method in enumerate(cl_methods):
+                ad_value = ad_results.get(method, np.nan)
+                ad_matrix[i, j] = ad_value
 
-                except Exception as e:
-                    self.logger.warning(f"Failed to compute AD for {method}, τ={tau}: {e}")
-                    ad_matrix[i, j] = np.nan
-                    n_censored[method] += 1
+                info = seedwise_info.get(method)
+                if info is None:
+                    continue
+
+                censored = info.get('censored')
+                if isinstance(censored, np.ndarray):
+                    n_censored[method] += int(censored.size)
+                elif isinstance(censored, list):
+                    n_censored[method] += len(censored)
 
         return TauSensitivityResult(
             methods=cl_methods,
@@ -177,6 +191,28 @@ class ERIHeatmapPlotter:
 
         crossing_idx = crossing_indices[0]
         return curve.epochs[crossing_idx]
+
+    @staticmethod
+    def _find_threshold_crossing_series(
+        epochs: np.ndarray,
+        values: np.ndarray,
+        threshold: float,
+    ) -> float:
+        """Find threshold crossing for a single seed trajectory."""
+        if values is None or epochs is None:
+            return np.nan
+
+        if len(values) == 0 or len(epochs) == 0:
+            return np.nan
+
+        if len(values) != len(epochs):
+            return np.nan
+
+        indices = np.where(values >= threshold)[0]
+        if len(indices) == 0:
+            return np.nan
+
+        return float(epochs[indices[0]])
 
     def create_tau_sensitivity_heatmap(
         self,
@@ -403,4 +439,3 @@ class ERIHeatmapPlotter:
 
         # Create heatmap
         return self.create_tau_sensitivity_heatmap(sensitivity_result, title)
-

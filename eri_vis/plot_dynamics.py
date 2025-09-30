@@ -479,22 +479,12 @@ class ERIDynamicsPlotter:
                 label='_nolegend_'
             )
 
-        # Add AD markers and annotations
-        if include_ad:
-            self._add_ad_markers(
-                ax,
-                patched_curves,
-                ad_values,
-                tau,
-                baseline_curve=baseline_curve,
-                baseline_method=baseline_method,
-                show_baseline_curve=show_baseline_curve,
-            )
+        # AD markers removed per revised specification
 
         ax.set_xlabel('Effective Epoch', fontsize=self.style.font_sizes['axis_label'])
         ax.set_ylabel('Accuracy', fontsize=self.style.font_sizes['axis_label'])
         ax.grid(True, alpha=self.style.grid_alpha)
-        ax.legend(fontsize=self.style.font_sizes['legend'], loc='best')
+        ax.legend(fontsize=self.style.font_sizes['legend'], loc='lower right')
 
         # Set y-axis limits to show full range
         ax.set_ylim(0, 1)
@@ -531,23 +521,92 @@ class ERIDynamicsPlotter:
             x=baseline_crossing_epoch,
             color=baseline_color,
             linestyle='--' if show_baseline_curve else ':',
-            alpha=0.7,
+            alpha=0.6,
             linewidth=1,
-            label=f'E_{baseline_method}(τ)'
+            label='_nolegend_'
         )
 
-        vertical_offset = 0.035
+        ax.plot(
+            baseline_crossing_epoch,
+            tau,
+            marker='o',
+            color=baseline_color,
+            markersize=4,
+            alpha=0.9,
+        )
+        baseline_vertical_offset = 0.045
+        ax.text(
+            baseline_crossing_epoch,
+            min(tau + baseline_vertical_offset, 0.96),
+            f"{baseline_method} E(τ)={baseline_crossing_epoch:.1f}",
+            color=baseline_color,
+            fontsize=self.style.font_sizes['annotation'],
+            ha='left',
+            va='bottom',
+            bbox=dict(boxstyle='round,pad=0.15', facecolor='white', edgecolor=baseline_color, alpha=0.5),
+        )
+
+        label_offsets = {}
+
+        def _get_label_position(x_value: float) -> float:
+            if not label_offsets:
+                label_offsets[x_value] = 0
+                return 0
+            existing = sorted(label_offsets.keys())
+            min_sep = 0.6
+            closest = min(existing, key=lambda xv: abs(xv - x_value))
+            if abs(closest - x_value) < min_sep:
+                delta = min_sep - abs(closest - x_value)
+                direction = 1 if x_value >= closest else -1
+                adjusted = x_value + direction * delta
+                label_offsets[adjusted] = 0
+                return adjusted - x_value
+            label_offsets[x_value] = 0
+            return 0
 
         for method, ad_value in ad_values.items():
-            if np.isnan(ad_value):
-                continue
-
             method_curve = next((curve for curve in patched_curves.values() if curve.method == method), None)
             if method_curve is None:
                 continue
 
             method_crossing_epoch = self._find_threshold_crossing(method_curve, tau)
             if np.isnan(method_crossing_epoch):
+                # Annotate absence of threshold crossing for clarity
+                x_pos = method_curve.epochs[-1]
+                no_cross_offset = 0.04
+                y_pos = min(tau + no_cross_offset, 0.95)
+                ax.text(
+                    x_pos,
+                    y_pos,
+                    f"{method}: no τ crossing",
+                    color=self.style.get_method_color(method),
+                    fontsize=self.style.font_sizes['annotation'],
+                    ha='right',
+                    va='bottom',
+                    bbox=dict(boxstyle='round,pad=0.2', facecolor='white', edgecolor=self.style.get_method_color(method), alpha=0.5),
+                )
+                continue
+
+            if np.isnan(ad_value):
+                # We have a crossing but AD not computed; annotate crossing epoch only
+                ax.plot(
+                    method_crossing_epoch,
+                    tau,
+                    marker='o',
+                    color=self.style.get_method_color(method),
+                    markersize=4,
+                    alpha=0.9,
+                )
+                ax.text(
+                    method_crossing_epoch,
+                    min(tau + vertical_offset, 0.95),
+                    f"{method} E(τ)={method_crossing_epoch:.1f}",
+                    color=self.style.get_method_color(method),
+                    fontsize=self.style.font_sizes['annotation'],
+                    ha='center',
+                    va='bottom',
+                    bbox=dict(boxstyle='round,pad=0.2', facecolor='white', edgecolor=self.style.get_method_color(method), alpha=0.5),
+                )
                 continue
 
             color = self.style.get_method_color(method)
@@ -556,38 +615,31 @@ class ERIDynamicsPlotter:
                 x=method_crossing_epoch,
                 color=color,
                 linestyle=':',
-                alpha=0.7,
+                alpha=0.6,
                 linewidth=1
             )
 
-            arrow_start = baseline_crossing_epoch
-            arrow_end = method_crossing_epoch
-
-            ax.annotate(
-                '',
-                xy=(arrow_end, tau),
-                xytext=(arrow_start, tau),
-                arrowprops=dict(
-                    arrowstyle='<->',
-                    color=color,
-                    lw=1.5,
-                    alpha=0.8,
-                    shrinkA=0,
-                    shrinkB=0
-                )
+            ax.plot(
+                method_crossing_epoch,
+                tau,
+                marker='o',
+                color=color,
+                markersize=4,
+                alpha=0.9,
             )
 
-            label_x = (arrow_start + arrow_end) / 2.0
-            label_y = min(tau + vertical_offset, 0.95)
+            offset = _get_label_position(method_crossing_epoch)
+            label_x = method_crossing_epoch + offset
+            label_y = min(tau + 0.04, 0.95)
             ax.text(
                 label_x,
                 label_y,
-                f'AD = {ad_value:+.1f}',
+                f"{method}: ΔE={ad_value:+.1f} (E={method_crossing_epoch:.1f})",
                 color=color,
                 fontsize=self.style.font_sizes['annotation'],
                 ha='center',
                 va='bottom',
-                bbox=dict(boxstyle='round,pad=0.2', facecolor='white', edgecolor=color, alpha=0.6)
+                bbox=dict(boxstyle='round,pad=0.15', facecolor='white', edgecolor=color, alpha=0.55)
             )
 
     def _get_shading_values(self, curve: AccuracyCurve, mode: str) -> Optional[np.ndarray]:
