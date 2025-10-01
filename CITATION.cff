@@ -1,0 +1,266 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "Shortcut Attention: Diagnosing Shortcut-Induced Rigidity in Continual Learning"
+authors:
+  - family-names: Gu
+    given-names: Kai
+    email: kaigu@my.unt.edu
+    affiliation: "Department of Computer Science and Engineering, University of North Texas"
+    orcid: ""
+  - family-names: Shi
+    given-names: Weishi
+    email: weishi.shi@unt.edu
+    affiliation: "Department of Computer Science and Engineering, University of North Texas"
+repository-code: "https://github.com/SamGu-NRX/shortcut-attention"
+url: "https://github.com/SamGu-NRX/shortcut-attention"
+license: MIT
+keywords:
+  - continual learning
+  - shortcut learning
+  - einstellung effect
+  - deep learning
+  - neural networks
+  - spurious correlations
+  - robustness
+  - evaluation metrics
+abstract: >
+  This repository implements the Einstellung Rigidity Index (ERI), a diagnostic
+  framework for detecting shortcut-induced rigidity in continual learning systems.
+  Building upon the Mammoth continual learning framework, it provides tools to
+  measure adaptation delay, performance deficit, and shortcut feature reliance
+  when models encounter spurious correlations across sequential tasks.
+
+preferred-citation:
+  type: article
+  title: "Diagnosing Shortcut-Induced Rigidity in Continual Learning: The Einstellung Rigidity Index (ERI)"
+  authors:
+    - family-names: Gu
+      given-names: Kai
+      email: kaigu@my.unt.edu
+    - family-names: Shi
+      given-names: Weishi
+      email: weishi.shi@unt.edu
+  year: 2025
+  journal: "IEEE Conference Proceedings"
+  notes: "Paper available in repository as main.tex"
+
+references:
+  - type: software
+    title: "Mammoth: A PyTorch Framework for Continual Learning"
+    authors:
+      - family-names: Boschini
+        given-names: Matteo
+      - family-names: Bonicelli
+        given-names: Lorenzo
+      - family-names: Buzzega
+        given-names: Pietro
+      - family-names: Porrello
+        given-names: Angelo
+      - family-names: Calderara
+        given-names: Simone
+    repository-code: "https://github.com/aimagelab/mammoth"
+    license: MIT
+    notes: "Primary framework upon which this work is built"
+  
+  - type: software
+    title: "PyTorch"
+    authors:
+      - name: "PyTorch Contributors"
+    repository-code: "https://github.com/pytorch/pytorch"
+    url: "https://pytorch.org"
+    license: BSD-3-Clause
+  
+  - type: software
+    title: "OpenAI CLIP"
+    authors:
+      - name: "OpenAI"
+    repository-code: "https://github.com/openai/CLIP"
+    license: MIT
+  
+  - type: software
+    title: "Vision Transformer"
+    authors:
+      - name: "Google Research"
+    repository-code: "https://github.com/google-research/vision_transformer"
+    license: Apache-2.0
+  
+  - type: software
+    title: "PyTorch Image Models (timm)"
+    authors:
+      - family-names: Wightman
+        given-names: Ross
+    repository-code: "https://github.com/rwightman/pytorch-image-models"
+    license: Apache-2.0
+  
+  - type: software
+    title: "MoE-Adapters4CL"
+    authors:
+      - family-names: Yu
+        given-names: Jiazuo
+    repository-code: "https://github.com/JiazuoYu/MoE-Adapters4CL"
+    notes: "MoE Adapters implementation"
+  
+  - type: software
+    title: "iCaRL Implementation"
+    authors:
+      - family-names: Rebuffi
+        given-names: Sylvestre-Alvise
+    repository-code: "https://github.com/srebuffi/iCaRL"
+    notes: "Incremental Classifier and Representation Learning"
+  
+  - type: software
+    title: "CoOp: Learning to Prompt for Vision-Language Models"
+    authors:
+      - family-names: Zhou
+        given-names: Kaiyang
+    repository-code: "https://github.com/KaiyangZhou/CoOp"
+  
+  - type: software
+    title: "DAP: Generating Instance-level Prompts for Rehearsal-free Continual Learning"
+    repository-code: "https://github.com/naver-ai/dap-cl"
+    notes: "Dynamic Attention Prompting"
+  
+  - type: software
+    title: "ZSCL: Zero-Shot Continual Learning"
+    authors:
+      - family-names: Wang
+        given-names: Shipeng
+    repository-code: "https://github.com/Thunderbeee/ZSCL"
+  
+  - type: software
+    title: "CNLL: Continual Noisy Label Learning"
+    authors:
+      - family-names: Karim
+        given-names: Nazmul
+    repository-code: "https://github.com/nazmul-karim170/CNLL"
+  
+  - type: software
+    title: "BiC: Bias Correction for Class-Incremental Learning"
+    repository-code: "https://github.com/sairin1202/BIC"
+  
+  - type: software
+    title: "HAL: Hindsight Anchor Learning"
+    repository-code: "https://github.com/joansj/hat"
+  
+  - type: software
+    title: "Class-Incremental Learning Implementation"
+    repository-code: "https://github.com/hshustc/CVPR19_Incremental_Learning"
+    notes: "Modified linear layer implementation"
+  
+  - type: software
+    title: "Incremental Learning with ResNet32"
+    repository-code: "https://github.com/khurramjaved96/incremental-learning"
+    notes: "ResNet32 architecture"
+  
+  - type: software
+    title: "ViT PyTorch"
+    authors:
+      - family-names: Wang
+        given-names: Phil
+    repository-code: "https://github.com/lucidrains/vit-pytorch"
+    notes: "Vision Transformer implementation"
+  
+  - type: software
+    title: "minGPT"
+    authors:
+      - family-names: Karpathy
+        given-names: Andrej
+    repository-code: "https://github.com/karpathy/minGPT"
+    notes: "Transformer style inspiration"
+  
+  - type: software
+    title: "Parameter-Efficient Tuning"
+    repository-code: "https://github.com/jxhe/unify-parameter-efficient-tuning"
+    notes: "LoRA and adapter implementations"
+  
+  - type: software
+    title: "GMM-Torch"
+    authors:
+      - family-names: Deecke
+        given-names: Lucas
+    repository-code: "https://github.com/ldeecke/gmm-torch"
+    notes: "Gaussian Mixture Model implementation"
+  
+  - type: software
+    title: "SupContrast: Supervised Contrastive Learning"
+    repository-code: "https://github.com/HobbitLong/SupContrast"
+  
+  - type: software
+    title: "Continual Learning Repository"
+    authors:
+      - family-names: van de Ven
+        given-names: Gido
+    repository-code: "https://github.com/GMvandeVen/continual-learning"
+  
+  - type: software
+    title: "Label Noise Correction"
+    repository-code: "https://github.com/PaulAlbert31/LabelNoiseCorrection"
+  
+  - type: software
+    title: "AWP: Adversarial Weight Perturbation"
+    repository-code: "https://github.com/csdongxian/AWP"
+  
+  - type: software
+    title: "SPR: Semantic Prompt Routing"
+    repository-code: "https://github.com/ecrireme/SPR"
+  
+  - type: software
+    title: "AttriCLIP"
+    repository-code: "https://github.com/bhrqw/AttriCLIP"
+    notes: "Non-Incremental Learner for Incremental Knowledge Learning"
+  
+  - type: software
+    title: "BLIP: Bootstrapping Language-Image Pre-training"
+    repository-code: "https://github.com/salesforce/BLIP"
+  
+  - type: software
+    title: "EVA: Exploring the Limits of Masked Visual Representation Learning"
+    repository-code: "https://github.com/baaivision/EVA"
+  
+  - type: software
+    title: "EfficientNet-PyTorch"
+    authors:
+      - family-names: Melas
+        given-names: Luke
+    repository-code: "https://github.com/lukemelas/EfficientNet-PyTorch"
+  
+  - type: software
+    title: "Gram-Schmidt Orthogonalization in PyTorch"
+    repository-code: "https://github.com/legendongary/pytorch-gram-schmidt"
+  
+  - type: software
+    title: "FRoMP: Functional Regularisation for Continual Learning"
+    repository-code: "https://github.com/team-approx-bayes/fromp"
+  
+  - type: software
+    title: "Big Vision"
+    repository-code: "https://github.com/google-research/big_vision"
+    notes: "Large-scale vision training"
+  
+  - type: software
+    title: "Visdom"
+    repository-code: "https://github.com/facebookresearch/visdom"
+    notes: "Visualization tool"
+  
+  - type: software
+    title: "Fashion-MNIST"
+    repository-code: "https://github.com/zalandoresearch/fashion-mnist"
+    notes: "Dataset"
+  
+  - type: software
+    title: "FaceScrub Subset"
+    repository-code: "https://github.com/nkundiushuti/facescrub_subset"
+    notes: "Dataset preprocessing"
+  
+  - type: software
+    title: "NotMNIST Convert"
+    repository-code: "https://github.com/nkundiushuti/notmnist_convert"
+    notes: "Dataset preprocessing"
+
+acknowledgements: >
+  We thank Weishi Shi, Abdullah Al Forhad, and the Texas Academy of Mathematics
+  and Science for their support. This work builds upon the Mammoth continual learning
+  framework and incorporates code and ideas from numerous open-source projects in the
+  continual learning and deep learning communities. We are grateful to all the authors
+  and contributors of the repositories listed in the references section.
