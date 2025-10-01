@@ -109,3 +109,8 @@ uv.lock
 new/
 
 .DS_store
+
+# Test and experiment results
+*_results/
+comparative_results/
+einstellung_results/
