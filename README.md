@@ -1,166 +1,560 @@
-<p align="center">
-  <!-- <img width="230" height="230" src="docs/_static/logo.png" alt="logo"> -->
-  <img width="1000" height="200" src="docs/_static/mammoth_banner.svg" alt="logo">
-</p>
+# Diagnosing Shortcut-Induced Rigidity in Continual Learning
 
-<p align="center">
-  <img alt="GitHub commit activity" src="https://img.shields.io/github/commit-activity/m/aimagelab/mammoth">
-  <a href="https://aimagelab.github.io/mammoth/index.html"><img alt="Documentation" src="https://img.shields.io/badge/docs-mammoth-blue?style=flat&logo=readthedocs"></a>
-  <img alt="GitHub stars" src="https://img.shields.io/github/stars/aimagelab/mammoth?style=social">
-  <img alt="PyTorch" src="https://img.shields.io/badge/PyTorch-%23EE4C2C.svg?&logo=PyTorch&logoColor=white">
-</p>
+[![PyTorch](https://img.shields.io/badge/PyTorch-%23EE4C2C.svg?&logo=PyTorch&logoColor=white)](https://pytorch.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 
-# 🦣 Mammoth - A PyTorch Framework for Benchmarking Continual Learning
+**The Einstellung Rigidity Index (ERI): A Framework for Detecting Shortcut Learning in Sequential Tasks**
 
-_Mammoth_ is built to streamline the development and benchmark of continual learning research. With **more than 70 methods and 20 datasets**, it includes the most complete list competitors and benchmarks for research purposes.
+This repository implements a comprehensive diagnostic framework for detecting and measuring shortcut-induced rigidity in continual learning systems. The **Einstellung Rigidity Index (ERI)** quantifies how models become overly reliant on spurious correlations learned in earlier tasks, impeding adaptation to new challenges.
 
-The core idea of Mammoth is that it is designed to be modular, easy to extend, and - most importantly - _easy to debug_.
+> **Paper**: *Diagnosing Shortcut-Induced Rigidity in Continual Learning: The Einstellung Rigidity Index (ERI)*  
+> **Authors**: Kai Gu and Weishi Shi  
+> **Institution**: Department of Computer Science and Engineering, University of North Texas  
+> **Full Paper**: See `main.tex` in this repository
 
-With Mammoth, nothing is set in stone. You can easily add new models, datasets, training strategies, or functionalities.
+---
 
-## 📚 Documentation
+## 🔍 Overview
 
-<p align="center">
-  <a href="https://aimagelab.github.io/mammoth/">
-    <em style="display: inline-block; margin-top: 8px; font-size: 16px; color: #4B73C9; background-color: #f8f9fa; padding: 8px 16px; border-radius: 0 0 8px 8px; border: 1px solid #4B73C9; border-top: none; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">Check out our guides on using Mammoth for continual learning research</em>
-    <br/>
-    <img src="https://img.shields.io/badge/Documentation-📚-4B73C9?style=for-the-badge&logo=gitbook&logoColor=white" alt="Documentation" height="40">
-  </a>
-</p>
+While catastrophic forgetting has been the primary focus in continual learning research, this work addresses its counterpart: **shortcut-induced rigidity**. Instead of discarding past knowledge, models may preferentially reuse features from earlier tasks—including spurious shortcuts that are suboptimal for current tasks. This mirrors the cognitive **Einstellung effect**, where prior strategies impede the discovery of better solutions.
 
-## ⚙️ Setup
+### What is ERI?
 
-- 📥 Install with `pip install -r requirements.txt` or run it directly with `uv run python main.py ...`
-  > **Note**: PyTorch version >= 2.1.0 is required for scaled_dot_product_attention. If you cannot support this requirement, uncomment the lines 136-139 under `scaled_dot_product_attention` in `backbone/vit.py`.
-- 🚀 Use `main.py` or `./utils/main.py` to run experiments.
-- 🧩 New models can be added to the `models/` folder.
-- 📊 New datasets can be added to the `datasets/` folder.
+The **Einstellung Rigidity Index (ERI)** is a three-component diagnostic that distinguishes genuine transfer learning from cue-inflated performance:
 
-## 🧪 Examples
+1. **Adaptation Delay (AD)**: How quickly a continual learner reaches an accuracy threshold relative to a from-scratch baseline
+2. **Performance Deficit (PD)**: The final accuracy gap between continual and scratch models
+3. **Relative Shortcut Feature Reliance (SFR_rel)**: Additional reliance on suspected shortcuts compared to baseline, measured via masking interventions
 
-### Run a model
+### Key Features
 
-The following command will run the model `derpp` on the dataset `seq-cifar100` with a buffer of 500 samples the some random hyperparameters for _lr_, _alpha_, and _beta_:
+- 🎯 **Diagnostic Framework**: Detects shortcut learning without modifying training procedures
+- 📊 **Comprehensive Metrics**: Three interpretable facets (AD, PD, SFR_rel) for rigidity assessment
+- 🔬 **Experimental Protocol**: Controlled two-phase CIFAR-100 benchmark with deterministic shortcut injection
+- 🛠️ **Mammoth Integration**: Built on the robust [Mammoth continual learning framework](https://github.com/aimagelab/mammoth)
+- 📈 **Visualization Tools**: Automated generation of dynamics plots, heatmaps, and statistical reports
+- 🧪 **Multiple Baselines**: Comparison across Naive, EWC, Replay, and other CL strategies
+
+---
+
+## 📑 Table of Contents
+
+- [Installation](#-installation)
+- [Quick Start](#-quick-start)
+- [Understanding ERI](#-understanding-eri)
+- [Experimental Design](#-experimental-design)
+- [Running Experiments](#-running-experiments)
+- [Visualization](#-visualization)
+- [Results Interpretation](#-results-interpretation)
+- [Architecture](#-architecture)
+- [Citation](#-citation)
+- [Acknowledgments](#-acknowledgments)
+- [License](#-license)
+
+---
+
+## 🚀 Installation
+
+### Prerequisites
+
+- Python 3.8 or higher
+- PyTorch >= 2.1.0 (for scaled_dot_product_attention support)
+- CUDA (recommended for faster training)
+
+### Setup
+
 ```bash
-python main.py --model derpp --dataset seq-cifar100 --alpha 0.5 --beta 0.5 --lr 0.001 --buffer_size 500
+# Clone the repository
+git clone https://github.com/SamGu-NRX/shortcut-attention.git
+cd shortcut-attention
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Optional: Install additional dependencies for specific models
+pip install -r requirements-optional.txt
 ```
 
-To run the model with the best hyperparameters, use the `--model_config=best` argument:
+**Note**: If you cannot support PyTorch >= 2.1.0, uncomment lines 136-139 under `scaled_dot_product_attention` in `backbone/vit.py`.
+
+---
+
+## 🎯 Quick Start
+
+### Basic Einstellung Experiment
+
+Run a simple experiment to test shortcut-induced rigidity:
+
 ```bash
-python main.py --model derpp --dataset seq-cifar100 --model_config best
+# Run with DER++ method and ResNet18 backbone
+python run_einstellung_experiment.py --model derpp --backbone resnet18
+
+# Run with Vision Transformer for attention analysis
+python run_einstellung_experiment.py --model derpp --backbone vit_base_patch16_224
+
+# Run comparative analysis across multiple methods
+python run_einstellung_experiment.py --comparative
 ```
 
- > NOTE: the `--model_config` argument will look for a file `<model_name>.yaml` in the `models/configs/` folder. This file should contain the hyperparameters for the best configuration of the model. You can find more information in [the documentation](https://aimagelab.github.io/mammoth/models/model_arguments.html#model-configurations-and-best-arguments).
+### Using Mammoth Directly
 
-### Build a new model
+You can also use the Einstellung dataset with Mammoth's main interface:
 
-See the [documentation](https://aimagelab.github.io/mammoth/models/build_a_model.html) for a detailed guide on how to create a new model.
+```bash
+# Standard Einstellung experiment
+python main.py --dataset seq-cifar100-einstellung --model derpp --backbone resnet18
 
-### Build a new dataset
+# With best hyperparameters
+python main.py --dataset seq-cifar100-einstellung --model ewc_on --model_config best
 
-See the [documentation](https://aimagelab.github.io/mammoth/datasets/build_a_dataset.html) for a detailed guide on how to create a new dataset.
+# Multi-seed experiment
+python main.py --dataset seq-cifar100-einstellung --model sgd --seed 42 43 44 45
+```
+
+### Generate Visualizations
+
+After running experiments, generate ERI visualizations:
+
+```bash
+# Generate dynamics plots from results
+python tools/plot_eri.py --csv logs/eri_metrics.csv --outdir results/
+
+# With custom threshold and smoothing
+python tools/plot_eri.py --csv logs/*.csv --tau 0.65 --smooth 5
+
+# Robustness analysis with multiple thresholds
+python tools/plot_eri.py --csv data.csv --tau-grid 0.5 0.55 0.6 0.65 0.7
+```
 
 
-## 🗺️ Update Roadmap
+---
 
-All the code is under active development. Here are some of the features we are working on:
+## 📖 Understanding ERI
 
-- 🧠 **New models**: We are continuously working on adding new models to the repository.
-- 🔄 **New training modalities**: New training regimes, such a *regression*, *segmentation*, *detection*, etc.
-- 📊 **Openly accessible result dashboard**: The ideal would be a dashboard to visualize the results of all the models in both their respective settings (to prove their reproducibility) and in a general setting (to compare them). *This may take some time, since compute is not free.*
+### The Problem: Shortcut-Induced Rigidity
 
-All the new additions will try to preserve the current structure of the repository, making it easy to add new functionalities with a simple merge.
+In continual learning, models can exploit **shortcuts**—incidental correlations (e.g., distinctive colors, textures, background artifacts) that predict labels without causal meaning. When these shortcuts are learned early, the same mechanisms that prevent catastrophic forgetting can entrench reliance on these spurious features, creating **rigidity** that impedes adaptation to new tasks.
 
-## 🧠 Models
+### The Three Components of ERI
 
-Mammoth currently supports **more than 70** models, with new releases covering the main competitors in literature.
+#### 1. Adaptation Delay (AD)
 
-<details>
-<summary><b>Click to expand model list</b></summary>
+Measures how many effective epochs a continual learner needs to reach an accuracy threshold τ compared to a from-scratch baseline:
 
-- AttriCLIP: A Non-Incremental Learner for Incremental Knowledge Learning (AttriCLIP): `attriclip`.
-- Bias Correction (BiC): `bic`.
-- CaSpeR-IL (on DER++, X-DER with RPC, iCaRL, and ER-ACE): `derpp_casper`, `xder_rpc_casper`, `icarl_casper`, `er_ace_casper`.
-- CODA-Prompt: COntinual Decomposed Attention-based Prompting for Rehearsal-Free Continual Learning (CODA-Prompt) - _Requires_ `pip install timm==0.9.8`: `coda-prompt`.
-- Continual Contrastive Interpolation Consistency (CCIC) - _Requires_ `pip install kornia`: `ccic`.
-- Continual Generative training for Incremental prompt-Learning (CGIL): `cgil`
-- Contrastive Language-Image Pre-Training (CLIP): `clip` (*static* method with no learning).
-- CSCCT (on DER++, X-DER with RPC, iCaRL, and ER-ACE): `derpp_cscct`, `xder_rpc_cscct`, `icarl_cscct`, `er_ace_cscct`.
-- Dark Experience for General Continual Learning: a Strong, Simple Baseline (DER & DER++): `der` and `derpp`.
-- DualPrompt: Complementary Prompting for Rehearsal-free Continual Learning (DualPrompt) - _Requires_ `pip install timm==0.9.8`: `dualprompt`.
-- Efficient Lifelong Learning with A-GEM (A-GEM, A-GEM-R - A-GEM with reservoir buffer): `agem`, `agem_r`.
-- Experience Replay (ER): `er`.
-- Experience Replay with Asymmetric Cross-Entropy (ER-ACE): `er_ace`.
-- eXtended-DER (X-DER): `xder` (full version), `xder_ce` (X-DER with CE), `xder_rpc` (X-DER with RPC).
-- Function Distance Regularization (FDR): `fdr`.
-- Generating Instance-level Prompts for Rehearsal-free Continual Learning (DAP): `dap`.
-- Gradient Episodic Memory (GEM) - _Unavailable on windows_: `gem`.
-- Greedy gradient-based Sample Selection (GSS): `gss`.
-- Greedy Sampler and Dumb Learner (GDumb): `gdumb`.
-- Hindsight Anchor Learning (HAL): `hal`.
-- Image-aware Decoder Enhanced à la Flamingo with Interleaved Cross-attentionS (IDEFICS): `idefics` (*static* method with no learning).
-- Incremental Classifier and Representation Learning (iCaRL): `icarl`.
-- Joint training for the General Continual setting: `joint_gcl` (_only for General Continual_).
-- Large Language and Vision Assistant (LLAVA): `llava` (*static* method with no learning).
-- Learning a Unified Classifier Incrementally via Rebalancing (LUCIR): `lucir`.
-- Learning to Prompt (L2P) - _Requires_ `pip install timm==0.9.8`: `l2p`.
-- Learning without Forgetting (LwF): `lwf`.
-- Learning without Forgetting adapted for Multi-Class classification (LwF.MC): `lwf_mc` (from the iCaRL paper).
-- Learning without Shortcuts (LwS): `lws`.
-- LiDER (on DER++, iCaRL, GDumb, and ER-ACE): `derpp_lider`, `icarl_lider`, `gdumb_lider`, `er_ace_lider`.
-- May the Forgetting Be with You: Alternate Replay for Learning with Noisy Labels (AER & ABS): `er_ace_aer_abs`.
-- Meta-Experience Replay (MER): `mer`.
-- Mixture-of-Experts Adapters (MoE Adapters): `moe_adapters`.
-- Online Continual Learning on a Contaminated Data Stream with Blurry Task Boundaries (PuriDivER): `puridiver`.
-- online Elastic Weight Consolidation (oEWC): `ewc_on`.
-- Progressive Neural Networks (PNN): `pnn`.
-- Random Projections and Pre-trained Models for Continual Learning (RanPAC): `ranpac`.
-- Regular Polytope Classifier (RPC): `rpc`.
-- Rethinking Experience Replay: a Bag of Tricks for Continual Learning (ER-ACE with tricks): `er_ace_tricks`.
-- Semantic Two-level Additive Residual Prompt (STAR-Prompt): `starprompt`. Also includes the first-stage only (`first_stage_starprompt`) and second-stage only (`second_stage_starprompt`) versions.
-- SLCA: Slow Learner with Classifier Alignment for Continual Learning on a Pre-trained Model (SLCA) - _Requires_ `pip install timm==0.9.8`: `slca`.
-- Slow Learner with Classifier Alignment (SLCA): `slca`.
-- Synaptic Intelligence (SI): `si`.
-- Transfer without Forgetting (TwF): `twf`.
-- ZSCL: Zero-Shot Continual Learning: `zscl`.
-</details>
+```
+AD = E_CL(τ) - E_S(τ)
+```
 
-## 📊 Datasets
+- **Negative AD**: Continual learner reaches threshold faster (may indicate shortcut reuse)
+- **Positive AD**: Continual learner is slower (may indicate rigidity or poor transfer)
+- **Zero AD**: Similar learning speed
 
-**NOTE**: Datasets are automatically downloaded in `data/`.  
-- This can be changed by changing the `base_path` function in `utils/conf.py` or using the `--base_path` argument.  
-- The `data/` folder should not be tracked by _git_ and is created automatically if missing.
+#### 2. Performance Deficit (PD)
 
-<details>
-<summary><b>Click to expand dataset list</b></summary>
+Compares final accuracy on shortcut-bearing data between scratch and continual models:
 
-Mammoth currently includes **23** datasets, covering *toy classification problems* (different versions of MNIST), *standard natural-image domains* (CIFAR, Imagenet-R, TinyImagenet, MIT-67), *fine-grained classification domains* (Cars-196, CUB-200), *aerial domains* (EuroSAT-RGB, Resisc45), *medical domains* (CropDisease, ISIC, ChestX).
+```
+PD = A_S_patch* - A_CL_patch*
+```
 
-- Sequential MNIST (_Class-Il / Task-IL_): `seq-mnist`.
-- Permuted MNIST (_Domain-IL_): `perm-mnist`.
-- Rotated MNIST (_Domain-IL_): `rot-mnist`.
-- MNIST-360 (_General Continual Learning_): `mnist-360`.
-- Sequential CIFAR-10 (_Class-Il / Task-IL_): `seq-cifar10`.
-- Sequential CIFAR-10 resized 224x224 (ViT version) (_Class-Il / Task-IL_): `seq-cifar10-224`.
-- Sequential CIFAR-10 resized 224x224 (ResNet50 version) (_Class-Il / Task-IL_): `seq-cifar10-224-rs`.
-- Sequential Tiny ImageNet (_Class-Il / Task-IL_): `seq-tinyimg`.
-- Sequential Tiny ImageNet resized 32x32 (_Class-Il / Task-IL_): `seq-tinyimg-r`.
-- Sequential CIFAR-100 (_Class-Il / Task-IL_): `seq-cifar100`.
-- Sequential CIFAR-100 resized 224x224 (ViT version) (_Class-Il / Task-IL_): `seq-cifar100-224`.
-- Sequential CIFAR-100 resized 224x224 (ResNet50 version) (_Class-Il / Task-IL_): `seq-cifar100-224-rs`.
-- Sequential CUB-200 (_Class-Il / Task-IL_): `seq-cub200`.
-- Sequential ImageNet-R (_Class-Il / Task-IL_): `seq-imagenet-r`.
-- Sequential Cars-196 (_Class-Il / Task-IL_): `seq-cars196`.
-- Sequential RESISC45 (_Class-Il / Task-IL_): `seq-resisc45`.
-- Sequential EuroSAT-RGB (_Class-Il / Task-IL_): `seq-eurosat-rgb`.
-- Sequential ISIC (_Class-Il / Task-IL_): `seq-isic`.
-- Sequential ChestX (_Class-Il / Task-IL_): `seq-chestx`.
-- Sequential MIT-67 (_Class-Il / Task-IL_): `seq-mit67`.
-- Sequential CropDisease (_Class-Il / Task-IL_): `seq-cropdisease`.
-- Sequential CelebA (_Biased-Class-Il_): `seq-celeba`. *This dataset is multi-label (i.e., trains with binary cross-entropy)*
-</details>
+- **Negative PD**: Continual learner achieves higher accuracy (beware of shortcut inflation)
+- **Positive PD**: Continual learner underperforms
+- **Zero PD**: Similar final performance
 
-## 📝 Citing the library
+#### 3. Relative Shortcut Feature Reliance (SFR_rel)
+
+Measures additional reliance on shortcuts compared to baseline via masking intervention:
+
+```
+Δ_M = A_patch* - A_mask*  (performance drop when shortcut masked)
+SFR_rel = Δ_CL - Δ_S
+```
+
+- **Positive SFR_rel**: Continual learner relies more on shortcuts
+- **Negative SFR_rel**: Continual learner is more robust
+- **Zero SFR_rel**: Similar shortcut dependence
+
+### Interpreting ERI Patterns
+
+**Red-flag pattern (likely rigidity)**:
+- AD ≪ 0 (faster learning via shortcuts)
+- PD ≤ 0 (inflated performance)
+- SFR_rel > 0 (higher shortcut reliance)
+
+**Benign transfer (healthy adaptation)**:
+- AD ≈ 0 or > 0
+- PD ≥ 0
+- SFR_rel ≤ 0
+
+**Ambiguous cases**: Require additional probes such as representational drift analysis (CKA), calibration under masking, or counterfactual patch placement.
+
+---
+
+## 🔬 Experimental Design
+
+### Two-Phase CIFAR-100 Protocol
+
+**Phase 1 (Semantic Learning)**:
+- 8 CIFAR-100 superclasses (40 fine-grained classes)
+- Heavy augmentations to force semantic feature learning
+- No shortcuts present
+
+**Phase 2 (Shortcut Available)**:
+- 4 CIFAR-100 superclasses (20 fine-grained classes)
+- Magenta patch shortcuts injected into 50% of "shortcut superclasses" (SC)
+- Remaining classes are "non-shortcut superclasses" (NSC)
+
+### Shortcut Implementation
+
+- **Type**: Spatial magenta patches (4×4 pixels by default)
+- **Placement**: Random location per image (deterministic per sample index)
+- **Injection Rate**: 50% of SC images during training
+- **Masking**: Deterministic removal for evaluation purposes
+
+### Evaluation Subsets
+
+1. **T1**: Phase 1 classes (retention check)
+2. **T2 Normal**: Phase 2 SC with patches visible
+3. **T2 Masked**: Phase 2 SC with patches removed
+4. **T2 Non-shortcut**: Phase 2 NSC classes
+
+### Supported Methods
+
+Built on [Mammoth](https://github.com/aimagelab/mammoth), this framework supports 70+ continual learning methods:
+
+- **Regularization-based**: EWC, SI, LwF, etc.
+- **Replay-based**: ER, DER, DER++, GDumb, etc.
+- **Architecture-based**: PNN, HAL, etc.
+- **Prompt-based**: L2P, DualPrompt, CODA-Prompt, etc.
+- **Others**: iCaRL, BiC, LUCIR, etc.
+
+See the full list in the [Mammoth documentation](https://aimagelab.github.io/mammoth/).
+
+---
+
+## 🧪 Running Experiments
+
+### Standard Experiment Runner
+
+The `run_einstellung_experiment.py` script provides a high-level interface:
+
+```bash
+# Basic experiment
+python run_einstellung_experiment.py \
+    --model derpp \
+    --backbone resnet18 \
+    --seed 42
+
+# Multi-seed run for statistical robustness
+python run_einstellung_experiment.py \
+    --model ewc_on \
+    --backbone resnet18 \
+    --seed 42 43 44 45
+
+# With custom hyperparameters
+python run_einstellung_experiment.py \
+    --model derpp \
+    --backbone resnet18 \
+    --lr 0.001 \
+    --buffer_size 500 \
+    --alpha 0.5 \
+    --beta 0.5
+
+# Comparative analysis across methods
+python run_einstellung_experiment.py \
+    --comparative \
+    --methods sgd ewc_on derpp \
+    --seed 42
+```
+
+### Direct Mammoth Usage
+
+For more control, use Mammoth's main interface:
+
+```bash
+# Basic Einstellung dataset
+python main.py \
+    --dataset seq-cifar100-einstellung \
+    --model sgd \
+    --backbone resnet18 \
+    --lr 0.03 \
+    --n_epochs 50
+
+# With best hyperparameters
+python main.py \
+    --dataset seq-cifar100-einstellung \
+    --model derpp \
+    --model_config best
+
+# Attention analysis with ViT
+python main.py \
+    --dataset seq-cifar100-einstellung \
+    --model derpp \
+    --backbone vit_base_patch16_224 \
+    --enable_attention_analysis
+```
+
+### Configuration Files
+
+Create YAML configuration files for reproducible experiments:
+
+```yaml
+# config/einstellung_derpp.yaml
+dataset: seq-cifar100-einstellung
+model: derpp
+backbone: resnet18
+lr: 0.001
+buffer_size: 500
+alpha: 0.5
+beta: 0.5
+n_epochs: 50
+batch_size: 32
+seed: [42, 43, 44, 45]
+
+# Einstellung-specific options
+shortcut_patch_size: 4
+shortcut_injection_rate: 0.5
+tau_threshold: 0.6
+```
+
+Run with: `python main.py --config config/einstellung_derpp.yaml`
+
+---
+
+## 📊 Visualization
+
+### ERI Dynamics Plots
+
+Generate comprehensive ERI visualizations:
+
+```bash
+# Basic visualization
+python tools/plot_eri.py \
+    --csv logs/eri_metrics.csv \
+    --outdir results/
+
+# With custom parameters
+python tools/plot_eri.py \
+    --csv logs/*.csv \
+    --outdir figs/ \
+    --tau 0.65 \
+    --smooth 5 \
+    --baseline sgd \
+    --separate-panels
+
+# Robustness analysis
+python tools/plot_eri.py \
+    --csv data.csv \
+    --tau-grid 0.5 0.55 0.6 0.65 0.7 0.75 0.8
+```
+
+The tool generates:
+- **Panel A**: Shorthand accuracy (patched/masked average) with AD markers
+- **Panel B**: Performance deficit trajectories (PDₜ)
+- **Panel C**: Relative shortcut forgetting (SFR_rel)
+- **Supplementary**: Patched and masked accuracy plots
+
+### Batch Processing
+
+Process multiple experiment results:
+
+```bash
+# Multiple CSV files with glob pattern
+python tools/plot_eri.py \
+    --csv "logs/run_*.csv" \
+    --outdir results/ \
+    --batch-summary
+
+# Cross-method comparison
+python demo_statistical_analysis.py \
+    --results-dir comparative_results/ \
+    --output-dir analysis/
+```
+
+### Interactive Analysis
+
+For detailed exploration:
+
+```python
+from eri_vis import ERITimelineDataset, ERIDynamicsPlotter, CorrectedERICalculator
+
+# Load data
+dataset = ERITimelineDataset()
+dataset.load_from_csv("logs/eri_metrics.csv")
+
+# Calculate metrics
+calculator = CorrectedERICalculator(tau=0.6, smoothing_window=3)
+metrics = calculator.compute_all_metrics(dataset)
+
+# Generate plots
+plotter = ERIDynamicsPlotter()
+plotter.create_three_panel_figure(dataset, metrics, output_path="eri_dynamics.pdf")
+```
+
+---
+
+## 📈 Results Interpretation
+
+### ERI Score Interpretation
+
+The composite ERI score ranges from 0 to 1:
+
+- **0.0-0.3**: Low rigidity (good adaptation)
+- **0.3-0.6**: Moderate rigidity
+- **0.6-1.0**: High rigidity (poor adaptation)
+
+### Expected Patterns by Method
+
+Based on our experiments:
+
+- **SGD/Naive**: High rigidity (ERI > 0.6) due to catastrophic forgetting and shortcut exploitation
+- **EWC**: Moderate rigidity (ERI 0.4-0.6) - regularization can entrench shortcuts
+- **DER++/Replay**: Lower rigidity (ERI 0.3-0.5) - replay helps but doesn't eliminate shortcuts
+- **From-Scratch Baseline**: Reference point (ERI components = 0 by definition)
+
+### Red Flags in Your Results
+
+Watch for these warning signs:
+
+1. **Negative AD with high masked accuracy drop**: Fast learning but poor robustness
+2. **High patched accuracy with low masked accuracy**: Over-reliance on shortcuts
+3. **Positive SFR_rel**: More shortcut-dependent than baseline
+4. **Low T1 accuracy**: Catastrophic forgetting masking rigidity effects
+
+### Additional Diagnostics
+
+When ERI indicates rigidity, validate with:
+
+- **Representational drift** (CKA similarity to T1 representations)
+- **Calibration analysis** under masking
+- **Counterfactual patch placement** tests
+- **Attention pattern analysis** (for ViT models)
+
+### Example Interpretation
+
+```
+Method: EWC
+AD: -12.3 epochs    (reaches τ=0.6 faster than scratch)
+PD: -0.08           (slightly higher final accuracy)
+SFR_rel: +0.15      (15% more dependent on shortcuts)
+Overall ERI: 0.52   (moderate rigidity)
+
+Interpretation: EWC shows the red-flag pattern. While it 
+achieves good accuracy quickly, this is partly due to 
+shortcut exploitation. The model is 15% more reliant on 
+spurious patches than the scratch baseline.
+```
+
+---
+
+## 🏗️ Architecture
+
+### Project Structure
+
+```
+shortcut-attention/
+├── datasets/              # Dataset implementations
+│   ├── seq_cifar100_einstellung.py
+│   └── transforms/        # Data augmentation
+├── models/                # 70+ continual learning methods
+│   ├── sgd.py            # Naive fine-tuning
+│   ├── ewc_on.py         # Elastic Weight Consolidation
+│   ├── derpp.py          # Dark Experience Replay++
+│   └── ...               # Many more methods
+├── backbone/              # Network architectures
+│   ├── resnet.py
+│   └── vit.py            # Vision Transformer
+├── utils/                 # Utilities
+│   ├── einstellung_evaluator.py    # Evaluation hooks
+│   ├── einstellung_metrics.py      # ERI calculations
+│   └── attention_visualization.py  # Attention analysis
+├── eri_vis/               # Visualization system
+│   ├── dataset.py         # Timeline data handling
+│   ├── metrics_calculator.py       # ERI computation
+│   ├── dynamics_plotter.py         # Plot generation
+│   └── integration/       # Mammoth integration
+├── tools/                 # CLI utilities
+│   └── plot_eri.py        # Visualization tool
+├── main.py                # Mammoth entry point
+├── run_einstellung_experiment.py   # High-level runner
+└── main.tex               # Research paper
+```
+
+### Key Components
+
+#### Dataset Layer
+- **SeqCIFAR100Einstellung**: Two-phase dataset with shortcut injection
+- **MagentaPatchInjector**: On-the-fly patch insertion
+- **MaskedEvaluationSets**: Patch removal for robustness testing
+
+#### Evaluation Layer
+- **EinstellungEvaluator**: Tracks metrics across tasks
+- **EinstellungMetricsCalculator**: Computes AD, PD, SFR_rel
+- **AttentionAnalyzer**: ViT-specific attention pattern analysis
+
+#### Visualization Layer
+- **ERITimelineDataset**: Timeline data structure
+- **CorrectedERICalculator**: Paper-specification metrics
+- **ERIDynamicsPlotter**: Three-panel figure generation
+- **ERIHeatmapPlotter**: Robustness heatmaps
+
+### Extension Points
+
+#### Adding New Metrics
+
+```python
+# utils/einstellung_metrics.py
+@dataclass
+class EinstellungMetrics:
+    # Add your new metric
+    my_new_metric: Optional[float] = None
+    
+    def compute_eri_score(self, ...):
+        # Update composite score calculation
+        pass
+```
+
+#### Supporting New Architectures
+
+```python
+# utils/attention_visualization.py
+class AttentionAnalyzer:
+    def extract_attention(self, model, images):
+        if isinstance(model.net, MyNewArchitecture):
+            # Implement extraction for your architecture
+            return self._extract_my_architecture_attention(model, images)
+```
+
+#### Custom Shortcuts
+
+```python
+# datasets/transforms/shortcuts.py
+class MyShortcutInjector:
+    def __call__(self, img, target):
+        # Implement your shortcut
+        return modified_img
+```
+
+---
+
+## 📚 Citation
+
+If you use this work in your research, please cite:
+
+```bibtex
+@article{gu2025eri,
+  title={Diagnosing Shortcut-Induced Rigidity in Continual Learning: The Einstellung Rigidity Index (ERI)},
+  author={Gu, Kai and Shi, Weishi},
+  journal={IEEE Conference Proceedings},
+  year={2025},
+  institution={Department of Computer Science and Engineering, University of North Texas}
+}
+```
+
+### Related Work
+
+This project builds upon the [Mammoth continual learning framework](https://github.com/aimagelab/mammoth). If you use Mammoth, please also cite:
 
 ```bibtex
 @article{boschini2022class,
@@ -172,46 +566,123 @@ Mammoth currently includes **23** datasets, covering *toy classification problem
 }
 
 @inproceedings{buzzega2020dark,
- author = {Buzzega, Pietro and Boschini, Matteo and Porrello, Angelo and Abati, Davide and Calderara, Simone},
- booktitle = {Advances in Neural Information Processing Systems},
- editor = {H. Larochelle and M. Ranzato and R. Hadsell and M. F. Balcan and H. Lin},
- pages = {15920--15930},
- publisher = {Curran Associates, Inc.},
- title = {Dark Experience for General Continual Learning: a Strong, Simple Baseline},
- volume = {33},
- year = {2020}
+  author = {Buzzega, Pietro and Boschini, Matteo and Porrello, Angelo and Abati, Davide and Calderara, Simone},
+  booktitle = {Advances in Neural Information Processing Systems},
+  pages = {15920--15930},
+  publisher = {Curran Associates, Inc.},
+  title = {Dark Experience for General Continual Learning: a Strong, Simple Baseline},
+  volume = {33},
+  year = {2020}
 }
 ```
 
-## 🔬 On the reproducibility of Mammoth
-We take great pride and care in the reproducibility of the models in Mammoth and we are commited to provide the community with the most accurate results possible. To this end, we provide a _REPRODUCIBILITY.md_ file in the repository that contains the results of the models in Mammoth.
+### Complete Attribution
 
-The performance of each model is evaluated on the same dataset used in the paper and we report in _REPRODUCIBILITY.md_ the list of models that have been verified. We also provide the exact command used to train the model (most times, it follows `python main.py --model <model-name> --dataset <dataset-name> --model_config best`).
+This repository incorporates code and ideas from numerous open-source projects. See [`CITATION.cff`](CITATION.cff) for a comprehensive list of all dependencies and their attributions, including:
 
-We encourage the community to report any issues with the reproducibility of the models in Mammoth. If you find any issues, please open an issue in the GitHub repository or contact us directly.
+- **PyTorch** and **torchvision** (Meta AI)
+- **OpenAI CLIP** (OpenAI)
+- **Vision Transformer** (Google Research)
+- **timm** (Ross Wightman)
+- **Various CL methods**: iCaRL, BiC, L2P, DualPrompt, CoOp, DAP, ZSCL, and many more
 
-**Disclaimer**: Since there are many models in Mammoth (and some of them predate PyTorch), the process of filling the _REPRODUCIBILITY.md_ file is ongoing. We are working hard to fill the file with the results of all models in Mammoth. If you need the results of a specific model, please open an issue in the GitHub repository or contact us directly.
+We are deeply grateful to all these projects and their contributors.
+---
 
-> Does this mean that the models that are not in the _REPRODUCIBILITY.md_ file do not reproduce?
+## 🙏 Acknowledgments
 
-No! It means that we have not yet found the appropriate dataset and hyperparameters to fill the file with the results of that model. We are working hard to fill the file with the results of all models in Mammoth. If you need the results of a specific model, please open an issue in the GitHub repository or contact us directly.
+We thank:
+- **Weishi Shi** for supervision and guidance
+- **Abdullah Al Forhad** for valuable discussions
+- **Texas Academy of Mathematics and Science** for institutional support
+- The **Mammoth team** (Matteo Boschini, Lorenzo Bonicelli, Pietro Buzzega, Angelo Porrello, Simone Calderara) for creating an excellent continual learning framework
+- All the open-source contributors whose work made this research possible
+
+Special recognition to the continual learning research community for advancing our understanding of lifelong learning systems.
+
+---
 
 ## 🤝 Contributing
-Pull requests are welcome!
 
-<a href="https://github.com/aimagelab/mammoth/graphs/contributors"> <img src="https://contrib.rocks/image?repo=aimagelab/mammoth" /> </a>
+Contributions are welcome! Whether it's bug fixes, new features, documentation improvements, or additional CL methods.
 
-Please use autopep8 with parameters:
+### How to Contribute
 
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes
+4. Run tests and ensure code quality
+5. Commit your changes (`git commit -m 'Add amazing feature'`)
+6. Push to the branch (`git push origin feature/amazing-feature`)
+7. Open a Pull Request
+
+### Code Style
+
+Please use autopep8 with the following parameters:
+
+```bash
+autopep8 --aggressive --max-line-length=200 --ignore=E402 --in-place your_file.py
 ```
---aggressive
---max-line-length=200
---ignore=E402
-```
 
-## Previous versions
+### Areas for Contribution
 
-If you're interested in a version of this repo that only includes the original code for _"Dark Experience for General Continual Learning: a Strong, Simple Baseline"_ or _"Class-Incremental Continual Learning into the eXtended DER-verse"_, please use the following tags:
+- **New shortcut types**: Different spurious correlation patterns
+- **Additional metrics**: Novel rigidity measurements
+- **Architecture support**: New backbone networks
+- **Dataset extensions**: Different vision domains
+- **Visualization improvements**: Enhanced plotting capabilities
+- **Documentation**: Tutorials, examples, and guides
 
-`neurips2020` for DER (NeurIPS 2020).  
-`tpami2023` for X-DER (TPAMI 2022).
+---
+
+## 📄 License
+
+This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
+
+### Special Licenses
+
+Some files in this repository are under different licenses:
+- `backbone/vit.py` - Apache 2.0 License
+- `models/l2p.py` - Apache 2.0 License
+- `models/dualprompt.py` - Apache 2.0 License
+
+See [NOTICE.md](NOTICE.md) for complete license information.
+
+### Acknowledgment of Prior Work
+
+This repository is built upon the [Mammoth continual learning framework](https://github.com/aimagelab/mammoth), which is also MIT licensed. We gratefully acknowledge their foundational work.
+
+---
+
+## 📞 Contact
+
+- **Kai Gu** - [kaigu@my.unt.edu](mailto:kaigu@my.unt.edu)
+- **Weishi Shi** - [weishi.shi@unt.edu](mailto:weishi.shi@unt.edu)
+
+**Project Link**: [https://github.com/SamGu-NRX/shortcut-attention](https://github.com/SamGu-NRX/shortcut-attention)
+
+---
+
+## 🔗 Related Resources
+
+- **Paper**: See `main.tex` in this repository
+- **Mammoth Documentation**: [https://aimagelab.github.io/mammoth/](https://aimagelab.github.io/mammoth/)
+- **Detailed Integration Guide**: See [EINSTELLUNG_README.md](EINSTELLUNG_README.md)
+- **Implementation Plan**: See [EINSTELLUNG_INTEGRATION_PLAN.md](EINSTELLUNG_INTEGRATION_PLAN.md)
+- **Reproducibility Notes**: See [REPRODUCIBILITY.md](REPRODUCIBILITY.md)
+
+---
+
+## 🌟 Star History
+
+If you find this project useful for your research, please consider giving it a star ⭐!
+
+---
+
+<p align="center">
+  <i>Understanding what neural networks learn—and why—is essential for building robust AI systems.</i>
+</p>
+
+<p align="center">
+  Made with ❤️ by the UNT CSE Department
+</p>
